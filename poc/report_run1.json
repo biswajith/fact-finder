@@ -1,0 +1,410 @@
+{
+  "run_id": "run_2026_11_03_c5f25b",
+  "deal_id": "deal_poc",
+  "doc_id": "rfp-uc26-039",
+  "pages": 45,
+  "ids": 849,
+  "candidates": 292,
+  "uncited_candidates_after_sweep": 0,
+  "sweep_none": 22,
+  "facts": 570,
+  "by_category": {
+    "B": 18,
+    "C": 84,
+    "G": 32,
+    "X": 37,
+    "S": 41,
+    "D": 51,
+    "R": 302,
+    "Q": 5
+  },
+  "by_status": {
+    "valid": 532,
+    "conflict": 21,
+    "needs_review": 17
+  },
+  "seconds": {
+    "extract": 30.12,
+    "sweep": 17.01,
+    "check": 25.5,
+    "total": 72.66
+  },
+  "cache_hit_calls_2_to_n": 0.0,
+  "output_tokens": 25618,
+  "failed_calls": [],
+  "decision_errors": [],
+  "calls": [
+    {
+      "name": "A",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 16.93284886100446,
+      "usage": {
+        "input_tokens": 31114,
+        "cached_tokens": 0,
+        "output_tokens": 2400
+      },
+      "lines": 66,
+      "end_count": 56,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "fact has 30 words or more",
+        "END says 56 lines, got 66"
+      ]
+    },
+    {
+      "name": "B",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 12.76847434201045,
+      "usage": {
+        "input_tokens": 31153,
+        "cached_tokens": 0,
+        "output_tokens": 1575
+      },
+      "lines": 37,
+      "end_count": 35,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 35 lines, got 37"
+      ]
+    },
+    {
+      "name": "C",
+      "kind": "extract",
+      "status": "split",
+      "seconds": 10.403869093977846,
+      "usage": {
+        "input_tokens": 31155,
+        "cached_tokens": 0,
+        "output_tokens": 1322
+      },
+      "lines": 32,
+      "end_count": null,
+      "failed_lines": 15,
+      "retries": 0,
+      "log": [
+        "output cut; rerunning as C.D, C.S"
+      ]
+    },
+    {
+      "name": "R1",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 11.757255239004735,
+      "usage": {
+        "input_tokens": 31168,
+        "cached_tokens": 0,
+        "output_tokens": 1661
+      },
+      "lines": 60,
+      "end_count": 50,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 50 lines, got 60"
+      ]
+    },
+    {
+      "name": "R2",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 9.638715299981413,
+      "usage": {
+        "input_tokens": 31168,
+        "cached_tokens": 0,
+        "output_tokens": 1140
+      },
+      "lines": 34,
+      "end_count": 32,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "main ID p13.1 is outside pages 9-12",
+        "END says 32 lines, got 34"
+      ]
+    },
+    {
+      "name": "R3",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 8.650530795013765,
+      "usage": {
+        "input_tokens": 31168,
+        "cached_tokens": 0,
+        "output_tokens": 964
+      },
+      "lines": 25,
+      "end_count": 24,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 24 lines, got 25"
+      ]
+    },
+    {
+      "name": "R4",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 11.30434845900163,
+      "usage": {
+        "input_tokens": 31168,
+        "cached_tokens": 0,
+        "output_tokens": 1481
+      },
+      "lines": 35,
+      "end_count": 32,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 32 lines, got 35"
+      ]
+    },
+    {
+      "name": "R5",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 11.6265891759831,
+      "usage": {
+        "input_tokens": 31168,
+        "cached_tokens": 0,
+        "output_tokens": 1413
+      },
+      "lines": 33,
+      "end_count": 29,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 29 lines, got 33"
+      ]
+    },
+    {
+      "name": "R6",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 16.987894793011947,
+      "usage": {
+        "input_tokens": 31168,
+        "cached_tokens": 0,
+        "output_tokens": 959
+      },
+      "lines": 17,
+      "end_count": 17,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "fact has 30 words or more"
+      ]
+    },
+    {
+      "name": "R7",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 19.085687380022136,
+      "usage": {
+        "input_tokens": 31168,
+        "cached_tokens": 0,
+        "output_tokens": 948
+      },
+      "lines": 29,
+      "end_count": 26,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 26 lines, got 29"
+      ]
+    },
+    {
+      "name": "R8",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 26.740446345997043,
+      "usage": {
+        "input_tokens": 31168,
+        "cached_tokens": 0,
+        "output_tokens": 2057
+      },
+      "lines": 42,
+      "end_count": 40,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "fact has 30 words or more",
+        "END says 40 lines, got 42"
+      ]
+    },
+    {
+      "name": "R9",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 18.588011697982438,
+      "usage": {
+        "input_tokens": 31168,
+        "cached_tokens": 0,
+        "output_tokens": 796
+      },
+      "lines": 21,
+      "end_count": 19,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "main ID p36.4 is outside pages 40-45",
+        "END says 19 lines, got 21"
+      ]
+    },
+    {
+      "name": "C.repair",
+      "kind": "repair",
+      "status": "ok",
+      "seconds": 6.919158932985738,
+      "usage": {
+        "input_tokens": 31817,
+        "cached_tokens": 0,
+        "output_tokens": 570
+      },
+      "lines": 14,
+      "end_count": null,
+      "failed_lines": 4,
+      "retries": 0,
+      "log": []
+    },
+    {
+      "name": "C.D",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 10.889020307018654,
+      "usage": {
+        "input_tokens": 31098,
+        "cached_tokens": 0,
+        "output_tokens": 1095
+      },
+      "lines": 33,
+      "end_count": 29,
+      "failed_lines": 7,
+      "retries": 0,
+      "log": [
+        "END says 29 lines, got 33"
+      ]
+    },
+    {
+      "name": "C.S",
+      "kind": "extract",
+      "status": "partial",
+      "seconds": 10.82749049400445,
+      "usage": {
+        "input_tokens": 31103,
+        "cached_tokens": 0,
+        "output_tokens": 1023
+      },
+      "lines": 27,
+      "end_count": null,
+      "failed_lines": 1,
+      "retries": 0,
+      "log": [
+        "output cut and the call cannot be split further; kept valid lines"
+      ]
+    },
+    {
+      "name": "C.S.repair",
+      "kind": "repair",
+      "status": "ok",
+      "seconds": 2.4481663899787236,
+      "usage": {
+        "input_tokens": 31123,
+        "cached_tokens": 0,
+        "output_tokens": 172
+      },
+      "lines": 1,
+      "end_count": null,
+      "failed_lines": 1,
+      "retries": 0,
+      "log": []
+    },
+    {
+      "name": "C.D.repair",
+      "kind": "repair",
+      "status": "ok",
+      "seconds": 1.9224580040026922,
+      "usage": {
+        "input_tokens": 31438,
+        "cached_tokens": 0,
+        "output_tokens": 170
+      },
+      "lines": 7,
+      "end_count": null,
+      "failed_lines": 1,
+      "retries": 0,
+      "log": []
+    },
+    {
+      "name": "SWEEP1",
+      "kind": "sweep",
+      "status": "ok",
+      "seconds": 16.978260101983324,
+      "usage": {
+        "input_tokens": 31448,
+        "cached_tokens": 0,
+        "output_tokens": 2088
+      },
+      "lines": 60,
+      "end_count": 54,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 54 lines, got 60"
+      ]
+    },
+    {
+      "name": "SWEEP2",
+      "kind": "sweep",
+      "status": "ok",
+      "seconds": 12.875718926021364,
+      "usage": {
+        "input_tokens": 31343,
+        "cached_tokens": 0,
+        "output_tokens": 1502
+      },
+      "lines": 39,
+      "end_count": 37,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 37 lines, got 39"
+      ]
+    },
+    {
+      "name": "CHECK",
+      "kind": "check",
+      "status": "ok",
+      "seconds": 21.49391878899769,
+      "usage": {
+        "input_tokens": 47294,
+        "cached_tokens": 0,
+        "output_tokens": 1990
+      },
+      "lines": 5,
+      "end_count": 5,
+      "failed_lines": 1,
+      "retries": 0,
+      "log": []
+    },
+    {
+      "name": "CHECK.repair",
+      "kind": "repair",
+      "status": "ok",
+      "seconds": 3.982099040003959,
+      "usage": {
+        "input_tokens": 31155,
+        "cached_tokens": 0,
+        "output_tokens": 292
+      },
+      "lines": 1,
+      "end_count": null,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": []
+    }
+  ]
+}

@@ -1,0 +1,505 @@
+{
+  "run_id": "run_2026_11_03_2e5a9a",
+  "deal_id": "deal_poc",
+  "doc_id": "rfp-uc26-039",
+  "pages": 45,
+  "ids": 849,
+  "candidates": 333,
+  "uncited_candidates_after_sweep": 0,
+  "sweep_none": 43,
+  "facts": 534,
+  "by_category": {
+    "B": 12,
+    "C": 76,
+    "Q": 9,
+    "G": 22,
+    "X": 22,
+    "D": 23,
+    "S": 44,
+    "E": 8,
+    "R": 318
+  },
+  "by_status": {
+    "valid": 504,
+    "conflict": 27,
+    "needs_review": 3
+  },
+  "seconds": {
+    "extract": 34.54,
+    "sweep": 13.9,
+    "check": 18.37,
+    "total": 66.82
+  },
+  "cache_hit_calls_2_to_n": 0.0,
+  "output_tokens": 26829,
+  "performance": {
+    "call_seconds": {
+      "n": 19,
+      "p50": 12.159,
+      "p95": 22.158,
+      "max": 22.918
+    },
+    "model_seconds": {
+      "n": 19,
+      "p50": 12.093,
+      "p95": 22.114,
+      "max": 22.866
+    },
+    "ttft_seconds": {
+      "n": 19,
+      "p50": 4.949,
+      "p95": 7.66,
+      "max": 16.857
+    },
+    "queue_seconds": {
+      "n": 19,
+      "p50": 0.0,
+      "p95": 0.632,
+      "max": 6.323
+    },
+    "tokens_per_second": {
+      "n": 19,
+      "p50": 110.4,
+      "p95": 136.82,
+      "max": 139.7,
+      "p5": 81.33
+    },
+    "extract_stage_tokens_per_second": 570.4
+  },
+  "failed_calls": [],
+  "decision_errors": [],
+  "calls": [
+    {
+      "name": "A",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 22.07332027098164,
+      "queue_seconds": 7.2160037234425545e-06,
+      "ttft_seconds": 2.496,
+      "model_seconds": 22.03,
+      "tokens_per_second": 121.4,
+      "usage": {
+        "input_tokens": 31306,
+        "cached_tokens": 0,
+        "output_tokens": 2674
+      },
+      "lines": 74,
+      "end_count": 66,
+      "failed_lines": 40,
+      "retries": 0,
+      "log": [
+        "fact has 30 words or more",
+        "END says 66 lines, got 74"
+      ],
+      "output": "B|Ulster County is buying actuarial services for its Self-Insurance Plan through the Department of General Services|p1.h1,p1.h4,p1.h6|\nB|The plan covers County Government, local municipalities, school districts, and volunteer firefighters|p4.1|\nB|The County seeks an annual actuarial valuation of its self-insured workers\u2019 compensation program|p4.2|\nB|The County seeks annual liability estimates for years ending December 31, 2026, 2027, and 2028, with two optional one-year renewals for 2029 and 2030|p4.3|\nB|Each annual report must include a three-year forecast|p4.4|\nB|The plan covers employees of the County, 20 towns, 3 villages, 7 school districts, 26 volunteer fire districts, 1 city, and Ulster County Community College|p4.10|\nB|The plan is administered by County employees with a third-party administrator and overseen by the County Executive|p4.11|\nB|The County seeks independent analysis of workers\u2019 compensation loss reserves, including incurred but not reported losses|p4.12|\nB|The study must estimate year-end total reserves on discounted and undiscounted bases|p4.13|\nB|Buyer contact is Brenden Boughton, Principal Buyer, Department of General Services, 100 Development Court, Kingston, NY 12401; phone 845-340-3999; email bbou@ulstercountyny.gov|p2.1,p3.5|\nB|Questions must be sent in writing to Brenden Boughton by email or fax at least ten calendar days before proposal submission; inquiries after that date will not be considered|p7.23,p8.1,p8.2|\nB|The County awards to the responder whose proposal best meets its criteria, subject to available funds|p10.20,p10.21,p10.22|\nC|Contract term is January 1, 2027 through December 31, 2029, with up to two additional one-year extensions by mutual agreement under identical terms|p11.2,p11.3|\nC|Contract execution requires a separate Business Associate Agreement executed simultaneously with the professional services agreement|p11.5,p11.6,p11.7|\nC|The County\u2019s contract obligations are limited to appropriated and available funds; it may terminate if funding is unavailable or reduced|p17.4,p17.5|\nC|The County may deduct or recover funding reductions from future payments or the Firm|p17.8,risk|\nC|Submit a fee schedule covering all labor, materials, travel, equipment, and other costs needed to provide the service|p9.13,mandatory|\nC|Submit the fee/cost proposal separately, unbound, in a separate envelope marked \u201cCOST PROPOSAL\u201d with the RFP name and number|p9.10,p9.11,mandatory|\nC|Provide hourly fee rates for additional actuarial services; those services are billed hourly|p5.4,p5.5,p5.6|\nC|The County will not pay for services outside Schedule A without prior written authorization through a change order, amendment, or addendum|p16.11,risk|\nC|Costs exceeding the contract amount require prior written authorization; the County disclaims responsibility for unauthorized excess costs|p16.14,p16.15,p17.1,risk|\nC|The County invoices monthly; payment is due within sixty days after invoice receipt with supporting documents and approval by the Department Head and County Comptroller|p13.6,p13.7,p13.8|\nC|County may reject invoices submitted more than one hundred twenty days after the required submission date|p30.11,p30.12,risk|\nC|Invoices must include wage and salary reporting and living-wage certification as applicable|p30.5,p30.6,p30.7|\nC|The County may require additional invoicing requirements with reasonable notice|p30.13,risk|\nC|Maintain required Schedule C insurance at the Firm\u2019s expense throughout the contract|p12.3,p23.11,mandatory|\nC|File evidence of required insurance within ten days of notice of award|p12.4,mandatory|\nC|Certificates of insurance are due before work begins; failure to provide certificates delays contract execution|p31.1,p31.7,mandatory|\nC|Commercial general liability must be at least $1,000,000.00 per occurrence and $2,000,000.00 general aggregate|p32.14,p32.15,mandatory|\nC|Umbrella or excess liability must be at least $2,000,000.00 and follow the underlying coverage without additional exclusions|p32.20,p33.2,mandatory|\nC|Automobile liability must have a $1,000,000.00 minimum combined single limit and cover owned, hired, and non-owned vehicles|p33.5,p33.6,p33.7,p33.8,p33.9,mandatory|\nC|Professional liability must be at least $1,000,000.00 per occurrence and $2,000,000.00 aggregate|p33.11,p33.12,mandatory|\nC|Cyber liability must be at least $5,000,000.00 per occurrence and $5,000,000.00 aggregate; submit policy copies with the certificate|p33.13,p33.14,mandatory|\nC|Name Ulster County as additional insured on commercial general liability policies; coverage must be primary and non-contributory|p23.14,p32.18,p32.19,mandatory|\nC|The Firm waives claims against the County for losses commercially insurable under the required insurance|p23.15,risk|\nC|The Firm indemnifies, defends, and holds the County harmless for claims arising from the Firm\u2019s negligence, fault, acts, or omissions, including legal costs|p24.2,p24.3,risk|\nC|The County may withhold payments to cover claims arising from the Firm\u2019s negligence, fault, acts, or omissions|p24.4,risk|\nC|The Firm must correct service deficiencies at its own expense when reported within 120 days after completion and final acceptance|p24.6,risk|\nC|The County may terminate all or part of the agreement at any time for convenience, noncompliance, or insolvency; convenience termination pays for services rendered|p25.9,p25.10,risk|\nC|After termination, the Firm must refund unearned or unspent funds and provide a property inventory within ten days|p25.11,p25.12,p25.13|\nC|The County may charge the Firm for replacement services after termination for reasons other than convenience and withhold payment pending damage calculations|p25.14,p25.15,p25.16,p25.17,risk|\nC|The County may set off amounts owed under this contract, other County contracts, or amounts due to the County for any reason|p26.1,p26.2,p26.3,risk|\nC|Disputes cannot go to arbitration unless the Executive or Director of General Services agrees in writing; venue is Ulster County Supreme Court or the Northern District of New York, Albany Division|p26.4,risk|\nC|The Firm is liable for the County\u2019s reasonable legal costs and prejudgment interest in specified contract enforcement disputes, including professional negligence|p26.5,p26.6,risk|\nC|New York State law governs the agreement|p26.8|\nC|Confidential information must be secured, used only for contract services, and not disclosed without prior written County consent|p21.2,p21.5,p21.8|\nC|The County may inspect the Firm\u2019s offices to review security arrangements for confidential information|p21.6,risk|\nC|Authorized retained confidential information must be stored securely for six years after service completion or contract termination, whichever is later, then disposed of at County direction|p21.18|\nC|Contract records must be retained for six years after final payment or termination, whichever is later, and be available for audit|p22.4,p22.5|\nC|The County may deny interim or final payment if audit requirements or requests are not satisfactorily met|p22.6,p22.7,p22.10,risk|\nC|The County owns all confidential information and copies, whether or not delivered to the County|p21.15,p21.16,risk|\nC|The Firm may not publicize contract services or data without prior written County approval|p22.1|\nC|The Firm may not assign contract rights, obligations, or services without prior written County consent|p19.16,p19.17|\nC|Provide subcontractor names and work scopes upon signing; the Firm remains responsible for subcontractor acts and omissions|p20.9,p20.11|\nC|The Firm must obtain confidentiality agreements from subcontractors before they perform services|p21.13|\nC|The Firm must notify the County Attorney immediately if it or covered personnel become barred from public business; failure may result in immediate termination|p14.4,p14.5,risk|\nC|The Firm must comply with the County Compliance Plan; the County may terminate for noncompliance|p18.21,p18.22|\nC|The Firm must disclose ownership information with its bid or before contract, whichever comes first, including specified owners, principals, family members, and subsidiaries|p12.5,p12.6,p12.7,p12.8,p12.9,mandatory|\nC|Submit the Disclosure of Ownership Interest Certification Form|p13.1,p36.4,mandatory|\nC|Submit the Affidavit of Non-Collusion with the proposal|p14.1,p36.4,mandatory|\nC|Submit a notarized Iranian Divestment Certificate|p36.4,p42.1,p42.6,p42.8,mandatory|\nC|Submit the MacBride Fair Employment Principles statement and initial exactly one of its two statements|p36.4,p43.2,p43.3,mandatory|\nC|Submit the Living Wage Acknowledgement and Acceptance Declaration|p36.4,p40.4,p40.5,mandatory|\nC|If the agreement is at least $50,000.00 in a County fiscal year and no exemption applies, pay employees the applicable living wage|p14.7,p23.6,risk|\nC|The Firm must comply with applicable federal, State, and County laws, policies, rules, and regulations|p11.13,p20.17|\nC|The Firm must provide photo identification while on County property and show it when requested|p11.16,p12.1|\nC|The County may reject and bar a contractor employee from its facility at its sole discretion for good and sufficient reason|p12.2,risk|\nC|The Firm must give written notice of delay claims within 30 days of the event; extensions require a signed written change order, amendment, or addendum|p25.4,p25.5,p25.7|\nC|The County is not liable for damages arising from delays|p25.8,risk|\nC|The Firm must provide written force majeure notice within thirty days and use diligent efforts to reduce delay; financial inability is not force majeure|p28.6,p28.8|\nC|The Firm\u2019s sole remedy for force majeure delay is a written request for a time extension; the County is not liable for delay damages|p28.9,p28.10,p28.12,risk|\nC|Final payment releases the County from the Firm\u2019s claims arising from contract performance|p26.13,risk|\nC|The agreement\u2019s terms, including Schedules A, B, and C, supersede other understandings or writings|p27.1|\nQ|The actuarial period is stated as ending 2026\u20132028 with optional valuation years 2029\u20132030, while the contract term runs 2027\u20132029 with optional extensions; confirm how these periods align|p4.3,p11.2,p11.3|unclear\nEND|66"
+    },
+    {
+      "name": "B",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 15.828464869002346,
+      "queue_seconds": 9.114010026678443e-06,
+      "ttft_seconds": 4.365,
+      "model_seconds": 15.801,
+      "tokens_per_second": 104.9,
+      "usage": {
+        "input_tokens": 31313,
+        "cached_tokens": 0,
+        "output_tokens": 1657
+      },
+      "lines": 40,
+      "end_count": 33,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "fact has 30 words or more",
+        "END says 33 lines, got 40"
+      ],
+      "output": "G|Firm must be properly licensed or permitted to provide actuarial services in New York State for at least four (4) years|[p5.10]|mandatory\nG|Actuary must certify loss reserve estimates and provide a Statement of Actuarial Opinion on actuarially derived items in County financial statements|[p6.8]|mandatory\nG|Maintain the insurance coverage required by Schedule C throughout the contract|[p12.3],[p23.11]|mandatory\nG|Provide commercial general liability coverage of at least $1,000,000.00 per occurrence and $2,000,000.00 general aggregate|[p32.15]|mandatory\nG|Provide umbrella or excess liability coverage of at least $2,000,000.00|[p32.20]|mandatory\nG|Provide automobile liability coverage with a minimum combined single limit of $1,000,000.00|[p33.5]|mandatory\nG|Provide professional liability coverage of at least $1,000,000.00 per occurrence and $2,000,000.00 general aggregate|[p33.12]|mandatory\nG|Provide cyber liability coverage of at least $5,000,000.00 per occurrence and $5,000,000.00 general aggregate|[p33.13]|mandatory\nG|Name Ulster County as additional insured on commercial general liability, umbrella or excess, and automobile policies|[p23.14],[p32.18],[p33.3],[p33.9]|mandatory\nG|Submit required insurance evidence within ten (10) days of notice of award|[p12.4]|mandatory\nG|Submit required insurance certificates to County Risk Management before beginning work|[p31.7]|mandatory\nG|Submit acceptable proof of workers\u2019 compensation and disability benefits coverage, or Form CE-200 if exempt|[p31.17],[p31.19],[p32.5],[p32.7],[p32.11]|mandatory\nG|Neither responder nor its officers, employees, subcontractors, or agents may be debarred or excluded from doing business with a government agency|[p14.2]|mandatory\nG|Disclose required ownership interests, principals, family and household members, and subsidiary entities|[p12.5],[p12.6],[p12.7],[p12.8],[p12.9],[p13.1]|mandatory\nG|If awarded, comply with the Living Wage Act when the agreement is at least $50,000.00 in a County fiscal year, unless exempt|[p14.7]|mandatory\nG|If awarded, comply with applicable federal, state, and County laws, policies, procedures, standards, and regulations|[p11.13]|mandatory\nG|If awarded, sign a separate Business Associate Agreement simultaneously with the professional services agreement|[p11.5],[p11.7]|mandatory\nG|If awarded, maintain required insurance at the Firm\u2019s expense during the agreement term|[p23.11]|mandatory\nX|Proposal must be received by 2026-08-28 4:00 P.M.; late proposals will not be opened|[p3.3],[p3.4],[p6.16]|mandatory\nX|Submit the proposal sealed in an opaque package marked with the RFP name and number and responder name and address|[p3.6],[p3.7],[p3.8],[p6.12]|mandatory\nX|Submit one unbound original, one photocopy, and one electronic copy in MS Word and PDF format|[p6.12]|mandatory\nX|Identify all copies and provide original ink-signed signature pages in the original; include scanned signature pages electronically|[p6.13],[p6.14],[p6.15]|mandatory\nX|Submit the fee proposal separately, unbound, in a marked envelope within the same package; include original, photocopy, and electronic formats|[p9.10],[p9.11],[p9.12]|mandatory\nX|Include all requested data and information and follow the required proposal format|[p7.12],[p7.13],[p8.7],[p8.8]|mandatory\nX|Include a title page with RFP number, closing date and time, responder details, and named submission and contractual contacts with contact details|[p8.9],[p8.10],[p8.11]|mandatory\nX|Include a table of contents showing proposal sections and page numbers|[p8.12]|mandatory\nX|Include at least three references for similar projects, excluding Ulster County, with contact, contract date, value, and program description|[p8.21],[p8.22]|mandatory\nX|Complete and sign all return sheets indicated at the end of the RFP|[p9.15]|mandatory\nX|Complete and submit the response checklist as part of the proposal|[p36.1],[p36.4]|mandatory\nX|Submit the required checklist documents: technical and fee proposals, electronic copy, assumed name certification, organization form, ownership disclosure, living wage declaration, non-collusion affidavit, notarized Iran certificate, MacBride statement, insurance requirements, and applicable addenda acknowledgments|[p36.4]|mandatory\nX|Submit the proposal unbound and unstapled|[p36.h3]|mandatory\nX|Attach the filed assumed-name certificate if the business uses an assumed name|[p37.1]|mandatory\nX|Have the proposal signed by an authorized individual, corporate officer or authorized representative, or partner; include the required authorization evidence|[p37.2],[p37.3],[p37.4]|mandatory\nX|Submit the Affidavit of Non-Collusion with the proposal|[p14.1]|mandatory\nX|Submit the notarized Iran Divestment Certificate|[p36.4],[p42.6],[p42.9]|mandatory\nX|Initial and return exactly one MacBride Fair Employment Principles statement|[p43.1],[p43.2],[p43.3]|mandatory\nX|Conditional proposals will not be accepted|[p10.18]|mandatory\nX|Proposals missing complete information or required certifications will not be considered|[p9.16]|mandatory\nX|Do not submit oral, faxed, or telephoned proposals or modifications|[p7.6]|mandatory\nX|Clearly identify and explain any proposal alternative that deviates from or qualifies the RFP terms|[p11.10],[p11.12]|mandatory\nEND|33"
+    },
+    {
+      "name": "C",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 22.91785589500796,
+      "queue_seconds": 4.277011612430215e-06,
+      "ttft_seconds": 5.373,
+      "model_seconds": 22.866,
+      "tokens_per_second": 126.1,
+      "usage": {
+        "input_tokens": 31344,
+        "cached_tokens": 0,
+        "output_tokens": 2884
+      },
+      "lines": 67,
+      "end_count": 67,
+      "failed_lines": 4,
+      "retries": 0,
+      "log": [],
+      "output": "D|RFP issued: 2026-07-30|[p3.1]|\nD|Receipt Confirmation Form due within 5 working days of receiving bid package|[p2.h2]|\nD|Written questions due: 2026-08-18|[p15.t1r1],[p15.t1r2],[p34.1],[p8.1]|\nD|Proposals due: 2026-08-28 16:00|[p3.3],[p6.16],[p15.t1r2]|\nD|Selection Committee evaluates proposals: week of 2026-09-07|[p15.t1r3]|\nD|Oral interviews, if needed: week of 2026-09-14|[p15.t1r4]|\nD|Notice of Intent to Award: week of 2026-09-28|[p15.t1r5]|\nD|Contract starts: 2027-01-01|[p15.t1r6],[p11.2]|\nD|Initial contract ends: 2029-12-31|[p11.2]|\nD|Optional valuation years end: 2029-12-31 and 2030-12-31|[p4.3]|\nD|Submit insurance evidence within ten (10) days of notice of award|[p12.4]|\nD|Provide requested qualification information within five (5) days of County request|[p10.16]|\nD|Notify County within five days after it determines proposed confidential material is not exempt from disclosure|[p13.13]|\nD|Return unearned or unexpended funds within ten (10) days after contract termination|[p25.12]|\nD|Provide equipment and property inventory within ten (10) days after contract termination|[p25.13]|\nD|Give written notice of a County-caused delay claim within thirty (30) days of its initial occurrence|[p25.5],[p25.6]|\nD|Give written notice of a force majeure event within thirty (30) days|[p28.6]|\nD|Give written notice of a force majeure delay claim within thirty (30) days of initial occurrence|[p28.10]|\nD|Correct reported service deficiencies within a timely period; deficiencies must be reported within one hundred-twenty (120) days after completion and final acceptance|[p24.6]|\nD|Retain authorized copies of confidential information for six (6) years after service completion or contract termination, whichever occurs later|[p21.18]|\nD|Retain contract records for six (6) years after final payment or termination, whichever occurs later|[p22.4]|\nD|Provide written notice of proposed delay extension promptly, no later than thirty (30) days after the event|[p25.5],[p25.6]|\nD|Submit final invoice by the contract schedule\u2019s specified day of the month following the contract end date; day is not completed|[p30.9]|unclear\nS|Send proposal to Ulster County Department of General Services, 100 Development Court, Kingston, NY 12401|[p3.2],[p6.17],[p6.h4],[p6.18]|\nS|Submit proposal in a sealed opaque envelope or package|[p3.6],[p6.12]|\nS|Label outside with responder name and address and RFP name and number|[p3.7],[p3.8],[p6.12]|\nS|Submit one unbound original, one (1) photocopy, and one electronic copy on CD or thumb drive|[p6.12]|\nS|Provide electronic proposal in MS Word and PDF format, including all submittal documents and scanned signature pages|[p6.12],[p6.15]|\nS|Original proposal must contain original ink-signed signature pages; clearly identify original and copies|[p6.13],[p6.14]|\nS|Submit proposal unbound and unstapled|[p36.h3]|\nS|Submit separate, unbound Fee/Cost Proposal in original, photocopy, and electronic formats, in the same package as the main proposal|[p9.10],[p9.11]|\nS|Place hardcopy Cost/Fee Proposal in a separate envelope labeled \u201cCOST PROPOSAL\u201d with RFP name and number|[p9.11]|\nS|Electronic fee proposal may be a separate file on the same flash drive as the main proposal|[p9.12]|\nS|Include fee schedule covering labor, materials, travel, equipment, and other costs; put responder name on all cost sheets|[p9.13],[p9.14]|\nS|Organize proposal into Section I, Title Page and Table of Contents|[p8.9],[p8.12]|\nS|Title page must show RFP number, closing date and time, company name and address, phone and fax, and submission and contract-authority contacts with phone, fax, and email|[p8.9],[p8.10],[p8.11]|\nS|Organize proposal into Section II, Qualifications and Experience; include company history, qualifications, experience, capabilities, compliance, finances, reporting, management, staffing, and development|[p8.13],[p8.14],[p8.15],[p8.16],[p8.17],[p8.18]|\nS|Section II must include examples of operational improvements and cost savings, assigned personnel, resumes, and at least three (3) similar-project references excluding Ulster County|[p8.19],[p8.20],[p8.21]|\nS|For each reference provide contact name, telephone, contract date, dollar value, and program description; emphasize work from the previous five years|[p8.22],[p8.23]|\nS|Organize proposal into Section III, Proposed Plan; explain how each scope requirement will be met, implementation, information supplied, County collaboration, and savings|[p9.1],[p9.3],[p9.4],[p9.6],[p9.7],[p9.8]|\nS|Section III must describe additional services and options and attach samples of all reports|[p9.2],[p9.5],[p9.9]|\nS|Organize proposal into Section IV, Fee/Cost Proposal, separately and unbound from the main proposal|[p9.10]|\nS|Organize proposal into Section V, Return Documents; complete and sign all return sheets|[p9.15]|\nS|Complete and submit the RFP Response Checklist as part of the proposal|[p36.1],[p36.4]|\nS|Submit the Receipt Confirmation Form by email or fax if planning to submit; identify whether bidding and sign it|[p2.5],[p2.6],[p6.9]|\nS|Complete the Response Return Form with vendor contact details and authorized signature|[p35.h4],[p35.1],[p35.h9]|\nS|Submit Assumed Name Certification; attach filed certificate if using an assumed name|[p36.4],[p37.1]|\nS|Sign proposal with the authorized individual, corporate officer or authorized board designee, or partner; attach required authorization or board resolution|[p37.2],[p37.3],[p37.4]|\nS|Submit Organization Information Form|[p36.4],[p38.h1]|\nS|Submit Disclosure of Ownership Interest Certification Form with required ownership and related-party information|[p12.5],[p12.6],[p12.7],[p12.8],[p12.9],[p13.1],[p36.4],[p39.1],[p39.2],[p39.8],[p39.11]|\nS|Submit Living Wage Acknowledgment and Acceptance Declaration, signed by an authorized representative|[p36.4],[p40.2],[p40.4],[p40.5],[p40.7]|\nS|Submit signed Affidavit of Non-Collusion|[p14.1],[p36.4],[p41.2],[p41.13],[p41.14]|\nS|Submit notarized Iran Divestment Certificate|[p36.4],[p42.1],[p42.6],[p42.9]|\nS|Read, initial exactly one MacBride Fair Employment Principles statement, and return it with authorized signature|[p36.4],[p43.1],[p43.2],[p43.3],[p43.8]|\nS|Submit insurance requirements form and state whether certificate is attached or can be supplied if awarded|[p36.4],[p37.7],[p37.8],[p37.10]|\nS|Acknowledge every applicable addendum in the return form|[p36.4],[p45.1],[p45.9]|\nS|Submit at least one required proof of Workers\u2019 Compensation coverage or Form CE-200 exemption|[p31.21],[p31.23],[p32.1],[p32.2],[p32.3],[p32.4],[p32.5]|\nS|Submit proof of Disability Benefits coverage or Form CE-200 exemption|[p32.7],[p32.9],[p32.10],[p32.11]|\nS|Submit insurance certificates to County Risk Management before starting work; include insured name and address, issue date, insurer, coverage, policy number, dates, limits, and County certificate holder address|[p31.7],[p31.8],[p31.9],[p31.10],[p31.11],[p31.12],[p31.13]|\nS|Provide Commercial General Liability coverage of at least ONE MILLION AND 00/100 ($1,000,000.00) DOLLARS per occurrence and TWO MILLION AND 00/100 ($2,000,000.00) DOLLARS aggregate|[p32.13],[p32.14],[p32.15]|\nS|Provide Umbrella or Excess Liability coverage of at least TWO MILLION AND 00/100 ($2,000,000.00) DOLLARS|[p32.20]|\nS|Provide Automobile Liability coverage with a minimum Combined Single Limit of ONE MILLION AND 00/100 ($1,000,000.00) DOLLARS|[p33.5]|\nS|Provide Professional Liability coverage of at least ONE MILLION AND 00/100 ($1,000,000.00) DOLLARS per occurrence and TWO MILLION AND 00/100 ($2,000,000.00) DOLLARS aggregate|[p33.11],[p33.12]|\nS|Provide Cyber Liability coverage of at least FIVE MILLION AND 00/100 ($5,000,000.00) DOLLARS per occurrence and aggregate; submit policy copies with certificate|[p33.13],[p33.14]|\nS|Submit construction documents, stamped plans, and specifications when required under Title 19 NYCRR Part 1203|[p11.14]|\nS|Provide proof of NYS Energy Code compliance through an approved Prescriptive or Performance path when applicable|[p11.15]|\nS|Return written clarification questions to Brenden Boughton by email bbou@ulstercountyny.gov or fax 845-340-3434; email may copy ejor@ulstercountyny.gov|[p7.23],[p8.1],[p34.2],[p34.3]|\nEND|67"
+    },
+    {
+      "name": "E",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 7.297624013997847,
+      "queue_seconds": 1.5030993381515145e-05,
+      "ttft_seconds": 4.156,
+      "model_seconds": 7.228,
+      "tokens_per_second": 68.1,
+      "usage": {
+        "input_tokens": 31246,
+        "cached_tokens": 0,
+        "output_tokens": 492
+      },
+      "lines": 8,
+      "end_count": 8,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [],
+      "output": "E|Overall plan to provide required services scores 35 Points for completeness, demonstrated capability, and plan and timeline.|[p9.h4],[p9.20],[p10.1],[p10.2]| \nE|Fee/pricing proposal scores 30 Points for proposal cost and reasonableness of fees, budget, and optional fees.|[p10.h1],[p10.3],[p10.4],[p10.5]|\nE|Qualifications and experience scores 20 Points for similar project experience, personnel qualifications, business history and viability, and references.|[p10.h2],[p10.6],[p10.7],[p10.8],[p10.9]|\nE|Understanding of County\u2019s goals and objectives scores 10 Points for addressing County needs and meeting or exceeding its objectives.|[p10.h3],[p10.10]|\nE|Local economic development scores 5 Points for vendors located within Ulster County, 3 points for contiguous counties, and 1 point for New York State.|[p10.h4],[p10.11],[p10.12],[p10.13]|\nE|Only proposals with complete information and required certifications will be considered.|[p9.16]|mandatory\nE|An Ulster County representatives committee evaluates proposals; award may go to the qualified responder whose proposal best meets County needs under the criteria.|[p9.17],[p9.18],[p10.20],[p10.21]|\nE|If deemed necessary, the Evaluation Committee may interview selected responders to assess experience, collaboration, understanding, and ability to meet schedules.|[p11.8],[p11.9]|\nEND|8"
+    },
+    {
+      "name": "R1",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 14.763606257998617,
+      "queue_seconds": 8.473987691104412e-06,
+      "ttft_seconds": 5.238,
+      "model_seconds": 14.697,
+      "tokens_per_second": 112.7,
+      "usage": {
+        "input_tokens": 31355,
+        "cached_tokens": 0,
+        "output_tokens": 1657
+      },
+      "lines": 51,
+      "end_count": 37,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 37 lines, got 51"
+      ],
+      "output": "R|Return the receipt confirmation form within 5 working days of receiving the bid package|p2.h2|mandatory\nR|If planning to submit a proposal, email or fax the receipt confirmation form immediately|p6.9|\nR|Include the company name, address, contact person, phone, fax, and email on the receipt confirmation form|p2.4|\nR|Indicate whether you will submit a proposal and, if not, give the reason|p2.5|\nR|Submit the proposal by 2026-08-28 4:00 P.M.|p3.3|mandatory\nR|Submit the proposal in a sealed envelope or package|p3.6|mandatory\nR|Print the company name and address and the RFP name and number on the envelope|p3.7,p3.8|mandatory\nR|Provide an annual actuarial valuation of the County\u2019s self-insured workers\u2019 compensation program|p4.2|\nR|Estimate liability annually for years ending December 31, 2026, 2027, and 2028, with two optional one-year renewals for years ending December 31, 2029 and 2030|p4.3|\nR|Produce a report each year containing a three-year forecast|p4.4|\nR|Provide an independent actuarial analysis of the workers\u2019 compensation loss reserve, including incurred but not reported losses|p4.12|\nR|Estimate total reserves at year-end on discounted and undiscounted bases|p4.13|mandatory\nR|Estimate expected losses for the upcoming calendar year by agency|p4.15|\nR|Estimate future loss payments by calendar year for the next two (2) years|p4.16|\nR|Calculate discounted and non-discounted unpaid liabilities at year\u2019s end|p4.17|\nR|Calculate each participant\u2019s open liabilities if they withdraw from the plan|p4.18|\nR|Address anticipated and unanticipated contingencies|p4.19|\nR|Allocate reserves and/or funding to individual plan participants|p5.1|\nR|Estimate necessary reserves that include known claims and claims incurred but not reported|p5.2|\nR|Provide optional services when requested by the County and/or Plan Administrator|p5.3|desirable\nR|Provide hourly fee rates for additional services|p5.4,p5.5,p5.6|\nR|Present preliminary findings in draft form, discuss the draft report with the County, and prepare the final report|p5.7|\nR|Be prepared to present and discuss results by conference call or meeting if requested by the County|p5.8|desirable\nR|Affirm that the proposer is properly licensed or otherwise permitted to provide actuarial services in New York State for at least four (4) years|p5.10|\nR|Indicate whether the firm is local, regional, national, or international in scope|p5.11|\nR|Indicate whether the firm has been subject to professional disciplinary action; if yes, describe it|p5.12,p5.13|\nR|Identify comparable municipal governments for which the firm currently provides similar independent actuarial services|p5.14|\nR|Describe professional development programs and continuing education requirements for actuarial consulting staff|p5.15|\nR|Identify specialized governmental actuarial services programs offered by the firm|p5.16|\nR|Identify the local office handling the engagement, including its address and contact information|p5.17|\nR|Identify the partner or other individual in charge of that office|p5.18|\nR|State the number of professional staff currently assigned to that office|p5.19|\nR|If the office is not in the Kingston area, describe how assigned personnel will be available for consultation or meetings throughout the year|p5.20|\nR|Identify larger clients handled by the local office within the past five years, including commercial and industrial companies, nonprofits, and government units|p5.21|\nR|For each governmental client, state how many years the firm has provided actuarial services|p5.22|\nR|Identify partners, managers, specialists, and other professional staff assigned to the engagement, including staff from other offices|p5.23|\nR|Describe assigned staff roles and professional experience, including designations, licenses, and memberships|p5.24|\nR|State the extent of assigned staff\u2019s governmental actuarial experience within New York State|p5.25|\nR|Describe assigned staff participation in professional development programs in governmental or non-governmental actuarial services|p5.26,p6.1|\nR|Include resumes if desired|p6.2|desirable\nR|Provide any additional firm information that may help the County make its decision|p6.3|\nR|Provide a detailed list of information required from the County for the engagement|p6.4|\nR|Be prepared to present satisfactory proof of capacity and ability to complete the solicitation requirements|p6.5|mandatory\nR|Provide certification of loss reserve estimates and a Statement of Actuarial Opinion on actuarially derived items in the County financial statements|p6.8|mandatory\nR|Submit one unbound original, one (1) photocopy, and one electronic copy on CD or thumb drive in MS Word and PDF format|p6.12|mandatory\nR|Seal the proposal and required documents in an opaque envelope or package marked with the RFP name and number and responder\u2019s name and address|p6.12|mandatory\nR|Clearly identify all copies and the original document|p6.13|mandatory\nR|Include original ink-signed signature pages in the original document|p6.14|mandatory\nR|Include scanned signature pages and all submittal documents in the electronic copy|p6.15|mandatory\nR|Submit the proposal to Ulster County Department of General Services, 100 Development Court, Kingston, NY 12401|p6.16,p6.17,p6.h4,p6.18|mandatory\nR|Submit the receipt confirmation form by email or fax if planning to submit a proposal|p6.9|mandatory\nEND|37"
+    },
+    {
+      "name": "R2",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 11.990876797994133,
+      "queue_seconds": 5.947978934273124e-06,
+      "ttft_seconds": 4.988,
+      "model_seconds": 11.932,
+      "tokens_per_second": 119.3,
+      "usage": {
+        "input_tokens": 31355,
+        "cached_tokens": 0,
+        "output_tokens": 1423
+      },
+      "lines": 39,
+      "end_count": 33,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "fact has 30 words or more",
+        "END says 33 lines, got 39"
+      ],
+      "output": "R|Accept the RFP conditions unless clearly and specifically noted otherwise in the proposal|[p7.4]|mandatory\nR|Do not submit orally, by fax, or by telephone|[p7.6]|mandatory\nR|Include all requested data and information and follow the RFP instructions|[p7.12]|mandatory\nR|Submit a proposal compliant with the General Specifications|[p7.13]|mandatory\nR|Make the proposal clear, concise, and detailed enough for effective evaluation and to support stated claims|[p7.15]|\nR|Explain how the proposal will meet requirements rather than simply restating them|[p7.16]|\nR|Present the proposal as if the County has no prior knowledge of the responder\u2019s facilities or experience|[p7.17]|\nR|Submit written requests for clarification or interpretation to Brenden Boughton at least ten (10) calendar days before the proposal submission date|[p7.23],[p8.1]|mandatory\nR|Do not rely on oral statements or conversations about the RFP|[p8.6]|mandatory\nR|Use the proposal format specified in the RFP|[p8.7],[p8.8]|mandatory\nR|Include a title page with the RFP number, closing date and time, and company name, address, telephone, and fax number|[p8.9]|mandatory\nR|Identify the contact person for RFP submission inquiries and the person authorized to bind the company contractually|[p8.10]|mandatory\nR|Provide phone, fax, and email for each identified contact person|[p8.11]|mandatory\nR|Include a table of contents listing proposal material by section and page number|[p8.12]|mandatory\nR|Describe company history, professional qualifications, and prior experience in similar projects|[p8.13]|mandatory\nR|Describe demonstrated capabilities, including the ability to work effectively with other service and system providers|[p8.13]|mandatory\nR|Describe regulatory compliance history, fiscal solvency, and budget performance|[p8.13]|mandatory\nR|Describe contract compliance and accuracy and timeliness of reporting|[p8.14],[p8.15]|mandatory\nR|Describe management structure and ability to support projects of this scope|[p8.16]|mandatory\nR|Describe ability to recruit and retain staff and commitment to staff development|[p8.17],[p8.18]|mandatory\nR|Provide examples of program changes that improved operations and produced cost savings|[p8.19]|mandatory\nR|Identify all personnel assigned to the project and attach resumes|[p8.20],[p8.21]|mandatory\nR|Provide at least three references, excluding Ulster County, for similar completed projects|[p8.21]|mandatory\nR|For each reference, provide contact name, telephone number, contract date, contract dollar value, and a brief program description|[p8.22]|mandatory\nR|Emphasize similar work performed during the previous five years|[p8.23]|\nR|Describe in narrative detail how the program will be structured and how each Scope of Work requirement and other task will be completed|[p9.1]|mandatory\nR|Describe additional services, enhancements, and options offered to the County|[p9.2]|mandatory\nR|Explain the steps needed to implement services|[p9.3]|mandatory\nR|Describe the information provided to the County to capture required data|[p9.4]|mandatory\nR|Attach samples of all reports to be used|[p9.5]|mandatory\nR|Describe the plan for working with the County|[p9.6]|mandatory\nR|Describe methods intended to produce cost savings and provide examples and realistic cost estimates where possible|[p9.7],[p9.8]|mandatory\nR|Provide any additional services or information beneficial to the program for committee consideration|[p9.9]|mandatory\nR|Submit the Fee/Cost Proposal separately and unbound from the main proposal|[p9.10]|mandatory\nR|Submit the Fee/Cost Proposal in original, photocopy, and electronic formats, in a separate hardcopy envelope marked \u201cCOST PROPOSAL\u201d with the RFP name and number, in the same package as the proposal|[p9.11]|mandatory\nR|The electronic cost proposal may be a separate file on the same flash drive as the main proposal|[p9.12]|desirable\nR|Include all labor, materials, travel, equipment, and other costs needed to provide the service in the fee schedule|[p9.13]|mandatory\nR|Put the responder\u2019s name on all cost proposal sheets|[p9.14]|mandatory\nR|Complete and sign all Return Sheets indicated at the end of the RFP|[p9.15]|mandatory\nEND|33"
+    },
+    {
+      "name": "R3",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 6.338222759019118,
+      "queue_seconds": 4.442990757524967e-06,
+      "ttft_seconds": 2.905,
+      "model_seconds": 6.293,
+      "tokens_per_second": 102.8,
+      "usage": {
+        "input_tokens": 31355,
+        "cached_tokens": 0,
+        "output_tokens": 647
+      },
+      "lines": 17,
+      "end_count": 17,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "main ID p14.7 is outside pages 10-13",
+        "main ID p15.3 is outside pages 10-13"
+      ],
+      "output": "R|Provide a statement of qualifications as required by the specifications|p10.14|mandatory\nR|Provide information and data requested by the County within five (5) days of a request|p10.16|mandatory\nR|Comply with the Living Wage Act if the contract is at least FIFTY THOUSAND and 00/100 ($50,000.00) DOLLARS in a County fiscal year and no exemption applies|p14.7|\nR|Comply with the contract\u2019s sustainability requirements by reviewing GreenNY requirements and embracing environmental stewardship|p15.3,p15.6|desirable\nR|Comply with applicable Federal, State and County policies, procedures, standards, laws, rules and regulations|p11.13|mandatory\nR|Carry photo identification while on County property and show it promptly when requested by a County employee|p11.16,p12.1|mandatory\nR|Maintain the insurance coverage specified in Schedule C throughout performance of the contract|p12.3,p31.3|mandatory\nR|File evidence of required insurance with Ulster County General Services within ten (10) days of notice of award|p12.4|mandatory\nR|Disclose ownership information in writing to General Services when submitting a bid or before entering a written contract, whichever is sooner|p12.5,p13.1|mandatory\nR|Disclose individuals holding 10% or more of profits, assets, or corporate stock|p12.6|mandatory\nR|Disclose principals, partners, officers, directors, their immediate family members, and household members|p12.7|mandatory\nR|Disclose subsidiary business entities directly or indirectly controlled by the bidder|p12.8|mandatory\nR|For business entities holding 10% or more, disclose their principals, partners, officers, directors, immediate family members, and household members|p12.9|mandatory\nR|Invoice the County monthly|p13.6|mandatory\nR|Prepare each invoice in the form and with the supporting documentation reasonably required by the County|p13.7|mandatory\nR|Include the Contract Number on invoices and mail them to the proper departmental address|p13.7|mandatory\nR|Comply with FOIL and applicable County and State rules governing access to public documents|p13.9|mandatory\nEND|17"
+    },
+    {
+      "name": "R4",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 12.44159755401779,
+      "queue_seconds": 4.527013516053557e-06,
+      "ttft_seconds": 6.638,
+      "model_seconds": 12.381,
+      "tokens_per_second": 108.1,
+      "usage": {
+        "input_tokens": 31355,
+        "cached_tokens": 0,
+        "output_tokens": 1339
+      },
+      "lines": 26,
+      "end_count": 23,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "fact has 30 words or more",
+        "END says 23 lines, got 26"
+      ],
+      "output": "R|Submit the required Affidavit of Non-Collusion certifying prices were set independently.|p14.1|mandatory\nR|Warrant that the bidder and its officers, employees, subcontractors, and agents are not barred from doing business with any federal, state, or local agency.|p14.2|mandatory\nR|Immediately notify the County Attorney if the successful bidder or its personnel become barred from doing business with a government agency during service delivery.|p14.4|mandatory\nR|Pay prevailing wage rates and hourly supplements if applicable.|p14.6|mandatory\nR|If the agreement is at least FIFTY THOUSAND and 00/100 ($50,000.00) DOLLARS in a County fiscal year and no exemption applies, pay employees the applicable Living Wage.|p14.7|mandatory\nR|Review GreenNY sustainability requirements and familiarize the firm with County environmental initiatives.|p15.6|desirable\nR|Obtain prior written authorization for services outside Schedule A before performing them to receive compensation.|p16.11|mandatory\nR|Do not incur costs exceeding the agreed amount without prior written authorization.|p16.15,p17.1|mandatory\nR|Accept reduction of the County\u2019s monetary obligation by equivalent payments received from other sources for the same services.|p17.3|\nR|Represent that no person or selling agent was retained under a separate commission, fee, or other compensation arrangement to secure the agreement.|p17.11|mandatory\nR|Represent that no payment, gift, or thing of value was made, given, or promised to obtain the agreement.|p17.12|mandatory\nR|Represent that the firm and its covered personnel have no interest that conflicts with performing the services.|p17.16|mandatory\nR|Ensure no person with a conflicting interest is employed for the agreement, subject to the stated ethics disclosure or opinion process.|p17.17|mandatory\nR|Represent that the firm is licensed as required, experienced, qualified, permitted, equipped, organized, and financed to perform the services.|p18.3|mandatory\nR|Take responsibility for penalties resulting from false information the firm submits to the County.|p18.6|mandatory\nR|Attest that the firm and all personnel or entities providing services are not sanctioned, excluded, or barred from government business.|p18.7|mandatory\nR|Immediately provide detailed notice to the County Attorney if the firm or covered personnel become barred during the contract term.|p18.8|mandatory\nR|If classified as a tax-exempt organization under Sections 501(c)(3) or 501(c)(6), represent that the firm is in good standing and current with IRS Form 990 filings or a timely extension.|p18.10|mandatory\nR|Before contract execution, provide General Services the most recently filed IRS Form 990 and any current extension filing, if applicable.|p18.11|mandatory\nR|Keep Form 990 filings or extensions current during the agreement and provide copies of filings made during the term.|p18.12|mandatory\nR|File any Form 990 extension by the applicable deadline.|p18.13|mandatory\nR|Immediately notify the Department Head in writing of Form 990 noncompliance and take immediate steps to cure it.|p18.14|mandatory\nR|Comply with all federal, state, and local laws, rules, and regulations governing the services.|p18.16|mandatory\nR|Comply with Ulster County laws, regulations, and its Compliance Plan when providing services.|p18.17,p18.21|mandatory\nR|Provide each individual delivering services access to the County Compliance Plan.|p18.23|mandatory\nR|Implement a firm compliance program addressing applicable federal and state healthcare compliance elements.|p18.24|desirable\nEND|23"
+    },
+    {
+      "name": "R5",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 10.14341718799551,
+      "queue_seconds": 4.484987584874034e-06,
+      "ttft_seconds": 4.912,
+      "model_seconds": 10.093,
+      "tokens_per_second": 112.3,
+      "usage": {
+        "input_tokens": 31355,
+        "cached_tokens": 0,
+        "output_tokens": 1133
+      },
+      "lines": 25,
+      "end_count": 22,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "fact has 30 words or more",
+        "END says 22 lines, got 25"
+      ],
+      "output": "R|Operate as an independent contractor, not as the County\u2019s agent or representative, and do not bind the County|p19.12,p19.15|mandatory\nR|Do not claim County employee or officer rights or benefits for the Firm or its staff|p19.13,p19.14|mandatory\nR|Obtain prior written approval before assigning rights, interests, obligations, or Services|p19.16|mandatory\nR|Include in every subcontract a requirement that subcontracted work follow the Agreement, including Schedule C insurance requirements|p20.4,p20.5|mandatory\nR|Include in every subcontract a term that it does not impair County rights|p20.4,p20.6|mandatory\nR|Include in every subcontract a term that it creates no contractual relationship between the subcontractor and County|p20.4,p20.7|mandatory\nR|Require every subcontractor to follow the Agreement\u2019s Article 15 confidentiality provision|p20.4,p20.8|mandatory\nR|Provide the Department Head the names and scope of work of all subcontractors upon signing the Agreement|p20.9|mandatory\nR|Provide copies of subcontract agreements when the County requests them|p20.10|mandatory\nR|Remain fully responsible for subcontractors\u2019 acts and omissions|p20.11,p20.12|mandatory\nR|Use the Firm\u2019s own equipment and facilities wherever and whenever possible|p20.14|mandatory\nR|Assign qualified personnel and perform Services to applicable professional standards with expected skill, diligence, and quality controls|p20.15|mandatory\nR|Comply with applicable federal, New York State, and local laws, ordinances, statutes, rules, and regulations|p20.17|mandatory\nR|Enter a separate HIPAA-compliant Business Associate Agreement if HIPAA applies|p20.18,p20.19,p20.21|mandatory\nR|Execute the Business Associate Agreement simultaneously with the Agreement unless a compliant BAA is already in effect and on file|p20.22|mandatory\nR|Keep Confidential Information in a secure location within the Firm\u2019s offices|p21.5|mandatory\nR|Do not disclose or use Confidential Information without prior written consent, except to perform Services|p21.8|mandatory\nR|Notify the County immediately upon receiving a request or inquiry about Confidential Information|p21.9|mandatory\nR|For external requests for Confidential Information, oppose the request and cooperate with the County to seek a protective order or remedy unless the County waives compliance or determines disclosure is legally required in writing|p21.10,p21.11|mandatory\nR|If disclosure is required or authorized, disclose only portions the County considers legally required and seek written assurance of confidential treatment where permitted|p21.12|mandatory\nR|Obtain a confidentiality agreement benefiting the County from each subcontractor before Services begin|p21.13|mandatory\nR|Obtain confidentiality agreements from Firm or subcontractor personnel when the County requests them|p21.14|mandatory\nR|Deliver Confidential Information and all copies to the County upon request|p21.15,p21.16,p21.17|mandatory\nR|Keep County-authorized retained copies secure for six (6) years after Services are completed or the Agreement ends, whichever is later, then dispose of them as the County directs|p21.18|mandatory\nQ|Subcontracting is permitted subject to required subcontract terms, but another clause says the Firm shall not subcontract any obligations|p20.4,p20.13|\nEND|22"
+    },
+    {
+      "name": "R6",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 12.158574222994503,
+      "queue_seconds": 6.952002877369523e-06,
+      "ttft_seconds": 4.949,
+      "model_seconds": 12.093,
+      "tokens_per_second": 99.3,
+      "usage": {
+        "input_tokens": 31355,
+        "cached_tokens": 0,
+        "output_tokens": 1201
+      },
+      "lines": 30,
+      "end_count": 28,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "main ID p25.2 is outside pages 22-24",
+        "END says 28 lines, got 30"
+      ],
+      "output": "R|Obtain prior written County approval before making media statements or publishing material about the services or data|p22.1|mandatory\nR|Obtain prior written permission from the Executive or Director before publishing work about the agreement or its results|p22.2|mandatory\nR|Maintain separate, accurate books and records that properly reflect all direct and indirect contract costs|p22.3|mandatory\nR|Retain agreement records for six (6) years after final payment or termination, whichever occurs later|p22.4|mandatory\nR|Provide authorized County, State, and federal auditors access to relevant records during the retention period|p22.5|mandatory\nR|Make invoices and supporting books, records, and accounts available for County audit|p22.6|mandatory\nR|Submit documentation supporting expenditures or fees and make records available to the County upon request|p22.7|mandatory\nR|Meet audit requirements and requests to remain eligible for interim or final payment|p22.10|mandatory\nR|Do not discriminate against employees or job applicants on protected grounds|p22.11|mandatory\nR|If the agreement exceeds $25,000.00, document active efforts to employ and use minority group members and women on County contracts|p22.12|mandatory\nR|If applicable to the agreement, do not discriminate in hiring or intimidate employees on protected grounds|p22.14|mandatory\nR|If applicable to the agreement, do not discriminate in hiring or intimidate employees on protected grounds|p22.15|mandatory\nR|Comply with the County\u2019s Sexual Harassment Prevention and Discriminatory Harassment Prevention Policies|p23.2|mandatory\nR|If the agreement is at least $50,000.00 in a County fiscal year and no exemption applies, pay covered employees the applicable Living Wage|p23.6|mandatory\nR|Maintain the insurance specified in Schedule C throughout the agreement term, at the vendor\u2019s expense|p23.11|mandatory\nR|Use insurers of recognized financial standing satisfactory to the County|p23.13|mandatory\nR|Name the County as an additional insured on commercial general liability policies|p23.14|mandatory\nR|Waive claims against the County for losses commercially insurable under the specified insurance|p23.15|mandatory\nR|Ensure insurance policies provide primary coverage without contribution from County insurance|p23.17|mandatory\nR|Provide thirty (30) days\u2019 prior written notice to the County of policy cancellation or material amendment, or ten (10) days for non-payment|p23.17|mandatory\nR|Provide insurance on an occurrence basis where commercially available|p23.18|mandatory\nR|For claims-made insurance, set retroactive dates no later than the start of services|p23.20|mandatory\nR|If claims-made insurance ends, purchase an unlimited extended reporting provision for claims arising from the services|p23.21|mandatory\nR|Immediately notify the County of incidents or circumstances that might give rise to future claims|p24.1|mandatory\nR|Defend, indemnify, and hold the County and its officials, employees, and agents harmless from covered claims arising from the firm\u2019s negligence, fault, acts, or omissions|p24.2|mandatory\nR|Investigate and defend covered claims at the firm\u2019s sole expense and bear related costs, even for groundless, false, or fraudulent claims|p24.3|mandatory\nR|Correct service deficiencies at the firm\u2019s expense when reported within one hundred-twenty (120) days after completion and final acceptance|p24.6|mandatory\nR|Do not retain County or former County employees for agreement-related services during the term and one (1) year after, without written permission|p24.9|mandatory\nR|Be responsible for loss of or damage to County property and equipment used in performing the agreement, except normal wear and tear|p24.12,p25.1|mandatory\nR|Defend, indemnify, and hold the County harmless for loss of or damage to County property|p25.2|mandatory\nEND|28"
+    },
+    {
+      "name": "R7",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 11.717673957988154,
+      "queue_seconds": 6.123998900875449e-06,
+      "ttft_seconds": 5.59,
+      "model_seconds": 11.653,
+      "tokens_per_second": 110.4,
+      "usage": {
+        "input_tokens": 31355,
+        "cached_tokens": 0,
+        "output_tokens": 1286
+      },
+      "lines": 29,
+      "end_count": 29,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [],
+      "output": "R|Request a written contract extension as the sole remedy when County actions or neglect prevent timely completion|[p25.4]|mandatory\nR|Give the Department Head written notice promptly, and no later than thirty (30) days after the delay begins, stating the specific claim|[p25.5],[p25.6]|mandatory\nR|Obtain any extension through a written Change Order, Amendment, or Addendum signed by the Executive or Director of General Services|[p25.7]|mandatory\nR|Follow County closeout procedures upon contract termination|[p25.11]|mandatory\nR|Refund unearned or unexpended funds within ten (10) days after termination|[p25.12]|mandatory\nR|Provide an inventory of equipment and property within ten (10) days after termination and follow County disposition instructions|[p25.13]|mandatory\nR|Continue performing any contract services not terminated by the County|[p25.14]|mandatory\nR|Bear the costs of replacement services if the County terminates the contract for reasons other than convenience|[p25.15]|mandatory\nR|Remain liable for County damages resulting from breach or failure to meet applicable performance standards|[p25.16]|mandatory\nR|Accept that the County may withhold payments until the amount of damages is determined|[p25.17]|mandatory\nR|Submit contract disputes to court rather than arbitration unless the Executive or Director of General Services gives written approval|[p26.4]|mandatory\nR|Pay the County\u2019s reasonable legal fees and costs for enforcing its rights when the Firm fails to comply or commits error, omission, or professional negligence|[p26.5]|mandatory\nR|Pay prejudgment interest on any award of the County\u2019s legal fees and costs|[p26.6]|mandatory\nR|Comply with New York State law, except where federal supremacy requires otherwise|[p26.8]|mandatory\nR|Give notices in writing by hand, certified or registered mail, or recognized overnight carrier, unless the agreement specifies otherwise|[p27.3]|mandatory\nR|Treat notices as effective when received, unless the agreement specifies otherwise|[p27.4]|mandatory\nR|Send notices about indemnification, termination, litigation, or proposed contract changes to both the County department and County Attorney\u2019s Office|[p27.7]|mandatory\nR|Make contract changes in writing signed by both parties; authorize additional services before performance through an executed addendum, amendment, or change order|[p27.10]|mandatory\nR|Specify the added services\u2019 scope, compensation, and any performance-time extension in an addendum, amendment, or change order|[p27.11]|mandatory\nR|Give the other party written notice of a force majeure event within thirty (30) days|[p28.6]|mandatory\nR|Use diligent efforts to end a force majeure delay and minimize its effects|[p28.6]|mandatory\nR|Resume performance as soon as reasonably possible after the force majeure cause is removed|[p28.7]|mandatory\nR|Do not claim financial inability to perform as a force majeure event|[p28.8]|mandatory\nR|Request a written contract extension as the sole remedy for a force majeure delay|[p28.9]|mandatory\nR|Give the Department Head prompt written notice, no later than thirty (30) days after the event begins, stating the specific claim|[p28.10]|mandatory\nR|Obtain any force majeure extension through a written Change Order, Amendment, or Addendum signed by the Executive or Director of General Services|[p28.11]|mandatory\nR|Accept that the County is not liable for damages caused by force majeure delays|[p28.12]|mandatory\nR|Accept execution of the agreement in counterparts and electronic delivery of signed counterparts as valid|[p28.15],[p28.16]|mandatory\nR|Have duly authorized representatives sign the agreement|[p28.17]|mandatory\nEND|29"
+    },
+    {
+      "name": "R8",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 11.030564378015697,
+      "queue_seconds": 4.381989128887653e-06,
+      "ttft_seconds": 4.684,
+      "model_seconds": 10.989,
+      "tokens_per_second": 99.5,
+      "usage": {
+        "input_tokens": 31355,
+        "cached_tokens": 0,
+        "output_tokens": 1093
+      },
+      "lines": 32,
+      "end_count": 32,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "main ID p32.5 is outside pages 29-31",
+        "main ID p32.7 is outside pages 29-31",
+        "main ID p32.11 is outside pages 29-31"
+      ],
+      "output": "R|State that the Firm will perform Services for the County|p29.1|mandatory\nR|Provide a detailed description of the Services the Firm will perform|p29.3|mandatory\nR|State where the Firm will perform the Services|p29.4|mandatory\nR|State how the Firm will perform the Services|p29.5|mandatory\nR|State when the Firm will perform the Services|p29.6|mandatory\nR|Describe the outcomes, products, or deliverables expected upon completion|p29.7|mandatory\nR|State when work products, reports, or deliverables are due|p29.8|mandatory\nR|State where and to whom work products, reports, or deliverables will be delivered|p29.9|mandatory\nR|Keep the Firm\u2019s service fees within the stated not-to-exceed amount for the Agreement term|p30.1|mandatory\nR|Invoice the County on the stated basis and rate, within the stated billing cap|p30.2|mandatory\nR|Submit original invoices for payment|p30.3|mandatory\nR|Submit invoices by the stated day for services provided during the previous period|p30.4|mandatory\nR|Include supporting details reasonably required to verify each invoice claim|p30.5|mandatory\nR|Report wages and salaries paid to Firm and subcontractor employees providing County services|p30.6|mandatory\nR|Certify wages in accordance with the Ulster County Living Wage Act|p30.7|mandatory\nR|Do not submit claims in advance or accrue claims before expenditure|p30.8|mandatory\nR|Submit the final invoice by the stated day of the month following the Agreement end date|p30.9|mandatory\nR|Submit invoices and required documentation promptly and on time|p30.11|mandatory\nR|Meet additional invoicing requirements the County may impose with reasonable notice|p30.13|mandatory\nR|Follow the insurance schedule unless the Ulster County Insurance Officer authorizes otherwise|p31.3|mandatory\nR|Obtain prior County Risk Management authorization for any deviation from insurance requirements|p31.4|mandatory\nR|Submit required insurance documents whenever the County requests them|p31.5|mandatory\nR|Submit updated insurance policy information upon policy renewal|p31.6|mandatory\nR|File proper Certificates of Insurance with County Risk Management before starting work|p31.7|mandatory\nR|Include the insured\u2019s name and address, certificate issue date, insurer, coverage type, policy number, policy dates, liability limits, and County certificate-holder details|p31.9,p31.10,p31.11,p31.12,p31.13|mandatory\nR|Provide a replacement certificate if insurance is non-renewed, canceled, or expires during the Agreement|p31.14|mandatory\nR|Provide Workers\u2019 Compensation and Disability Benefits insurance for employees at the project site and submit certificates to County Risk Management|p31.17,p31.18|mandatory\nR|If exempt from Workers\u2019 Compensation or Disability Benefits coverage, submit form CE-200|p31.19|mandatory\nR|Provide acceptable proof of Workers\u2019 Compensation coverage using an applicable listed certificate or self-insurance form|p31.21,p31.22,p31.23|mandatory\nR|If not required to carry Workers\u2019 Compensation coverage, submit Form CE-200|p32.5|mandatory\nR|Provide acceptable proof of Disability Benefits coverage using Form DB-120.1 or Form DB-155, as applicable|p32.7,p32.8,p32.9,p32.10|mandatory\nR|If not required to carry Disability Benefits coverage, submit Form CE-200|p32.11|mandatory\nEND|32"
+    },
+    {
+      "name": "R9",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 15.107235734001733,
+      "queue_seconds": 3.7359714042395353e-06,
+      "ttft_seconds": 5.235,
+      "model_seconds": 15.041,
+      "tokens_per_second": 118.6,
+      "usage": {
+        "input_tokens": 31355,
+        "cached_tokens": 0,
+        "output_tokens": 1784
+      },
+      "lines": 45,
+      "end_count": 41,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 41 lines, got 45"
+      ],
+      "output": "R|Provide workers\u2019 compensation proof using Form C-105.2, U-26.3, SI-12, GSI-105.2, or GSI-12; submit Form CE-200 if exempt|[p32.1],[p32.2],[p32.3],[p32.4],[p32.5]|mandatory\nR|Provide disability benefits proof using Form DB-120.1 or DB-155; submit Form CE-200 if exempt|[p32.9],[p32.10],[p32.11]|mandatory\nR|Maintain commercial general liability insurance for bodily injury and property damage, with at least $1,000,000.00 per occurrence and $2,000,000.00 general aggregate|[p32.13],[p32.14],[p32.15]|mandatory\nR|Use a Commercial General Liability policy covering contractual liability, independent contractors, and products and completed operations|[p32.17]|mandatory\nR|Name County of Ulster as additional insured on commercial general liability insurance, primary and non-contributory|[p32.18],[p32.19]|mandatory\nR|Provide umbrella or excess liability insurance of at least $2,000,000.00|[p32.20]|mandatory\nR|Use umbrella or excess coverage on a follow-form basis with no additional exclusions|[p33.2]|mandatory\nR|Name County of Ulster as additional insured on umbrella insurance, primary and non-contributory|[p33.3],[p33.4]|mandatory\nR|Provide automobile liability insurance with a $1,000,000.00 minimum combined single limit|[p33.5]|mandatory\nR|Cover all owned, hired, and non-owned vehicles under automobile liability insurance|[p33.6],[p33.7],[p33.8],[p33.9]|mandatory\nR|Name County of Ulster as additional insured on automobile liability insurance, primary and non-contributory|[p33.9],[p33.10]|mandatory\nR|Provide professional liability insurance of at least $1,000,000.00 per occurrence and $2,000,000.00 general aggregate|[p33.11],[p33.12]|mandatory\nR|Provide cyber liability insurance of at least $5,000,000.00 per occurrence and $5,000,000.00 general aggregate|[p33.13]|mandatory\nR|Submit copies of professional and cyber liability policies with the certificate of insurance|[p33.14]|mandatory\nR|Submit all RFP questions in writing 10 days before the proposal return date|[p34.1]|mandatory\nR|Complete and return the required sheets with the proposal|[p35.h1],[p35.h2],[p35.h3]|mandatory\nR|Submit the completed response return form with vendor details and authorized signature|[p35.h4],[p35.h5],[p35.h6],[p35.h7],[p35.1],[p35.h8],[p35.h9]|mandatory\nR|Complete and submit the response checklist with the proposal|[p36.1],[p36.4]|mandatory\nR|Submit one original and one photocopy of the technical proposal|[p36.4]|mandatory\nR|Submit one original and one photocopy of the fee or cost proposal|[p36.4]|mandatory\nR|Submit one electronic copy of the technical and fee proposals in Word and PDF formats|[p36.4]|mandatory\nR|Submit an assumed name certification|[p36.4]|mandatory\nR|Submit an organization information form|[p36.4]|mandatory\nR|Submit a disclosure of ownership interest certification form|[p36.4]|mandatory\nR|Submit the living wage acknowledgement and acceptance declaration|[p36.4]|mandatory\nR|Submit an affidavit of non-collusion|[p36.4]|mandatory\nR|Submit a notarized Iranian divestment certificate|[p36.4]|mandatory\nR|Submit the MacBride Fair Employment Principles form|[p36.4]|mandatory\nR|Submit insurance requirements documentation|[p36.4]|mandatory\nR|Acknowledge applicable addenda in the proposal|[p36.4]|mandatory\nR|Submit the completed proposal unbound and unstapled|[p36.h3]|mandatory\nR|If using an assumed business name, attach the certificate required under New York general business law|[p37.1]|mandatory\nR|Sign the proposal as an individual, authorized corporate officer or board-authorized person, or authorized partner|[p37.2],[p37.3],[p37.4]|mandatory\nR|Attach a board resolution authorizing a corporate proposal signer, when applicable|[p37.3]|mandatory\nR|Provide written authorization for a partnership signer, when applicable|[p37.4]|mandatory\nR|Disclose the full nature of any County Officer\u2019s interest in the proposal, if applicable|[p37.5],[p37.6]|mandatory\nR|Attach the requested insurance certificate or certify that specified insurance can be supplied if awarded|[p37.7],[p37.8]|mandatory\nR|Complete the organization information form with entity, identification, organization, and ownership details|[p38.1],[p38.2],[p38.3],[p38.5]|mandatory\nR|Complete the ownership disclosure form with required ownership and control information|[p39.1],[p39.2],[p39.8],[p39.11]|mandatory\nR|Complete and sign the living wage acknowledgement and acceptance declaration|[p40.2],[p40.3],[p40.4],[p40.5],[p40.6],[p40.7]|mandatory\nR|Complete and submit the affidavit of non-collusion with the proposal|[p41.h2],[p41.3],[p41.4],[p41.12],[p41.13],[p41.14],[p41.15],[p41.16],[p41.17],[p41.18],[p41.19]|mandatory\nR|Certify that the bidder and proposed subcontractors are not on the prohibited entities list|[p42.1],[p42.6]|mandatory\nR|Provide the Iran divestment certification again when renewing, extending, or assigning the contract|[p42.2]|mandatory\nR|If found in violation of the Iran divestment certification, demonstrate cessation of the prohibited investment within 90 days after the determination|[p42.4]|mandatory\nR|Complete and notarize the Iran divestment certification|[p42.6],[p42.7],[p42.8],[p42.9]|mandatory\nEND|41"
+    },
+    {
+      "name": "R10",
+      "kind": "extract",
+      "status": "ok",
+      "seconds": 11.20490034800605,
+      "queue_seconds": 6.323496028984664,
+      "ttft_seconds": 3.867,
+      "model_seconds": 4.829,
+      "tokens_per_second": 89.7,
+      "usage": {
+        "input_tokens": 31355,
+        "cached_tokens": 0,
+        "output_tokens": 433
+      },
+      "lines": 3,
+      "end_count": 3,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [],
+      "output": "R|Read and initial either MacBride Fair Employment Statement 1 or Statement 2, not both, and return it with the official documents|p43.1,p43.2,p43.3|mandatory\nR|If awarded, provide an insurance certificate with endorsement meeting the bid requirements within ten (10) business days or the period specified in the notice of award|p44.t2r1,p44.t2r2,p44.t2r3,p44.t2r4|mandatory\nR|Complete and submit the acknowledgment of receipt of addenda, listing each addendum number and date received|p45.1|mandatory\nEND|3"
+    },
+    {
+      "name": "A.repair",
+      "kind": "repair",
+      "status": "ok",
+      "seconds": 12.3889855860034,
+      "queue_seconds": 7.2290131356567144e-06,
+      "ttft_seconds": 2.837,
+      "model_seconds": 12.332,
+      "tokens_per_second": 139.7,
+      "usage": {
+        "input_tokens": 33143,
+        "cached_tokens": 0,
+        "output_tokens": 1723
+      },
+      "lines": 40,
+      "end_count": null,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [],
+      "output": "C|The County may deduct funding reductions from future payments or recover them from the Firm|p17.8|risk\nC|Provide a fee schedule including all labor, materials, travel, equipment, and other costs needed to provide the service|p9.13|mandatory\nC|Submit the fee/cost proposal separately and unbound, in a separate envelope marked \u201cCOST PROPOSAL\u201d with the RFP name and number|p9.10,p9.11|mandatory\nC|The County will not pay for services outside Schedule A without prior written authorization through a change order, amendment, or addendum|p16.11|risk\nC|Costs above the contract amount require prior written authorization; the County is not responsible for unauthorized excess costs|p16.14,p16.15,p17.1|risk\nC|The County may reject invoices submitted more than one hundred twenty (120) days after the required submission date|p30.11,p30.12|risk\nC|The Firm must meet additional invoicing requirements the County may impose with reasonable notice|p30.13|risk\nC|Maintain required Schedule C insurance at the Firm\u2019s expense throughout the contract|p12.3,p23.11|mandatory\nC|File evidence of required insurance within ten (10) days of notice of award|p12.4|mandatory\nC|File certificates of insurance before work begins; failure to provide them delays contract execution|p31.1,p31.7|mandatory\nC|Commercial general liability must be at least ONE MILLION AND 00/100 ($1,000,000.00) DOLLARS per occurrence and TWO MILLION AND 00/100 ($2,000,000.00) DOLLARS general aggregate|p32.14,p32.15|mandatory\nC|Umbrella or excess liability must be at least TWO MILLION AND 00/100 ($2,000,000.00) DOLLARS and follow underlying coverage without additional exclusions|p32.20,p33.2|mandatory\nC|Automobile liability must have a minimum Combined Single Limit (CSL) of ONE MILLION AND 00/100 ($1,000,000.00) DOLLARS and cover owned, hired, and non-owned vehicles|p33.5,p33.6,p33.7,p33.8,p33.9|mandatory\nC|Professional liability must be at least ONE MILLION AND 00/100 ($1,000,000.00) DOLLARS per occurrence and TWO MILLION AND 00/100 ($2,000,000.00) DOLLARS general aggregate|p33.11,p33.12|mandatory\nC|Cyber liability must be at least FIVE MILLION AND 00/100 ($5,000,000.00) DOLLARS per occurrence and aggregate; submit policy copies with the certificate|p33.13,p33.14|mandatory\nC|Name the County as additional insured on commercial general liability policies; coverage must be primary and non-contributory|p23.14,p32.18,p32.19|mandatory\nC|The Firm waives claims against the County for losses commercially insurable under the required insurance|p23.15|risk\nC|The Firm must defend, indemnify, and hold the County harmless for claims arising from its negligence, fault, acts, or omissions, including legal costs|p24.2,p24.3|risk\nC|The County may withhold payments to cover claims arising from the Firm\u2019s negligence, fault, acts, or omissions|p24.4|risk\nC|The Firm must correct service deficiencies at its own expense if reported within one hundred-twenty (120) days after completion and final acceptance|p24.6|risk\nC|The County may terminate all or part of the agreement for convenience, noncompliance, or insolvency; convenience termination pays for services rendered|p25.9,p25.10|risk\nC|The County may charge the Firm for replacement services after termination for reasons other than convenience and withhold payment pending damage calculations|p25.14,p25.15,p25.16,p25.17|risk\nC|The County may set off amounts owed under this agreement, other County agreements, or any amounts due to the County|p26.1,p26.2,p26.3|risk\nC|Disputes cannot go to arbitration unless the Executive or Director of General Services agrees in writing; venue is Ulster County or the Northern District of New York, Albany Division|p26.4|risk\nC|The Firm is liable for the County\u2019s reasonable legal costs and prejudgment interest in specified enforcement disputes, including professional negligence|p26.5,p26.6|risk\nC|The County may inspect the Firm\u2019s offices to review arrangements for securing confidential information|p21.6|risk\nC|The County may deny interim or final payment if audit requirements or requests are not satisfactorily met|p22.6,p22.7,p22.10|risk\nC|The County owns all confidential information and copies, whether or not delivered to the County|p21.15,p21.16|risk\nC|The Firm must immediately notify the County Attorney if it or covered personnel become barred from public business; failure may result in immediate termination|p14.4,p14.5|risk\nC|Disclose required ownership information with the bid or before contract, whichever is sooner, including specified owners, principals, family members, and subsidiaries|p12.5,p12.6,p12.7,p12.8,p12.9|mandatory\nC|Submit the Disclosure of Ownership Interest Certification Form|p13.1,p36.4|mandatory\nC|Submit the Affidavit of Non-Collusion with the proposal|p14.1,p36.4|mandatory\nC|Submit the notarized Certification of Compliance with the Iran Divestment Act|p36.4,p42.1,p42.6,p42.8|mandatory\nC|Submit the MacBride Fair Employment Principles statement and initial exactly one of its two statements|p36.4,p43.2,p43.3|mandatory\nC|Submit the Living Wage Acknowledgement and Acceptance Declaration|p36.4,p40.4,p40.5|mandatory\nC|If the agreement is for FIFTY THOUSAND and 00/100 ($50,000.00) DOLLARS or more in a County fiscal year and no exemption applies, pay employees the applicable Living Wage|p14.7,p23.6|risk\nC|The County may reject and bar a contractor employee from its facility for good and sufficient reason, at its sole discretion|p12.2|risk\nC|The County is not liable for damages arising from delays|p25.8|risk\nC|For force majeure delays, the Firm\u2019s sole remedy is to request a written time extension; the County is not liable for delay damages|p28.9,p28.10,p28.12|risk\nC|Final payment releases the County from the Firm\u2019s claims arising from contract performance|p26.13|risk\nEND|39"
+    },
+    {
+      "name": "C.repair",
+      "kind": "repair",
+      "status": "ok",
+      "seconds": 3.439058763004141,
+      "queue_seconds": 8.062983397394419e-06,
+      "ttft_seconds": 2.678,
+      "model_seconds": 3.368,
+      "tokens_per_second": 82.8,
+      "usage": {
+        "input_tokens": 31405,
+        "cached_tokens": 0,
+        "output_tokens": 279
+      },
+      "lines": 4,
+      "end_count": null,
+      "failed_lines": 3,
+      "retries": 0,
+      "log": [],
+      "output": "D|Selection Committee evaluates proposals: week of September 7 2026|[p15.t1r3]|\nD|Oral interviews, if needed: week of September 14 2026|[p15.t1r4]|\nD|Notice of Intent to Award: week of September 28 2026|[p15.t1r5]|\nD|Optional valuation years ending December 31, 2029 and 2030|[p4.3]|\nEND|4"
+    },
+    {
+      "name": "SWEEP1",
+      "kind": "sweep",
+      "status": "ok",
+      "seconds": 13.861100731999613,
+      "queue_seconds": 6.95799826644361e-06,
+      "ttft_seconds": 6.211,
+      "model_seconds": 13.821,
+      "tokens_per_second": 113.0,
+      "usage": {
+        "input_tokens": 31566,
+        "cached_tokens": 0,
+        "output_tokens": 1562
+      },
+      "lines": 61,
+      "end_count": 58,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 58 lines, got 61"
+      ],
+      "output": "NONE|repeat|p2.7|\nG|Actuary must be able to provide the additional fund services listed in the scope.|p4.14|\nR|County may investigate proposer qualifications, including by inspecting facilities and checking references or past performance.|p6.7|risk\nNONE|repeat|p6.11|\nNONE|no fact|p6.19|\nC|Proposal remains valid until the County executes a contract, unless rejected under the RFP.|p7.5|\nC|County will retain one copy of each unsuccessful proposal and destroy its extra copies.|p7.21|\nC|Do not rely on oral RFP interpretations or revisions; none will be issued.|p7.22|mandatory\nC|County will issue necessary interpretations by addendum and deliver them promptly to all responders.|p8.4|\nC|Issued addenda become part of the RFP.|p8.5|mandatory\nNONE|no fact|p9.19|\nC|Award notice does not bind the County until both parties fully execute the contract.|p11.1|risk\nC|Successful proposer must execute a contract substantially conforming to the RFP and sample professional services agreement.|p11.4|mandatory\nC|County will enter disclosed ownership names into its financial software and include them in items presented to the Legislature for approval.|p12.10|\nC|Political contributions during the stated one-year period do not affect a business entity\u2019s eligibility for a public contract.|p12.11|\nR|County may reject proposals from responders with a history of failing to complete contracts on time or performing similar work unsatisfactorily.|p13.3|risk\nC|Proposals are public records and generally available for public inspection and copying.|p13.10|risk\nC|Clearly mark each proposal portion claimed to be protected as CONFIDENTIAL or PROPRIETARY.|p13.11|desirable\nC|County decides whether marked proposal material must be disclosed under law.|p13.12|risk\nC|If the responder does not act within five days after notice, the County will release material it deems disclosable.|p13.14|risk\nC|Submitting a proposal assents to the disclosure procedure and waives claims against the County for actions under it.|p13.15|risk\nNONE|repeat|p14.3|\nG|Include products and services necessary for a complete program even if the RFP does not specifically request them.|p15.1|mandatory\nNONE|no fact|p16.6|\nNONE|repeat|p17.2|\nNONE|repeat|p17.7|\nNONE|repeat|p17.10|\nR|For breach of procurement representations, the County may annul the agreement, recover paid amounts, and deny sums otherwise due.|p17.14|risk\nR|County\u2019s remedies for procurement representation breaches are not exclusive and do not waive other legal remedies.|p17.15|risk\nNONE|no fact|p17.19|\nR|County may annul the agreement for a conflict-of-interest representation breach, recover paid amounts, and deny sums otherwise due.|p17.20|risk\nNONE|repeat|p18.1|\nR|County\u2019s remedies for conflict-of-interest representation breaches are not exclusive and do not waive other legal remedies.|p18.2|risk\nR|The County may submit service data, analyses, or conclusions to government agencies or courts.|p18.4|risk\nNONE|repeat|p18.9|\nNONE|repeat|p18.19|\nNONE|repeat|p18.25|\nNONE|repeat|p18.26|\nNONE|repeat|p19.3|\nNONE|repeat|p19.8|\nC|Do not knowingly disclose quoted prices to other bidders or competitors before communicating them to the County or proposal opening, unless law requires it.|p19.8|mandatory\nNONE|repeat|p19.10|\nNONE|repeat|p19.18|\nNONE|repeat|p19.19|\nNONE|repeat|p20.1|\nNONE|no fact|p20.2|\nR|County relies on the accuracy, competence, and completeness of the firm\u2019s work when using its results.|p20.16|risk\nNONE|repeat|p21.3|\nNONE|repeat|p21.7|\nNONE|repeat|p22.9|\nNONE|repeat|p22.13|\nNONE|repeat|p23.4|\nNONE|no fact|p23.5|\nNONE|repeat|p23.9|\nNONE|repeat|p23.12|\nR|Providing insurance does not limit the firm\u2019s liability under the agreement.|p23.16|risk\nNONE|repeat|p23.19|\nNONE|repeat|p24.5|\nNONE|repeat|p24.8|\nR|County may annul the agreement and recover payments for breach of the restriction on retaining current or former County employees.|p24.10|risk\nR|County\u2019s remedies for breach of the employee restriction are not exclusive and do not waive other legal remedies.|p24.11|risk\nEND|58"
+    },
+    {
+      "name": "SWEEP2",
+      "kind": "sweep",
+      "status": "ok",
+      "seconds": 10.347430966008687,
+      "queue_seconds": 6.176996976137161e-06,
+      "ttft_seconds": 5.912,
+      "model_seconds": 10.303,
+      "tokens_per_second": 103.0,
+      "usage": {
+        "input_tokens": 31391,
+        "cached_tokens": 0,
+        "output_tokens": 1061
+      },
+      "lines": 25,
+      "end_count": 26,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [
+        "END says 26 lines, got 25"
+      ],
+      "output": "NONE|repeat|p24.13|\nNONE|repeat|p25.3|\nNONE|repeat|p25.18|\nR|The County\u2019s attorney-fee recovery rights under this dispute clause survive service completion or contract end|p26.7|risk\nR|The County must give any waiver explicitly in writing through the County Executive or Director of General Services|p26.10|risk\nR|A written waiver does not waive past or future defaults unless it expressly says so|p26.11|risk\nR|If a contract provision is invalid, other provisions remain effective|p26.12|risk\nR|The Firm may not bring claims against County officers, agents, or employees for acts or omissions connected with the Agreement|p26.14|risk\nR|Specified firm obligations, including confidentiality, records retention, indemnification, deficiency correction, and set-off, survive service completion or contract end|p27.2|risk\nNONE|repeat|p27.12|\nR|A party is not in default when an uncontrollable event prevents or delays its performance, subject to the force majeure terms|p27.13,p28.1,p28.6|risk\nNONE|no fact|p28.13\nNONE|no fact|p28.14\nNONE|no fact|p29.2\nNONE|repeat|p30.10|\nG|Failure to provide the specified insurance certificates delays contract execution|p31.2|mandatory\nNONE|no fact|p33.15\nG|The County will respond to questions as soon as possible|p34.4|unclear\nNONE|repeat|p36.2|\nR|The responder certifies that proposal prices were not disclosed to another responder or potential responder before proposal opening|p41.6|mandatory\nR|The responder certifies it did not and will not induce anyone to refrain from responding or submit a noncompetitive proposal|p41.7|mandatory\nR|The responder certifies its proposal is in good faith and not part of an agreement or inducement to submit a complementary proposal|p41.8|mandatory\nR|The responder certifies it has not offered or promised compensation or subcontracts to induce another party to refrain or submit a complementary proposal|p41.9|mandatory\nR|If the County learns the contractor violated the Iran divestment certification, it will offer the contractor an opportunity to respond|p42.3|risk\nR|The bidder must initial only one MacBride statement; the applicable statement may commit it and qualifying owners to lawful good-faith steps and independent monitoring for Northern Ireland operations|p43.7,p43.2,p43.3|mandatory\nEND|26"
+    },
+    {
+      "name": "CHECK",
+      "kind": "check",
+      "status": "ok",
+      "seconds": 18.367049501015572,
+      "queue_seconds": 1.3454991858452559e-05,
+      "ttft_seconds": 16.857,
+      "model_seconds": 18.319,
+      "tokens_per_second": 136.5,
+      "usage": {
+        "input_tokens": 46534,
+        "cached_tokens": 0,
+        "output_tokens": 2501
+      },
+      "lines": 7,
+      "end_count": 7,
+      "failed_lines": 0,
+      "retries": 0,
+      "log": [],
+      "output": "Q|Receipt confirmation form is due within 5 working days of receipt, but responders planning to bid are told to return it immediately|p2.h2,p6.9|\nQ|Valuations cover years ending 2026\u20132028, before and during the 2027\u20132029 contract term|p4.3,p11.2|\nQ|RFP requires a separate Business Associate Agreement executed simultaneously; sample contract requires one only if HIPAA applies and none is already on file|p11.5,p11.7,p20.21,p20.22|\nQ|Contract extensions require mutual agreement in the RFP, but the sample contract gives the County sole discretion to extend|p11.3,p16.13|\nQ|RFP says payment is due within 60 days of invoice receipt with documentation and approval; sample says within 60 days of approval|p13.8,p30.10|\nQ|Insurance evidence is due within ten days of award notice; the insurance form says within ten business days or as specified in the notice|p12.4,p44.t2r3,p44.t2r4|\nQ|Subcontract clauses require subcontract terms and name subcontractors, but the sample also says the Firm shall not subcontract any obligations|p20.4,p20.9,p20.13|\nEND|7"
+    }
+  ]
+}
