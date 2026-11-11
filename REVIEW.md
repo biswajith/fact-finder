@@ -190,6 +190,27 @@ buyer facts. Fixes:
 - **Check prompt** also looks for references to blank or missing sections and
   for two as-of dates for the same data (both missed in the run).
 
+**Matcher fix (2026-11-11).** The scores above, and in `poc/compare_run*.json`,
+came from a lenient matcher: one extracted fact could count for several gold
+facts (run 9: 555 matches from 425 facts, one used 7 times), the category and
+citation bonuses could carry a match with almost no shared words, and overlap
+was measured against the shorter text, so short vague facts scored high. Now
+matching is one-to-one (best pairs first), bonuses only break ties, and text
+similarity must reach 0.4 measured against the gold fact's words. Run 9 drops
+from 95.7% to 72.1% found under some code; 89 of the new misses are gold facts
+folded into an extracted fact already matched elsewhere (column `merged`).
+
+**Value check (2026-11-11).** Each matched pair now also compares dates, times,
+amounts and counted durations ("five working days"): `ok`, `wrong` (a different
+value of the same kind) or `incomplete` (value left out). `recall_values_ok`
+counts a gold fact only when it is found with every value. Runs 1–9 have no
+wrong deadlines or amounts; the few `wrong` verdicts are pairs the matcher got
+wrong (e.g. a valuation-years fact paired with the contract-term fact), and the
+`incomplete` ones are mostly real omissions (umbrella minimum $2,000,000,
+invoices within 120 days, 30-day extension notice). Run 9: 72.1% found, 69.3%
+found with values ok. Values are parsed by `normalize.values`, so anything it
+does not read (spelled-out amounts, "the 15th") is not checked.
+
 ### Cross-reference check (code)
 
 `xref.py` reads every "Article N (Title)", "Section N", "Schedule X",

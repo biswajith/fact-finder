@@ -130,16 +130,32 @@ def _compare(args) -> int:
     with open(args.facts) as f:
         found = cm.from_records(json.load(f))
     result = cm.compare(gold, found)
-    print(f"{'code':4} {'gold':>5} {'extr':>5} {'recall':>7} {'any code':>8} {'other':>5} {'extr~gold':>9}")
+    print(f"{'code':4} {'gold':>5} {'extr':>5} {'recall':>7} {'any code':>8} {'other':>5} {'merged':>6} {'extr~gold':>9}")
     for c in result.categories:
         r = result.by_category[c]
         print(
             f"{c:4} {r['gold']:5} {r['extracted']:5} {r['recall_same_code']!s:>7} {r['recall_any_code']!s:>8} "
-            f"{r['found_under_other_code']:5} {r['extracted_matching_gold']!s:>9}"
+            f"{r['found_under_other_code']:5} {r['missed_merged']:6} {r['extracted_matching_gold']!s:>9}"
         )
     total = len(result.matches)
     hit = sum(1 for m in result.matches if m.found)
     print(f"all  {total:5} {len(found):5} recall any code {hit / total:.3f}" if total else "no gold facts")
+    if result.merged:
+        print(f"{len(result.merged)} missed gold facts were folded into a fact already matched to another gold fact")
+    print(f"\n{'code':4} {'values':>6} {'wrong':>5} {'incompl':>7} {'recall, values ok':>17}")
+    for c in result.categories:
+        r = result.by_category[c]
+        print(f"{c:4} {r['values_checked']:6} {r['values_wrong']:5} {r['values_incomplete']:7} {r['recall_values_ok']!s:>17}")
+    if total:
+        ok = sum(1 for m in result.matches if m.found and (m.values is None or m.values.verdict == "ok"))
+        print(f"all  recall with values ok {ok / total:.3f}")
+    for verdict in ("wrong", "incomplete"):
+        bad = [m for m in result.matches if m.values and m.values.verdict == verdict]
+        if bad:
+            print(f"\nvalue {verdict} ({len(bad)}):")
+            for m in bad[: args.show]:
+                extra = f", has {m.values.conflicting}" if m.values.conflicting else ""
+                print(f"  ! {m.gold.text}\n    -> {m.found.text}  (missing {m.values.missing}{extra})")
     for flag in ("mandatory", "risk"):
         print(f"flag {flag}: {cm.flag_agreement(result, flag)}")
     conf = cm.confusion(result)
@@ -162,9 +178,13 @@ def _compare(args) -> int:
                 {
                     "by_category": result.by_category,
                     "misses": [asdict(m.gold) for m in result.matches if not m.found],
+                    "missed_merged": [asdict(m.gold) for m in result.merged],
                     "extras": [asdict(e) for e in result.extras],
                     "pairs": [
-                        {"gold": asdict(m.gold), "found": asdict(m.found), "score": m.score}
+                        {
+                            "gold": asdict(m.gold), "found": asdict(m.found), "score": m.score,
+                            "values": asdict(m.values) if m.values else None,
+                        }
                         for m in result.matches if m.found
                     ],
                 },

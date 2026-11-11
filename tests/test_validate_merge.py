@@ -109,6 +109,87 @@ def test_compare_matches_across_codes():
     assert cmp.by_category["D"]["recall_same_code"] == 1.0
 
 
+def test_compare_uses_each_extracted_fact_once():
+    from fact_extractor.compare import Item, compare
+
+    gold = [
+        Item("R", "Mark the envelope with the company name and address", ["p3.7"], []),
+        Item("R", "Mark the envelope with the RFP name and number", ["p3.8"], []),
+    ]
+    # one broad fact citing both passages
+    found = [Item("R", "Mark the envelope with the company name, address, RFP name and number", ["p3.7", "p3.8"], [])]
+    cmp = compare(gold, found)
+    assert sum(1 for m in cmp.matches if m.found) == 1
+    assert len(cmp.merged) == 1
+    assert cmp.by_category["R"]["missed_merged"] == 1
+    assert cmp.extras == []
+
+
+def test_compare_best_pairs_win_regardless_of_gold_order():
+    from fact_extractor.compare import Item, compare
+
+    gold = [
+        Item("R", "Submit the proposal in a sealed envelope", ["p3.6"], []),
+        Item("R", "Submit the proposal sealed in an opaque envelope or package", ["p3.6"], []),
+    ]
+    found = [
+        Item("R", "Submit the proposal sealed in an opaque envelope or package", ["p3.6"], []),
+        Item("R", "Proposal must arrive in a sealed envelope", ["p3.6"], []),
+    ]
+    cmp = compare(gold, found)
+    # the exact restatement goes to the second gold fact, not to whichever came first
+    assert cmp.matches[1].found is found[0]
+    assert cmp.matches[0].found is found[1]
+
+
+def test_compare_short_vague_fact_does_not_match_specific_gold():
+    from fact_extractor.compare import Item, compare
+
+    gold = [Item("D", "Proposals due 4:00 P.M. Friday, August 28, 2026", ["p6.16"], [])]
+    found = [Item("D", "Proposals due by email", ["p6.16"], [])]
+    assert compare(gold, found).matches[0].found is None
+
+
+def test_compare_category_bonus_does_not_rescue_weak_text():
+    from fact_extractor.compare import Item, compare
+
+    gold = [Item("R", "Provide a table of contents by section and page", ["p9.1"], [])]
+    found = [Item("R", "Use twelve point font throughout", ["p9.1"], [])]
+    assert compare(gold, found).matches[0].found is None
+
+
+def test_value_check_flags_wrong_deadline():
+    from fact_extractor.compare import Item, compare
+
+    gold = [Item("D", "Proposals due 4:00 P.M. Friday, August 28, 2026", ["p6.16"], [])]
+    found = [Item("D", "Proposals due 2:00 P.M. Monday, August 31, 2026", ["p6.16"], [])]
+    cmp = compare(gold, found)
+    m = cmp.matches[0]
+    assert m.found is not None  # still matched on wording
+    assert m.values.verdict == "wrong"
+    assert set(m.values.missing) == {"date:2026-08-28", "time:16:00"}
+    assert cmp.by_category["D"]["values_wrong"] == 1
+    assert cmp.by_category["D"]["recall_values_ok"] == 0.0
+
+
+def test_value_check_accepts_other_formats():
+    from fact_extractor.compare import check_values
+
+    assert check_values("Proposals due 4:00 P.M. on August 28, 2026", "Due 2026-08-28 at 16:00").verdict == "ok"
+    assert check_values("Contract term is three years", "Contract term: 3 years").verdict == "ok"
+    assert check_values("Retain records for six (6) years", "Keep records six years").verdict == "ok"
+    assert check_values("Umbrella minimum $2,000,000", "Umbrella minimum $2 million").verdict == "ok"
+    assert check_values("Firm must hold a NY license", "Firm licensed in NY") is None
+
+
+def test_value_check_wrong_vs_incomplete():
+    from fact_extractor.compare import check_values
+
+    assert check_values("Respond within five working days", "Respond within 10 working days").verdict == "wrong"
+    v = check_values("Umbrella minimum $2,000,000, follow-form", "Umbrella must be follow-form")
+    assert v.verdict == "incomplete" and v.missing == ["2000000"]
+
+
 def test_q_lines_on_same_ids_merge():
     facts = [
         F("Q", "Subcontract provisions required but subcontracting prohibited", ["p20.4", "p20.13"]),
