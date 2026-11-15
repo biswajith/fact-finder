@@ -23,6 +23,10 @@ Two refinements keep granularity differences from counting as misses:
   already paired with another gold fact also states it: it shares an ID, holds
   at least COMBINED_COVERAGE of the gold fact's content words, and passes the
   value check. It counts as found; `combined` reports how many.
+
+`judged` (from judge.py) overrides the wording score for close calls: a pair
+judged "full" or "partial" may pair below MATCH_SIMILARITY, a pair judged "no"
+never pairs, nor gets combined credit.
 """
 
 from __future__ import annotations
@@ -129,6 +133,7 @@ class Match:
     score: float
     values: ValueCheck | None = None
     combined: bool = False  # credited to an extracted fact paired with another gold fact
+    judged: str | None = None  # LLM verdict on this pair ("full", "partial", "no"), if it was a close call
 
 
 @dataclass
@@ -164,7 +169,8 @@ def from_records(records: list[dict]) -> list[Item]:
     ]
 
 
-def compare(gold: list[Item], found: list[Item]) -> Comparison:
+def compare(gold: list[Item], found: list[Item], judged: dict[tuple[str, str], str] | None = None) -> Comparison:
+    judged = judged or {}
     by_id: dict[str, list[int]] = defaultdict(list)
     for i, f in enumerate(found):
         for id_ in f.ids:
@@ -178,9 +184,10 @@ def compare(gold: list[Item], found: list[Item]) -> Comparison:
             f = found[fi]
             score = similarity(g.text, f.text)
             best_text[gi] = max(best_text[gi], score)
-            if score < MATCH_SIMILARITY:
+            verdict = judged.get((g.text, f.text))
+            if verdict == "no" or (score < MATCH_SIMILARITY and verdict is None):
                 continue
-            rank = score + 0.05 * g.same_code(f) + 0.02 * bool(f.ids and g.ids and f.ids[0] == g.ids[0])
+            rank = max(score, MATCH_SIMILARITY) + 0.05 * g.same_code(f) + 0.02 * bool(f.ids and g.ids and f.ids[0] == g.ids[0])
             candidates.append((rank, score, gi, fi))
     candidates.sort(key=lambda c: (-c[0], c[2], c[3]))
 
@@ -201,13 +208,16 @@ def compare(gold: list[Item], found: list[Item]) -> Comparison:
     for gi, g in enumerate(gold):
         if gi in pair:
             fi, score = pair[gi]
-            matches.append(Match(g, found[fi], round(score, 2), check_values(g.text, found[fi].text)))
+            matches.append(Match(g, found[fi], round(score, 2), check_values(g.text, found[fi].text),
+                                 judged=judged.get((g.text, found[fi].text))))
             continue
         # does an already-paired extracted fact state this gold fact as well?
         best: tuple[float, int] | None = None
         for fi in {i for id_ in g.ids for i in by_id[id_]} & used:
             cov = coverage(g.text, found[fi].text)
             v = check_values(g.text, found[fi].text)
+            if judged.get((g.text, found[fi].text)) == "no":
+                continue
             if cov >= COMBINED_COVERAGE and (v is None or v.verdict == "ok"):
                 key = (cov + 0.05 * g.same_code(found[fi]), -fi)
                 if best is None or key > (best[0], -best[1]):
@@ -239,6 +249,9 @@ def compare(gold: list[Item], found: list[Item]) -> Comparison:
             "recall_any_code": round((same + other) / len(ms), 3) if ms else None,
             "found_under_other_code": other,
             "combined": sum(1 for m in ms if m.combined),
+            # pairs the judge let match although their wording scored below the cutoff
+            "judge_rescued": sum(1 for m in ms if m.found and m.judged and m.score < MATCH_SIMILARITY),
+            "judge_partial": sum(1 for m in ms if m.found and m.judged == "partial"),
             "missed_merged": sum(1 for m in merged if m.gold.category == c),
             # found under any code with every gold value present
             "recall_values_ok": round(exact / len(ms), 3) if ms else None,

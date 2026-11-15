@@ -234,6 +234,22 @@ month ("December 31, 2026, 2027 and 2028") parse as one date plus bare years,
 so a fact stating only part of such a list can show as `wrong`; and paraphrases
 just under the 0.4 cutoff still count as misses.
 
+**LLM judge for close calls (2026-11-14).** `compare --judge` (judge.py) asks
+the model about pairs near the cutoff: unmatched gold facts with a candidate on
+the same IDs scoring 0.2–0.4 (best 3), and matches scoring below 0.5. Verdicts
+are `full`, `partial` (main point there, a detail missing) or `no` (another fact
+or another value). `full`/`partial` may match below the cutoff, `no` never
+matches. Verdicts are cached by text in `<facts>.judge.json`, so reruns cost
+nothing and score the same; scoring is rerun until no new close pair appears.
+A first yes/no prompt judged inconsistently: it rejected wording matches for a
+missing signature yet accepted a three-attachment fact from "listed in
+Attachment A". Three verdicts fixed that. Run 9 (141 pairs, 5 calls, ~35 s):
+88.7% found, 78.6% without partials; 34 matched below the cutoff, 1 wording
+match rejected, 47 partial. `partial` is generous (it once covered "submit the
+non-collusion affidavit" for "enclose written authorization if the signer is
+not the price decision-maker"), so quote both numbers. Pairs scoring >= 0.5
+are never judged, so some partial matches hide there.
+
 ### Cross-reference check (code)
 
 `xref.py` reads every "Article N (Title)", "Section N", "Schedule X",

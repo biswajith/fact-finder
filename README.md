@@ -60,6 +60,8 @@ uv run fact-extractor extract rfp.pdf --deal-id deal_442 \
 
 # 5. Score a run against a hand-written reference list
 uv run fact-extractor compare poc/gold/gold_*.txt --facts facts.json --show 10
+# ask the model about close calls; verdicts are cached in facts.judge.json
+uv run fact-extractor compare poc/gold/gold_*.txt --facts facts.json --judge
 ```
 
 `tag` and `anchors` should be your first stop when results look wrong: if the

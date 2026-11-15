@@ -64,6 +64,12 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--facts", required=True, help="facts JSON written by extract")
     c.add_argument("--show", type=int, default=10, help="misses and extras to list per category")
     c.add_argument("--json", default=None, help="write the full comparison here")
+    c.add_argument("--judge", action="store_true", help="ask the model about close calls (needs OPENAI_API_KEY)")
+    c.add_argument(
+        "--judge-cache", default=None,
+        help="verdict cache JSON; defaults to the facts file with .judge.json. Cached pairs are not asked again",
+    )
+    c.add_argument("--model", default=None, help="judge model; defaults to $FACT_EXTRACTOR_MODEL or gpt-6-luna")
     args = ap.parse_args(argv)
 
     if args.cmd == "compare":
@@ -123,13 +129,46 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
+def hit_rate(result) -> float:
+    return sum(1 for m in result.matches if m.found) / len(result.matches)
+
+
 def _compare(args) -> int:
     from . import compare as cm
 
     gold = [item for path in args.gold for item in cm.read_lines(path)]
     with open(args.facts) as f:
         found = cm.from_records(json.load(f))
-    result = cm.compare(gold, found)
+    if args.judge:
+        from . import judge as jd
+        from .llm import OpenAIClient
+
+        path = args.judge_cache or os.path.splitext(args.facts)[0] + ".judge.json"
+        cache = jd.VerdictCache(path)
+        run = asyncio.run(jd.compare_with_judge(gold, found, OpenAIClient(model=args.model), cache))
+        result = run.comparison
+        lexical = {(m.gold.text, m.found.text) for m in cm.compare(gold, found).matches if m.found}
+        rejected = sum(1 for p, v in cache.verdicts().items() if v == "no" and p in lexical)
+        partial = sum(1 for m in result.matches if m.found and m.judged == "partial")
+        rescued = sum(1 for m in result.matches if m.found and m.judged and m.score < cm.MATCH_SIMILARITY)
+        print(
+            f"judge: {run.asked} pairs asked, {run.cached} from cache {path}, {run.unanswered} unanswered; "
+            f"{rescued} matched below the cutoff, {rejected} wording matches rejected, {partial} found but partial"
+        )
+        if result.matches:
+            full = sum(1 for m in result.matches if m.found and m.judged != "partial")
+            print(f"recall any code {hit_rate(result):.3f}, without judge partials {full / len(result.matches):.3f}")
+        final = {(m.gold.text, m.found.text): m for m in result.matches if m.found}
+        for sign, label, pick in (
+            ("+", "matched below the cutoff", lambda v, p: p in final and p not in lexical),
+            ("-", "wording match rejected", lambda v, p: v.verdict == "no" and p in lexical),
+            ("~", "partial", lambda v, p: v.verdict == "partial" and p in final),
+        ):
+            shown = [v for v in cache.items.values() if pick(v, (v.gold, v.found))]
+            for v in shown[: args.show]:
+                print(f"  {sign} {label}: {v.gold}\n      -> {v.found}  ({v.reason})")
+    else:
+        result = cm.compare(gold, found)
     print(
         f"{'code':4} {'gold':>5} {'extr':>5} {'recall':>7} {'any code':>8} {'other':>5} {'comb':>4} {'merged':>6} "
         f"{'extr~gold':>9}"
@@ -190,7 +229,7 @@ def _compare(args) -> int:
                     "pairs": [
                         {
                             "gold": asdict(m.gold), "found": asdict(m.found), "score": m.score,
-                            "values": asdict(m.values) if m.values else None, "combined": m.combined,
+                            "values": asdict(m.values) if m.values else None, "combined": m.combined, "judged": m.judged,
                         }
                         for m in result.matches if m.found
                     ],
