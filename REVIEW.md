@@ -211,6 +211,29 @@ invoices within 120 days, 30-day extension notice). Run 9: 72.1% found, 69.3%
 found with values ok. Values are parsed by `normalize.values`, so anything it
 does not read (spelled-out amounts, "the 15th") is not checked.
 
+**Reference list deduplicated, combined facts credited (2026-11-14).** The
+three subagents that wrote `poc/gold/` often wrote the same fact into their own
+files under different codes (an insurance minimum as G in `gold_bdgsx`, C in
+`gold_c` and R in `gold_r`). With one-to-one matching only one copy could ever
+be found, so each duplicate was a guaranteed miss. Duplicates were merged with
+this rule: lines from different files that share an ID, similarity >= 0.55
+both ways, the same values, Q only with Q, and never two lines of one file in a
+group (each file's lines are deliberately distinct, e.g. separate certificate
+fields). 92 groups, 580 -> 467 facts. The kept line is the one from the most
+specific file (bdgsx, then c, then r), with the IDs and flags of the group and
+the other codes as alternates (`G/C/R|...`): a fact extracted under any listed
+code counts as the same code.
+
+`compare` also credits a gold fact as `combined` when an extracted fact already
+paired with another gold fact states it too (shares an ID, holds >= 60% of its
+content words, values agree), e.g. one fact listing all three local-preference
+tiers. Run 9: 81.2% found under some code (was 72.1%), 78.2% with values ok;
+26 combined, 21 still `merged`. G recall rose from 50% to 82%: most gate facts
+had been duplicates of R facts. Remaining limits: values in a list after one
+month ("December 31, 2026, 2027 and 2028") parse as one date plus bare years,
+so a fact stating only part of such a list can show as `wrong`; and paraphrases
+just under the 0.4 cutoff still count as misses.
+
 ### Cross-reference check (code)
 
 `xref.py` reads every "Article N (Title)", "Section N", "Schedule X",

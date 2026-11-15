@@ -114,15 +114,59 @@ def test_compare_uses_each_extracted_fact_once():
 
     gold = [
         Item("R", "Mark the envelope with the company name and address", ["p3.7"], []),
-        Item("R", "Mark the envelope with the RFP name and number", ["p3.8"], []),
+        Item("R", "Mark the envelope with the RFP name, number and closing date", ["p3.8"], []),
     ]
-    # one broad fact citing both passages
-    found = [Item("R", "Mark the envelope with the company name, address, RFP name and number", ["p3.7", "p3.8"], [])]
+    # one broad fact citing both passages, but stating only the first in full
+    found = [Item("R", "Mark the envelope with the company name and address and RFP details", ["p3.7", "p3.8"], [])]
     cmp = compare(gold, found)
     assert sum(1 for m in cmp.matches if m.found) == 1
     assert len(cmp.merged) == 1
     assert cmp.by_category["R"]["missed_merged"] == 1
     assert cmp.extras == []
+
+
+def test_compare_credits_gold_stated_inside_a_combined_fact():
+    from fact_extractor.compare import Item, compare
+
+    gold = [
+        Item("R", "Mark the envelope with the company name and address", ["p3.7"], []),
+        Item("R", "Mark the envelope with the RFP name and number", ["p3.8"], []),
+    ]
+    found = [Item("R", "Mark the envelope with the company name, address, RFP name and number", ["p3.7", "p3.8"], [])]
+    cmp = compare(gold, found)
+    assert all(m.found is found[0] for m in cmp.matches)
+    assert [m.combined for m in cmp.matches].count(True) == 1
+    assert cmp.merged == []
+    assert cmp.by_category["R"]["combined"] == 1
+    assert cmp.by_category["R"]["recall_same_code"] == 1.0
+
+
+def test_combined_credit_needs_matching_values():
+    from fact_extractor.compare import Item, compare
+
+    gold = [
+        Item("E", "Ulster County vendors receive five points", ["p36.1"], []),
+        Item("E", "Contiguous county vendors receive three points", ["p36.1"], []),
+    ]
+    # the second tier is stated with the wrong value
+    found = [Item("E", "Ulster County vendors receive five points; contiguous county vendors receive two points", ["p36.1"], [])]
+    cmp = compare(gold, found)
+    assert cmp.matches[1].found is None
+    assert len(cmp.merged) == 1
+
+
+def test_gold_alternate_codes_count_as_same_code(tmp_path):
+    from fact_extractor.compare import Item, compare, confusion, read_lines
+
+    p = tmp_path / "gold.txt"
+    p.write_text("G/C/R|Bidder must not be on the Iran Prohibited Entities List|p42.1|mandatory\n")
+    gold = read_lines(str(p))
+    assert gold[0].category == "G" and gold[0].alt == ["C", "R"]
+    found = [Item("R", "Certify the bidder is not on the Iran Prohibited Entities List", ["p42.1"], [])]
+    cmp = compare(gold, found)
+    assert cmp.by_category["G"]["recall_same_code"] == 1.0
+    assert cmp.by_category["G"]["found_under_other_code"] == 0
+    assert not confusion(cmp)
 
 
 def test_compare_best_pairs_win_regardless_of_gold_order():

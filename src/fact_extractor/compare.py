@@ -15,6 +15,14 @@ matches "due August 28". Each matched pair is then given a value check
 fact must also be in the extracted fact. A pair is `ok`, `wrong` (the extracted
 fact gives a different value of the same kind) or `incomplete` (it leaves the
 value out). Gold facts with no values get no verdict.
+
+Two refinements keep granularity differences from counting as misses:
+- A gold code may list alternates ("G/R"): the fact is filed under G but
+  counts as found under the same code if extracted as R too.
+- A gold fact left unpaired is credited as `combined` when an extracted fact
+  already paired with another gold fact also states it: it shares an ID, holds
+  at least COMBINED_COVERAGE of the gold fact's content words, and passes the
+  value check. It counts as found; `combined` reports how many.
 """
 
 from __future__ import annotations
@@ -34,13 +42,24 @@ from .store import split_note
 _WORD_COUNT = re.compile(
     r"\b(?P<w>" + "|".join(sorted(_WORDS, key=len, reverse=True)) + r")\b"
     r"(?:\s*\(\d+\))?\s+(?:working\s+|business\s+|calendar\s+|consecutive\s+)?"
-    r"(?:day|week|month|year|hour|minute)s?\b",
+    r"(?:day|week|month|year|hour|minute|point|percent)s?\b",
     re.I,
 )
 
 # Minimum text similarity for a match. Category and citation agreement only
 # break ties between candidates; they never lift a weak text match over this.
 MATCH_SIMILARITY = 0.4
+COMBINED_COVERAGE = 0.6
+
+
+def _content(text: str) -> list[str]:
+    return [w for w in words(text) if w not in _STOP]
+
+
+def coverage(gold: str, found: str) -> float:
+    """Share of the gold fact's content words that `found` also uses."""
+    wg = set(_content(gold))
+    return len(wg & set(_content(found))) / len(wg) if wg else 0.0
 
 
 def similarity(gold: str, found: str) -> float:
@@ -49,8 +68,7 @@ def similarity(gold: str, found: str) -> float:
     The word-overlap part is measured against the gold fact's words, so a short
     vague fact ("Proposals due by email") does not score high against a long
     specific one just because all of its few words appear there."""
-    wg = [w for w in words(gold) if w not in _STOP]
-    wf = [w for w in words(found) if w not in _STOP]
+    wg, wf = _content(gold), _content(found)
     if not wg or not wf:
         return 0.0
     coverage = len(set(wg) & set(wf)) / len(set(wg))
@@ -63,6 +81,10 @@ class Item:
     text: str
     ids: list[str]
     flags: list[str]
+    alt: list[str] = field(default_factory=list)  # other codes that also count as the same
+
+    def same_code(self, other: "Item") -> bool:
+        return other.category == self.category or other.category in self.alt
 
 
 def _strict_values(text: str) -> set[str]:
@@ -106,6 +128,7 @@ class Match:
     found: Item | None
     score: float
     values: ValueCheck | None = None
+    combined: bool = False  # credited to an extracted fact paired with another gold fact
 
 
 @dataclass
@@ -113,8 +136,8 @@ class Comparison:
     matches: list[Match]
     extras: list[Item]  # extracted facts that match no gold fact
     categories: list[str]
-    # gold facts missed only because the extracted fact that matched them was
-    # already paired with another gold fact (the extractor merged the two)
+    # gold facts missed because the extracted fact that matched them was already
+    # paired with another gold fact, and it does not state this one fully
     merged: list[Match] = field(default_factory=list)
     by_category: dict[str, dict] = field(default_factory=dict)
 
@@ -129,7 +152,8 @@ def read_lines(path: str) -> list[Item]:
                 continue
             flags, _ = split_note(parts[3] if len(parts) > 3 else "")
             ids = [i.strip().strip("[]") for i in parts[2].split(",") if i.strip()]
-            items.append(Item(parts[0].strip().upper(), parts[1].strip(), ids, flags))
+            code, *alt = [c.strip() for c in parts[0].upper().split("/") if c.strip()]
+            items.append(Item(code, parts[1].strip(), ids, flags, alt))
     return items
 
 
@@ -156,7 +180,7 @@ def compare(gold: list[Item], found: list[Item]) -> Comparison:
             best_text[gi] = max(best_text[gi], score)
             if score < MATCH_SIMILARITY:
                 continue
-            rank = score + 0.05 * (f.category == g.category) + 0.02 * bool(f.ids and g.ids and f.ids[0] == g.ids[0])
+            rank = score + 0.05 * g.same_code(f) + 0.02 * bool(f.ids and g.ids and f.ids[0] == g.ids[0])
             candidates.append((rank, score, gi, fi))
     candidates.sort(key=lambda c: (-c[0], c[2], c[3]))
 
@@ -178,18 +202,32 @@ def compare(gold: list[Item], found: list[Item]) -> Comparison:
         if gi in pair:
             fi, score = pair[gi]
             matches.append(Match(g, found[fi], round(score, 2), check_values(g.text, found[fi].text)))
-        else:
-            m = Match(g, None, round(best_text[gi], 2))
-            matches.append(m)
-            if gi in blocked:
-                merged.append(m)
+            continue
+        # does an already-paired extracted fact state this gold fact as well?
+        best: tuple[float, int] | None = None
+        for fi in {i for id_ in g.ids for i in by_id[id_]} & used:
+            cov = coverage(g.text, found[fi].text)
+            v = check_values(g.text, found[fi].text)
+            if cov >= COMBINED_COVERAGE and (v is None or v.verdict == "ok"):
+                key = (cov + 0.05 * g.same_code(found[fi]), -fi)
+                if best is None or key > (best[0], -best[1]):
+                    best = (key[0], fi)
+        if best is not None:
+            fi = best[1]
+            matches.append(Match(g, found[fi], round(similarity(g.text, found[fi].text), 2),
+                                 check_values(g.text, found[fi].text), combined=True))
+            continue
+        m = Match(g, None, round(best_text[gi], 2))
+        matches.append(m)
+        if gi in blocked:
+            merged.append(m)
     cats = sorted({g.category for g in gold})
     extras = [f for i, f in enumerate(found) if i not in used and f.category in cats]
     cmp = Comparison(matches, extras, cats, merged=merged)
     for c in cats:
         ms = [m for m in matches if m.gold.category == c]
-        same = sum(1 for m in ms if m.found and m.found.category == c)
-        other = sum(1 for m in ms if m.found and m.found.category != c)
+        same = sum(1 for m in ms if m.found and m.gold.same_code(m.found))
+        other = sum(1 for m in ms if m.found and not m.gold.same_code(m.found))
         n_found = sum(1 for f in found if f.category == c)
         matched_found = len({id(m.found) for m in matches if m.found and m.found.category == c})
         verdicts = Counter(m.values.verdict for m in ms if m.found and m.values)
@@ -200,6 +238,7 @@ def compare(gold: list[Item], found: list[Item]) -> Comparison:
             "recall_same_code": round(same / len(ms), 3) if ms else None,
             "recall_any_code": round((same + other) / len(ms), 3) if ms else None,
             "found_under_other_code": other,
+            "combined": sum(1 for m in ms if m.combined),
             "missed_merged": sum(1 for m in merged if m.gold.category == c),
             # found under any code with every gold value present
             "recall_values_ok": round(exact / len(ms), 3) if ms else None,
@@ -220,4 +259,4 @@ def flag_agreement(cmp: Comparison, flag: str) -> dict:
 
 
 def confusion(cmp: Comparison) -> Counter:
-    return Counter((m.gold.category, m.found.category) for m in cmp.matches if m.found and m.found.category != m.gold.category)
+    return Counter((m.gold.category, m.found.category) for m in cmp.matches if m.found and not m.gold.same_code(m.found))

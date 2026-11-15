@@ -130,18 +130,25 @@ def _compare(args) -> int:
     with open(args.facts) as f:
         found = cm.from_records(json.load(f))
     result = cm.compare(gold, found)
-    print(f"{'code':4} {'gold':>5} {'extr':>5} {'recall':>7} {'any code':>8} {'other':>5} {'merged':>6} {'extr~gold':>9}")
+    print(
+        f"{'code':4} {'gold':>5} {'extr':>5} {'recall':>7} {'any code':>8} {'other':>5} {'comb':>4} {'merged':>6} "
+        f"{'extr~gold':>9}"
+    )
     for c in result.categories:
         r = result.by_category[c]
         print(
             f"{c:4} {r['gold']:5} {r['extracted']:5} {r['recall_same_code']!s:>7} {r['recall_any_code']!s:>8} "
-            f"{r['found_under_other_code']:5} {r['missed_merged']:6} {r['extracted_matching_gold']!s:>9}"
+            f"{r['found_under_other_code']:5} {r['combined']:4} {r['missed_merged']:6} {r['extracted_matching_gold']!s:>9}"
         )
     total = len(result.matches)
     hit = sum(1 for m in result.matches if m.found)
     print(f"all  {total:5} {len(found):5} recall any code {hit / total:.3f}" if total else "no gold facts")
+    n_comb = sum(1 for m in result.matches if m.combined)
+    if n_comb:
+        print(f"{n_comb} gold facts found inside an extracted fact that also states another gold fact (comb)")
     if result.merged:
-        print(f"{len(result.merged)} missed gold facts were folded into a fact already matched to another gold fact")
+        print(f"{len(result.merged)} missed gold facts matched only a fact already paired with another, "
+              "and it does not state them fully (merged)")
     print(f"\n{'code':4} {'values':>6} {'wrong':>5} {'incompl':>7} {'recall, values ok':>17}")
     for c in result.categories:
         r = result.by_category[c]
@@ -183,7 +190,7 @@ def _compare(args) -> int:
                     "pairs": [
                         {
                             "gold": asdict(m.gold), "found": asdict(m.found), "score": m.score,
-                            "values": asdict(m.values) if m.values else None,
+                            "values": asdict(m.values) if m.values else None, "combined": m.combined,
                         }
                         for m in result.matches if m.found
                     ],

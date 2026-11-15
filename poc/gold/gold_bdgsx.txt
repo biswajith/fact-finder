@@ -9,9 +9,9 @@ B|Questions submitted by email should be copied to ejor@ulstercountyny.gov|p34.3
 B|County principal offices at 244 Fair Street, Kingston, NY 12401|p16.3|
 B|County Attorney mailing address PO Box 1800 Kingston NY 12402; physical 244 Fair Street, 5th Floor, Kingston NY 12401|p27.8|
 B|Plan covers County Government, local municipalities, school districts and volunteer fire fighters|p4.1|
-B|County seeks a qualified actuary firm for annual actuarial valuation of its self-insured workers compensation program|p4.2|
+B/R|County seeks a qualified actuary firm for annual actuarial valuation of its self-insured workers compensation program|p4.2|mandatory
 B|Liability estimate sought annually for years ending 2026, 2027, 2028 with two optional renewal years 2029 and 2030|p4.3|
-B|Each year the vendor produces a report containing a three-year forecast|p4.4|
+B/R|Each year the vendor produces a report containing a three-year forecast|p4.4|mandatory
 B|County has 1,609 employees: 1,426 full time and 183 part time|p4.5|
 B|Ulster County Community College has 342 employees: 181 full time and 161 part time|p4.5|
 B|Approximately 941 active volunteer firepersons and approximately 5,745 government/local education employees|p4.5|
@@ -22,10 +22,10 @@ B|Plan covers the County, 20 towns, 3 villages, 7 school districts, 26 volunteer
 B|Plan administered by County employees with a third-party administrator, overseen by the County Executive|p4.11|
 B|Work is independent actuarial analysis of IBNR loss reserve, with total reserves on discounted and undiscounted basis|p4.12,p4.13|
 B|Additional services: expected losses by agency, two-year loss payment forecast, unpaid liabilities, withdrawal liabilities, contingencies, reserve allocation, IBNR reserves|p4.14,p4.15,p4.16,p4.17,p4.18,p4.19,p5.1,p5.2|
-B|Optional additional actuarial services on hourly fee basis at County or Plan Administrator request|p5.3,p5.4,p5.5|
+B/R|Optional additional actuarial services on hourly fee basis at County or Plan Administrator request|p5.3,p5.4,p5.5|desirable
 B|Report process: preliminary draft findings, discussion with County, final report; County may request meeting or call|p5.7,p5.8|
-B|Actuary must certify loss reserve estimates and provide Statement of Actuarial Opinion for County financial statements|p6.8|
-B|Political subdivisions and certain educational institutions may participate in resulting contracts|p14.10|
+B/R|Actuary must certify loss reserve estimates and provide Statement of Actuarial Opinion for County financial statements|p6.8|mandatory
+B/C|Political subdivisions and certain educational institutions may participate in resulting contracts|p14.10|
 B|County applies GreenNY sustainability requirements in procurement per Executive Order #1 of 2023|p15.3,p15.2,p15.4,p15.6|
 E|Proposals evaluated by a committee of Ulster County representatives using multiple criteria|p9.17|
 E|Overall plan to provide required services: 35 points (completeness, capability, plan and timeline)|p9.h4,p9.20,p10.1,p10.2|
@@ -44,43 +44,43 @@ E|Evaluation based solely on information in the proposal; County assumes no prio
 E|Nonconformance with RFP instructions may result in unfavorable proposal evaluation|p7.14|risk
 E|County may consider alternate proposals providing enhancements beyond requirements|p11.10,p11.11|
 E|County may waive informalities|p7.7|
-E|Contract executed only to the extent of monies available; notice of award not binding until fully executed|p10.22,p11.1|
-G|Proposer must be licensed or permitted to provide actuarial services in New York State for at least four years|p5.10|mandatory
+E/C|Contract executed only to the extent of monies available; notice of award not binding until fully executed|p10.22,p11.1|risk
+G/R|Proposer must be licensed or permitted to provide actuarial services in New York State for at least four years|p5.10,p5.9|mandatory
 G|Actuary must be able to certify loss reserve estimates and issue a Statement of Actuarial Opinion|p6.8|mandatory
-G|Proposer must present satisfactory proof of capacity and ability to complete the requirements|p6.5,p10.14|mandatory
-G|Responder warrants neither it nor its officers, employees, subcontractors or agents is debarred from doing business with any government agency|p14.2,p18.7|mandatory
-G|Bidder and subcontractors must not be on NYS Iran Divestment Act Prohibited Entities List|p42.1,p42.5|mandatory
+G/R|Proposer must present satisfactory proof of capacity and ability to complete the requirements|p6.5,p10.14|mandatory
+G/R|Responder warrants neither it nor its officers, employees, subcontractors or agents is debarred from doing business with any government agency|p14.2,p18.7|mandatory
+G/C/R|Bidder and subcontractors must not be on NYS Iran Divestment Act Prohibited Entities List|p42.1,p42.5,p42.2,p42.6|mandatory
 G|Bidder must have no Northern Ireland operations or comply with MacBride Fair Employment Principles|p43.5,p43.7,p43.1|mandatory
-G|No County Officer may have an interest in the proposal unless disclosed|p37.5,p37.6|
-G|Firm must have no conflicting interest with performance of the services|p17.16,p17.17|
+G/R|No County Officer may have an interest in the proposal unless disclosed|p37.5,p37.6|desirable
+G/R|Firm must have no conflicting interest with performance of the services|p17.16,p17.17|mandatory
 G|Awarded vendor must enter a HIPAA Business Associate Agreement with the County|p11.5,p11.7,p20.21|mandatory
-G|Vendor must pay Ulster County Living Wage if agreement is 50,000 dollars or more per fiscal year unless exempt|p14.7,p23.6,p40.5|mandatory
-G|Successful responder must pay NYS prevailing wage rates and supplements if applicable|p14.6|unclear
-G|If contract exceeds 25,000 dollars, firm must document affirmative action efforts for minorities and women|p22.12|
-G|Tax-exempt firms must be current with IRS Form 990 filing and in good standing|p18.10,p18.11|unclear
-G|Successful responder must maintain insurance per Schedule C at own expense throughout performance|p12.3,p23.11|mandatory
-G|Commercial general liability: at least 1,000,000 dollars per occurrence and 2,000,000 dollars general aggregate|p32.15,p32.14|mandatory
-G|CGL must cover contractual liability, independent contractors, products and completed operations on CGL form|p32.17|
-G|Umbrella or excess liability insurance at least 2,000,000 dollars, follow-form with no additional exclusions|p32.20,p33.2,p33.1|mandatory
-G|Automobile liability minimum combined single limit 1,000,000 dollars covering owned, hired and non-owned vehicles|p33.5,p33.6,p33.7,p33.8,p33.9|mandatory
-G|Professional liability 1,000,000 dollars per occurrence and 2,000,000 aggregate if box checked|p33.12,p33.11|unclear
-G|Cyber liability 5,000,000 dollars per occurrence and aggregate if box checked; policy copies required with certificate|p33.13,p33.14|unclear
-G|Sexual abuse and molestation coverage 1,000,000 per occurrence and 2,000,000 aggregate if box checked|p33.15|unclear
-G|Workers compensation and disability benefits insurance required for all employees, or CE-200 exemption form|p31.17,p31.18,p31.19,p32.5,p32.11|mandatory
-G|Acceptable WC proof: Form C-105.2, U-26.3, SI-12, GSI-105.2 or GSI-12; ACORD forms not acceptable|p31.21,p31.23,p32.1,p32.2,p32.3,p32.4,p31.20|mandatory
-G|Acceptable disability benefits proof: Form DB-120.1 or DB-155|p32.7,p32.9,p32.10|mandatory
+G/C/R|Vendor must pay Ulster County Living Wage if agreement is 50,000 dollars or more per fiscal year unless exempt|p14.7,p23.6,p40.5|mandatory
+G/R|Successful responder must pay NYS prevailing wage rates and supplements if applicable|p14.6,p23.5|unclear,mandatory
+G/C/R|If contract exceeds 25,000 dollars, firm must document affirmative action efforts for minorities and women|p22.12,p22.13|mandatory
+G/R|Tax-exempt firms must be current with IRS Form 990 filing and in good standing|p18.10,p18.11|unclear,mandatory
+G/C/R|Successful responder must maintain insurance per Schedule C at own expense throughout performance|p12.3,p23.11|mandatory
+G/C/R|Commercial general liability: at least 1,000,000 dollars per occurrence and 2,000,000 dollars general aggregate|p32.15,p32.14,p32.13|mandatory
+G/C/R|CGL must cover contractual liability, independent contractors, products and completed operations on CGL form|p32.17,p32.18,p32.19|mandatory
+G/C/R|Umbrella or excess liability insurance at least 2,000,000 dollars, follow-form with no additional exclusions|p32.20,p33.2,p33.1,p33.3,p33.4|mandatory
+G/C/R|Automobile liability minimum combined single limit 1,000,000 dollars covering owned, hired and non-owned vehicles|p33.5,p33.6,p33.7,p33.8,p33.9,p33.10|mandatory
+G/C/R|Professional liability 1,000,000 dollars per occurrence and 2,000,000 aggregate if box checked|p33.12,p33.11|unclear,mandatory
+G/C/R|Cyber liability 5,000,000 dollars per occurrence and aggregate if box checked; policy copies required with certificate|p33.13,p33.14|unclear,risk,mandatory
+G/C/R|Sexual abuse and molestation coverage 1,000,000 per occurrence and 2,000,000 aggregate if box checked|p33.15|unclear,mandatory
+G/C/R|Workers compensation and disability benefits insurance required for all employees, or CE-200 exemption form|p31.17,p31.18,p31.19,p32.5,p32.11,p31.20,p32.6|mandatory
+G/R|Acceptable WC proof: Form C-105.2, U-26.3, SI-12, GSI-105.2 or GSI-12; ACORD forms not acceptable|p31.21,p31.23,p32.1,p32.2,p32.3,p32.4,p31.20|mandatory
+G/R|Acceptable disability benefits proof: Form DB-120.1 or DB-155|p32.7,p32.9,p32.10|mandatory
 G|County of Ulster, PO Box 1800, Kingston NY 12402-1800 named additional insured on CGL, umbrella and auto, primary and non-contributory|p32.18,p32.19,p33.3,p33.4,p33.9,p33.10,p23.14|mandatory
-G|Certificate holder on all insurance certificates must be County of Ulster, PO Box 1800, Kingston NY 12402-1800|p31.12,p31.13,p31.8|
-G|Insurers must be of recognized financial standing satisfactory to the County; occurrence basis where commercially available|p23.13,p23.18,p23.19|
-G|Strict adherence to Schedule C insurance requirements unless authorized by Ulster County Insurance Officer|p31.3,p31.4|mandatory
+G/R|Certificate holder on all insurance certificates must be County of Ulster, PO Box 1800, Kingston NY 12402-1800|p31.12,p31.13,p31.8|mandatory
+G/C/R|Insurers must be of recognized financial standing satisfactory to the County; occurrence basis where commercially available|p23.13,p23.18,p23.19,p23.12|mandatory
+G/R|Strict adherence to Schedule C insurance requirements unless authorized by Ulster County Insurance Officer|p31.3,p31.4|mandatory
 X|Proposals received after the specified time will not be opened|p3.4,p6.16|mandatory
 X|Oral, faxed or telephoned submittals or modifications will not be accepted|p7.6|mandatory
 X|County may disregard nonconforming, non-responsive or conditional proposals and reject any or all proposals|p7.7,p7.8|
 X|Conditional proposals will not be accepted|p10.18|mandatory
 X|Failure to follow the prescribed proposal format may be cause for rejection|p8.8,p8.7|risk
-X|Only proposals containing complete information and required certifications will be considered|p9.16|mandatory
+X/R|Only proposals containing complete information and required certifications will be considered|p9.16|mandatory
 X|Failure to submit any checklist document may be cause for rejection|p36.2,p36.1|risk
-X|Failure to provide specified insurance shall disqualify responder|p37.h4|mandatory
+X/C|Failure to provide specified insurance shall disqualify responder|p37.h4,p37.8,p37.7|mandatory
 X|Proposal may be rejected if information or investigation fails to show responder is properly qualified|p10.17|
 X|County may refuse award to responder failing County prequalification regulations|p13.2|
 X|Proposals may be rejected from responders who previously failed to complete contracts on time or performed unsatisfactorily|p13.3|
@@ -93,86 +93,86 @@ X|Inquiries will not be considered after the question deadline|p8.2|
 D|RFP issue date: 2026-07-30|p3.1|
 D|Proposal submission deadline: 2026-08-28 16:00|p6.16,p3.3,p15.t1r2|mandatory
 D|Last day to submit written inquiries: 2026-08-18 (at least ten calendar days before submission date)|p15.t1r1,p8.1,p34.1|
-D|Receipt Confirmation Form return: within 5 working days of receiving bid package|p2.h2,p2.h3|
+D/R|Receipt Confirmation Form return: within 5 working days of receiving bid package|p2.h2,p2.h3,p2.3,p6.9,p6.10|mandatory
 D|Receipt Confirmation Form return: immediately if planning to submit|p6.9|
 D|Pre-proposal meeting: not scheduled|p10.19|
 D|Selection committee evaluates proposals: week of 2026-09-07|p15.t1r3|
 D|Oral interviews by invited companies if necessary: week of 2026-09-14|p15.t1r4|
 D|Notice of intent to award: week of 2026-09-28|p15.t1r5|
 D|Contract start date: 2027-01-01|p15.t1r6,p11.2|
-D|Contract term: three years 2027-01-01 to 2029-12-31|p11.2|
-D|Contract extension: up to two additional one-year periods by mutual agreement|p11.3|
+D/C|Contract term: three years 2027-01-01 to 2029-12-31|p11.2,p15.t1r6|
+D/C|Contract extension: up to two additional one-year periods by mutual agreement|p11.3|
 D|Valuation years ending: 2026-12-31, 2027-12-31, 2028-12-31; optional 2029-12-31 and 2030-12-31|p4.3|
 D|Proposal validity: until execution of a contract unless rejected|p7.5|
-D|Qualification information: within 5 days of County request|p10.16|
-D|Evidence of insurance filing: within 10 days of notice of award|p12.4|mandatory
-D|Insurance certificates naming County as additional insured: within ten business days or as specified in notice of award|p44.t2r3,p44.t2r4|mandatory
-D|Certificates of insurance: filed with Risk Management prior to commencing work|p31.7|
+D/R|Qualification information: within 5 days of County request|p10.16,p10.15|mandatory
+D/C/R|Evidence of insurance filing: within 10 days of notice of award|p12.4,p44.t2r3,p44.t2r4|mandatory
+D/C|Insurance certificates naming County as additional insured: within ten business days or as specified in notice of award|p44.t2r3,p44.t2r4,p44.t2r2|mandatory,risk
+D/R|Certificates of insurance: filed with Risk Management prior to commencing work|p31.7,p31.2|mandatory
 D|Disclosure of ownership interest: at bid submission or before contract, whichever sooner|p12.5|mandatory
-D|Business Associate Agreement: executed simultaneously with Agreement for Professional Services|p11.7,p20.22|
+D/C/R|Business Associate Agreement: executed simultaneously with Agreement for Professional Services|p11.7,p20.22,p11.5,p11.6,p20.21|mandatory
 D|IRS Form 990 copy for tax-exempt firms: prior to execution of the agreement|p18.11|
-D|Subcontractor names and scope to Department Head: upon signing the agreement|p20.9|
+D/R|Subcontractor names and scope to Department Head: upon signing the agreement|p20.9|mandatory
 D|FOIL protection action: within five days of County notice of disclosure request|p13.13|
 D|Payment of invoices: within 60 days of receipt of invoice with documentation and approval|p13.8|
 D|Payment: within 60 days of approval of invoice by Department Head and Comptroller|p30.10|
-D|Invoice rejection: invoices submitted more than 120 days after required submission date may be rejected|p30.12|
-D|Insurance cancellation notice: 30 days prior written notice, 10 days for non-payment of premium|p31.15,p23.17|
-D|Deficiency correction: deficiencies reported within 120 days after completion and final acceptance|p24.6|
+D/C|Invoice rejection: invoices submitted more than 120 days after required submission date may be rejected|p30.12,p30.11|risk
+D/R|Insurance cancellation notice: 30 days prior written notice, 10 days for non-payment of premium|p31.15,p23.17|mandatory
+D/C/R|Deficiency correction: deficiencies reported within 120 days after completion and final acceptance|p24.6|mandatory,risk
 D|Delay claim notice: not later than 30 days after initial occurrence of event|p25.5,p25.6,p28.10|
 D|Force majeure written notice: within 30 days of the event|p28.6|
-D|Termination closeout: refund unearned funds and furnish inventory within 10 days|p25.12,p25.13|
-D|Records retention: six years after final payment or termination, whichever later|p22.4,p21.18|
+D/C/R|Termination closeout: refund unearned funds and furnish inventory within 10 days|p25.12,p25.13,p25.11|mandatory
+D/C/R|Records retention: six years after final payment or termination, whichever later|p22.4,p21.18,p22.3,p22.5|mandatory
 D|No retention of County employees: during term and one year after expiration|p24.9|
 D|Iran Act cure: within 90 days after determination of violation|p42.4|
 S|Mail proposal to Ulster County Department of General Services, Attn Edward Jordan, 100 Development Court, Kingston, NY 12401|p3.2,p6.16,p6.17,p6.h4,p6.18|mandatory
-S|Proposals must be submitted in a sealed opaque envelope or package|p3.6,p6.12|mandatory
+S/R|Proposals must be submitted in a sealed opaque envelope or package|p3.6,p6.12|mandatory
 S|Envelope face must show company name and address and RFP name and number|p3.7,p3.8,p6.12|mandatory
-S|Submit one unbound original, one photocopy and one electronic copy (CD or thumb drive) in MS Word and PDF|p6.12,p36.4|mandatory
-S|Original and all copies must be clearly identified as such|p6.13|
-S|Original must contain original ink-signed signature pages|p6.14|mandatory
-S|Electronic copy must include all submittal documents including scanned signature pages|p6.15|
-S|Submit proposal unbound and unstapled; elaborate brochures, binding and artwork not desired|p36.h3,p7.18|
+S/R|Submit one unbound original, one photocopy and one electronic copy (CD or thumb drive) in MS Word and PDF|p6.12,p36.4|mandatory
+S/R|Original and all copies must be clearly identified as such|p6.13|mandatory
+S/R|Original must contain original ink-signed signature pages|p6.14|mandatory
+S/R|Electronic copy must include all submittal documents including scanned signature pages|p6.15|desirable
+S/R|Submit proposal unbound and unstapled; elaborate brochures, binding and artwork not desired|p36.h3,p7.18,p6.12|mandatory
 S|Proposal must follow prescribed format: Sections I to V in order|p8.7,p8.h2,p8.h3,p9.h1,p9.10,p9.h2|mandatory
-S|Section I title page: RFP number, closing date and time, responder name, address, telephone and fax|p8.9|
+S/R|Section I title page: RFP number, closing date and time, responder name, address, telephone and fax|p8.9|mandatory
 S|Title page must name inquiry contact and person authorized to bind company, with phone, fax and email|p8.10,p8.11|
-S|Table of contents must show material by section and page number|p8.12|
+S/R|Table of contents must show material by section and page number|p8.12|mandatory
 S|Section II: company history, qualifications, experience, compliance history, fiscal solvency, staffing and management structure|p8.13,p8.14,p8.15,p8.16,p8.17,p8.18,p8.19|
-S|Identify all assigned personnel and attach resumes|p8.20,p8.21,p6.2|
-S|Provide at least three references excluding Ulster County, with contact name, phone, contract date, value and description|p8.21,p8.22,p8.23|mandatory
+S/R|Identify all assigned personnel and attach resumes|p8.20,p8.21,p6.2|mandatory
+S/R|Provide at least three references excluding Ulster County, with contact name, phone, contract date, value and description|p8.21,p8.22,p8.23|mandatory
 S|Section III: narrative proposed plan, implementation steps, sample reports, cost savings methods and estimates|p9.1,p9.2,p9.3,p9.4,p9.5,p9.6,p9.7,p9.8,p9.9|
 S|Respond to the ten Vendor Qualifications items|p5.9,p5.10,p5.11,p5.12,p5.14,p5.15,p5.17,p5.21,p5.23,p6.3,p6.4|
-S|Provide hourly fee rates for optional services|p5.6|
-S|Fee/Cost Proposal must be provided separately and unbound from the main proposal|p9.10|mandatory
-S|Hardcopy cost proposal in separate envelope marked COST PROPOSAL with RFP name and number, in same package|p9.11|mandatory
-S|Fee proposal submitted in original, photocopy and electronic formats|p9.11,p36.4|
-S|Electronic fee proposal may be a separate file on the same flash drive as main proposal|p9.12|
-S|Fee schedule must include all labor, materials, travel, equipment and other costs|p9.13|
-S|Responder name must appear on all cost proposal sheets|p9.14|
-S|Section V: complete and sign all return sheets at end of RFP|p9.15,p35.h1,p35.h2,p35.h3|mandatory
-S|Mark protected portions CONFIDENTIAL or PROPRIETARY|p13.11|
+S/R|Provide hourly fee rates for optional services|p5.6,p5.5|mandatory
+S/R|Fee/Cost Proposal must be provided separately and unbound from the main proposal|p9.10|mandatory
+S/R|Hardcopy cost proposal in separate envelope marked COST PROPOSAL with RFP name and number, in same package|p9.11|mandatory
+S/C/R|Fee proposal submitted in original, photocopy and electronic formats|p9.11,p36.4,p9.10,p9.12|mandatory
+S/R|Electronic fee proposal may be a separate file on the same flash drive as main proposal|p9.12|desirable
+S/C/R|Fee schedule must include all labor, materials, travel, equipment and other costs|p9.13|mandatory,risk
+S/C/R|Responder name must appear on all cost proposal sheets|p9.14|mandatory
+S/R|Section V: complete and sign all return sheets at end of RFP|p9.15,p35.h1,p35.h2,p35.h3|mandatory
+S/R|Mark protected portions CONFIDENTIAL or PROPRIETARY|p13.11|mandatory
 S|Clearly identify and explain any alternates deviating from specifications|p11.12|
 S|Receipt Confirmation Form: complete, sign and email or fax to General Services; failure may end further communication|p2.h1,p6.9,p2.3,p6.10,p2.6|risk
-S|Response Return Form with vendor details and authorized signature|p35.h4,p35.h9|mandatory
+S/R|Response Return Form with vendor details and authorized signature|p35.h4,p35.h9,p35.h5,p35.1|mandatory
 S|RFP Response Checklist must be completed and submitted|p36.4,p36.h2,p36.3|mandatory
-S|Assumed Name Certification; attach certificate if business uses an assumed name|p37.h2,p37.1,p36.4|mandatory
-S|Proposal signed by individual, corporate officer with board resolution attached, or authorized partner|p37.2,p37.3,p37.4|mandatory
+S/R|Assumed Name Certification; attach certificate if business uses an assumed name|p37.h2,p37.1,p36.4|mandatory
+S/R|Proposal signed by individual, corporate officer with board resolution attached, or authorized partner|p37.2,p37.3,p37.4|mandatory
 S|Insurance Statement: mark certificate attached or certify ability to supply, with authorized signature|p37.h3,p37.8,p37.9,p37.10|mandatory
 S|Organization Information Form|p38.h1,p36.4|mandatory
-S|Disclosure of Ownership Interest Certification Form, initialed|p39.h1,p13.1,p36.4,p40.1|mandatory
+S/R|Disclosure of Ownership Interest Certification Form, initialed|p39.h1,p13.1,p36.4,p40.1|mandatory
 S|Living Wage Act Acknowledgment and Acceptance Declaration signed by authorized representative|p40.h1,p40.7,p36.4|mandatory
 S|Affidavit of Non-Collusion signed under penalty of perjury|p41.h2,p14.1,p36.4,p41.13,p41.14|mandatory
 S|Written authorization enclosed if non-collusion signer is not the price decision-maker|p41.3|
-S|Iran Divestment Act certification, notarized|p42.h2,p36.4,p42.7,p42.8,p42.9|mandatory
-S|MacBride Fair Employment Principles form: initial only one statement and sign|p43.h2,p43.2,p43.3,p43.8,p36.4|mandatory
-S|Insurance requirements form with agency details and current policy limits, signed|p44.t2r1,p44.t2r2,p44.t2r6,p44.t2r9,p44.t2r13,p36.4|mandatory
+S/R|Iran Divestment Act certification, notarized|p42.h2,p36.4,p42.7,p42.8,p42.9,p42.6|mandatory
+S/R|MacBride Fair Employment Principles form: initial only one statement and sign|p43.h2,p43.2,p43.3,p43.8,p36.4,p43.1|mandatory
+S/R|Insurance requirements form with agency details and current policy limits, signed|p44.t2r1,p44.t2r2,p44.t2r6,p44.t2r9,p44.t2r13,p36.4|mandatory
 S|Acknowledgement of Receipt of Addendums with number and date of each, signed|p45.h2,p45.1,p45.9,p36.4|mandatory
 S|Questions submitted in writing to Brenden Boughton by email or fax; question form provided|p7.23,p8.1,p8.3,p34.2,p34.3|
 Q|Valuation period years ending 2026-2028 with renewals 2029-2030 conflicts with contract term 2027-01-01 to 2029-12-31|p4.3,p11.2,p15.t1r6|risk
-Q|Insurance evidence due within 10 days of notice of award vs within ten business days|p12.4,p44.t2r3,p44.t2r4|
+Q|Insurance evidence due within 10 days of notice of award vs within ten business days|p12.4,p44.t2r3,p44.t2r4,p31.7|unclear
 Q|Failure to provide insurance disqualifies responder vs failure to provide certificates only delays contract execution|p37.h4,p31.2,p31.4|
 Q|Incomplete proposals will not be considered vs missing documents may be cause for rejection|p9.16,p36.2|
 Q|Receipt Confirmation Form due within 5 working days vs immediately|p2.h2,p6.9|
 Q|Fee proposal must be separate from main proposal vs checklist electronic copy combining technical and fee proposal|p9.10,p36.4|
 Q|Contract extension by mutual agreement vs at County sole discretion by written notice|p11.3,p16.13|
-Q|Payment within 60 days of invoice receipt vs within 60 days of invoice approval|p13.8,p30.10|
+Q|Payment within 60 days of invoice receipt vs within 60 days of invoice approval|p13.8,p30.10|unclear
 Q|Attachment F claims through June 30, 2026 vs as of July 1, 2026|p4.7,p15.13|unclear

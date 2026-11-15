@@ -135,7 +135,9 @@ for the Decisions API.
 
 `poc/` holds output from proof-of-concept runs on the Ulster County RFP
 (`facts_run*.json`, `report_run*.json`) and the reference list in `poc/gold/`
-(`CODE|fact|IDs|flags` per line) used by `compare`.
+(`CODE|fact|IDs|flags` per line) used by `compare`. A code may list alternates
+(`G/C/R`): the fact is scored under the first, and found under any of them
+counts as the same code.
 
 ## Gotchas
 
