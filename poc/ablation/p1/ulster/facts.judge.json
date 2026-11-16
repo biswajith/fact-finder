@@ -1,0 +1,674 @@
+[
+ {
+  "gold": "Plan participants in Attachment A; Employers Liability Report 2026 in Attachment B; claims reports 2023-2026 in Attachments C-F",
+  "found": "Use the participant list, 2025 employers\u2019 liability report, and 2023-2026 open and closed claims reports as actuarial data",
+  "verdict": "no",
+  "reason": "It gives the employers\u2019 liability report as 2025 rather than 2026."
+ },
+ {
+  "gold": "Additional services: expected losses by agency, two-year loss payment forecast, unpaid liabilities, withdrawal liabilities, contingencies, reserve allocation, IBNR reserves",
+  "found": "Provide estimates of expected losses for the upcoming calendar year by agency",
+  "verdict": "partial",
+  "reason": "It omits the other additional services, including forecasts, liabilities, contingencies, reserve allocation, and IBNR reserves."
+ },
+ {
+  "gold": "Report process: preliminary draft findings, discussion with County, final report; County may request meeting or call",
+  "found": "The County may request a conference call or meeting to present and discuss results",
+  "verdict": "partial",
+  "reason": "It omits the preliminary draft findings and final report steps."
+ },
+ {
+  "gold": "County applies GreenNY sustainability requirements in procurement per Executive Order #1 of 2023",
+  "found": "Adherence to GreenNY sustainability requirements is a fundamental part of the County procurement process",
+  "verdict": "partial",
+  "reason": "It omits the reference to Executive Order #1 of 2023."
+ },
+ {
+  "gold": "Vendors located within Ulster County receive five local preference points",
+  "found": "Local economic development is worth 5 points: 5 for Ulster County, 3 for a contiguous county, and 1 for New York State",
+  "verdict": "full",
+  "reason": "It gives five points for Ulster County vendors."
+ },
+ {
+  "gold": "Vendors located within Ulster County receive five local preference points",
+  "found": "Local economic development is worth 5 Points",
+  "verdict": "partial",
+  "reason": "It does not say which vendors receive the five points."
+ },
+ {
+  "gold": "Vendors located within a contiguous county receive three points",
+  "found": "Local economic development is worth 5 points: 5 for Ulster County, 3 for a contiguous county, and 1 for New York State",
+  "verdict": "full",
+  "reason": "It gives three points for vendors in a contiguous county."
+ },
+ {
+  "gold": "Vendors located within New York State receive one point",
+  "found": "Local economic development is worth 5 points: 5 for Ulster County, 3 for a contiguous county, and 1 for New York State",
+  "verdict": "full",
+  "reason": "It gives one point for vendors in New York State."
+ },
+ {
+  "gold": "County may investigate competency, including inspection of facilities and equipment, references and previous contract performance",
+  "found": "County review may include facility and equipment inspections and checks of references or past performance",
+  "verdict": "full",
+  "reason": "It includes the listed types of competency checks."
+ },
+ {
+  "gold": "County may investigate competency, including inspection of facilities and equipment, references and previous contract performance",
+  "found": "The County may investigate proposer competence and ability",
+  "verdict": "partial",
+  "reason": "It states the County may investigate competence but omits the examples of what it may inspect or check."
+ },
+ {
+  "gold": "Contract executed only to the extent of monies available; notice of award not binding until fully executed",
+  "found": "Award notice does not bind the County until both parties execute the contract",
+  "verdict": "full",
+  "reason": "It states the award notice is not binding until the contract is executed by both parties."
+ },
+ {
+  "gold": "Contract executed only to the extent of monies available; notice of award not binding until fully executed",
+  "found": "Contract award is limited to funds available to the County",
+  "verdict": "partial",
+  "reason": "It omits that the award notice is not binding until the contract is fully executed."
+ },
+ {
+  "gold": "Actuary must be able to certify loss reserve estimates and issue a Statement of Actuarial Opinion",
+  "found": "Provide the actuarial loss reserve estimate certification and Statement of Actuarial Opinion on actuarially derived items in County financial statements",
+  "verdict": "full",
+  "reason": "It includes both the loss reserve estimate certification and Statement of Actuarial Opinion."
+ },
+ {
+  "gold": "Responder warrants neither it nor its officers, employees, subcontractors or agents is debarred from doing business with any government agency",
+  "found": "Certify that the firm and its officers, employees, subcontractors, and agents are not barred from government business",
+  "verdict": "full",
+  "reason": "It covers the firm and the listed associated people being barred from government business."
+ },
+ {
+  "gold": "Bidder must have no Northern Ireland operations or comply with MacBride Fair Employment Principles",
+  "found": "Responder must read, initial, and return one MacBride Fair Employment Principles statement",
+  "verdict": "partial",
+  "reason": "It mentions the MacBride statement but omits the no-Northern-Ireland-operations alternative and the substantive compliance requirement."
+ },
+ {
+  "gold": "Firm must have no conflicting interest with performance of the services",
+  "found": "Avoid conflicts of interest in performing the services",
+  "verdict": "full",
+  "reason": "It requires avoiding conflicts of interest in performing the services."
+ },
+ {
+  "gold": "Certificate holder on all insurance certificates must be County of Ulster, PO Box 1800, Kingston NY 12402-1800",
+  "found": "Provide certificates of insurance before starting work; certificates must include insured name and address, issue date, insurer, coverage, policy number, dates, limits, and County certificate-holder details",
+  "verdict": "partial",
+  "reason": "It does not state the required County of Ulster mailing address."
+ },
+ {
+  "gold": "Certificate holder on all insurance certificates must be County of Ulster, PO Box 1800, Kingston NY 12402-1800",
+  "found": "Insurance certificates must identify the insured, insurer, coverage, policy number, policy dates, limits, and County as certificate holder",
+  "verdict": "partial",
+  "reason": "It identifies the County as certificate holder but omits the required mailing address."
+ },
+ {
+  "gold": "Certificate holder on all insurance certificates must be County of Ulster, PO Box 1800, Kingston NY 12402-1800",
+  "found": "Include policy inception and expiration dates, liability limits, and the required County certificate-holder details on insurance certificates",
+  "verdict": "partial",
+  "reason": "It refers to County certificate-holder details but does not specify the required mailing address."
+ },
+ {
+  "gold": "Proposals may be rejected from responders who previously failed to complete contracts on time or performed unsatisfactorily",
+  "found": "Prior failure to complete contracts on time or unsatisfactory similar work may result in proposal rejection",
+  "verdict": "full",
+  "reason": "It states both prior grounds for possible rejection."
+ },
+ {
+  "gold": "Proposal may be rejected if responder lacks ability, resources and qualified staff to perform on time",
+  "found": "Insufficient ability, resources, or qualified employees to start and complete work on schedule may result in proposal rejection",
+  "verdict": "full",
+  "reason": "It states the listed grounds for possible rejection."
+ },
+ {
+  "gold": "Proposal may be rejected if responder is already obligated for work that would delay this work",
+  "found": "Existing work obligations that would delay starting, performing, or completing this work may result in proposal rejection",
+  "verdict": "full",
+  "reason": "It states that existing work obligations that would delay the work may lead to rejection."
+ },
+ {
+  "gold": "Inquiries will not be considered after the question deadline",
+  "found": "Written clarification requests due at least ten calendar days before proposal submission; inquiries will not be considered afterward",
+  "verdict": "full",
+  "reason": "It states that inquiries will not be considered after the deadline."
+ },
+ {
+  "gold": "Proposal must follow prescribed format: Sections I to V in order",
+  "found": "Arrange the main proposal in this order: Section I Title Page and Table of Contents; Section II Qualifications and Experience; Section III Proposed Plan; Section IV Fee/Cost Proposal; Section V Return Documents",
+  "verdict": "full",
+  "reason": "It lists Sections I through V in the prescribed order."
+ },
+ {
+  "gold": "Receipt Confirmation Form: complete, sign and email or fax to General Services; failure may end further communication",
+  "found": "Email or fax the Receipt Confirmation Form immediately if planning to submit a proposal",
+  "verdict": "partial",
+  "reason": "It omits the requirements to complete and sign the form and the consequence of failing to return it."
+ },
+ {
+  "gold": "Receipt Confirmation Form: complete, sign and email or fax to General Services; failure may end further communication",
+  "found": "Return Receipt Confirmation Form immediately if planning to submit",
+  "verdict": "partial",
+  "reason": "It says to return the form but omits completing, signing, how to send it, and the consequence of not returning it."
+ },
+ {
+  "gold": "Receipt Confirmation Form: complete, sign and email or fax to General Services; failure may end further communication",
+  "found": "Failure to return the confirmation form may result in no further communications or addenda",
+  "verdict": "partial",
+  "reason": "It gives the consequence but omits completing, signing, and emailing or faxing the form to General Services."
+ },
+ {
+  "gold": "Insurance Statement: mark certificate attached or certify ability to supply, with authorized signature",
+  "found": "Provide the requested insurance certificate or certify that the firm can supply the specified insurance if awarded",
+  "verdict": "partial",
+  "reason": "It omits the requirement for an authorized signature."
+ },
+ {
+  "gold": "Insurance Statement: mark certificate attached or certify ability to supply, with authorized signature",
+  "found": "Submit insurance requirements documentation or certify ability to provide the specified insurance if awarded",
+  "verdict": "partial",
+  "reason": "It omits the requirement for an authorized signature."
+ },
+ {
+  "gold": "Written authorization enclosed if non-collusion signer is not the price decision-maker",
+  "found": "The affidavit signer must be responsible for final pricing decisions or include written authorization from that person",
+  "verdict": "full",
+  "reason": "It states the signer must make the final pricing decisions or include that person\u2019s written authorization."
+ },
+ {
+  "gold": "Insurance requirements form with agency details and current policy limits, signed",
+  "found": "Complete and submit the insurance agreement form with authorized signature and insurance agency details",
+  "verdict": "partial",
+  "reason": "It omits the requirement to provide current policy limits."
+ },
+ {
+  "gold": "Valuation period years ending 2026-2028 with renewals 2029-2030 conflicts with contract term 2027-01-01 to 2029-12-31",
+  "found": "Initial contract term ends: 2029-12-31",
+  "verdict": "partial",
+  "reason": "It gives the contract end date but omits the conflicting valuation period and renewal years."
+ },
+ {
+  "gold": "Incomplete proposals will not be considered vs missing documents may be cause for rejection",
+  "found": "Only proposals with complete information and required certifications will be considered",
+  "verdict": "full",
+  "reason": "It conveys that proposals lacking required information or certifications will not be considered."
+ },
+ {
+  "gold": "Incomplete proposals will not be considered vs missing documents may be cause for rejection",
+  "found": "Failure to submit any required checklist document may cause rejection",
+  "verdict": "partial",
+  "reason": "It states that missing checklist documents may cause rejection but omits the broader rule about incomplete proposals."
+ },
+ {
+  "gold": "Fee proposal must be separate from main proposal vs checklist electronic copy combining technical and fee proposal",
+  "found": "Submit the fee or cost proposal separately and unbound from the main proposal",
+  "verdict": "partial",
+  "reason": "It states the fee proposal must be separate but omits the checklist requirement for a combined electronic copy."
+ },
+ {
+  "gold": "Fee proposal must be separate from main proposal vs checklist electronic copy combining technical and fee proposal",
+  "found": "Submit the fee proposal separately and unbound, in original, photocopy, and electronic formats; place the hardcopy in a separate marked envelope within the proposal package",
+  "verdict": "partial",
+  "reason": "It states the fee proposal must be separate but omits the checklist requirement for a combined electronic copy."
+ },
+ {
+  "gold": "Fee proposal must be separate from main proposal vs checklist electronic copy combining technical and fee proposal",
+  "found": "Submit one electronic copy containing the technical and fee proposals in Word and PDF formats",
+  "verdict": "partial",
+  "reason": "It gives the combined electronic-copy requirement but omits that the fee proposal must be separate from the main proposal."
+ },
+ {
+  "gold": "Compensation is either a fixed fee or a not-to-exceed amount for the Services, to be set in the contract",
+  "found": "Set the total service fee at no more than the amount established for the contract term",
+  "verdict": "partial",
+  "reason": "It gives a not-to-exceed fee but omits the fixed-fee alternative."
+ },
+ {
+  "gold": "Compensation is either a fixed fee or a not-to-exceed amount for the Services, to be set in the contract",
+  "found": "Contract fee must not exceed the amount to be inserted for the full term; the amount is unspecified",
+  "verdict": "partial",
+  "reason": "It gives a not-to-exceed amount but omits the fixed-fee alternative."
+ },
+ {
+  "gold": "If state or federal funding is reduced, County may withhold the reduction from future payments or recover it from the Firm, including payments already made",
+  "found": "County may terminate the agreement if funds are unavailable or reduced; funding amounts may change and the County disclaims liability for funding shortfalls",
+  "verdict": "no",
+  "reason": "It discusses termination for funding changes, not withholding or recovering reductions from payments."
+ },
+ {
+  "gold": "Contract amounts may change during the term based on state or federal funding changes and will be amended accordingly",
+  "found": "County may terminate the agreement if funds are unavailable or reduced; funding amounts may change and the County disclaims liability for funding shortfalls",
+  "verdict": "partial",
+  "reason": "It says funding amounts may change but omits that the contract will be amended accordingly."
+ },
+ {
+  "gold": "Costs exceeding the contract amount cannot be incurred without prior written authorization; County not responsible for unauthorized excess costs",
+  "found": "Costs exceeding the contract amount require prior written authorization through an executed Change Order, Amendment, or Addendum",
+  "verdict": "partial",
+  "reason": "It omits that the County is not responsible for unauthorized excess costs."
+ },
+ {
+  "gold": "County payment obligation is reduced by any payments the Firm receives from other sources for the same Services",
+  "found": "Payments received from another source for the same services reduce the County\u2019s payment obligation by an equivalent amount",
+  "verdict": "full",
+  "reason": "It states that payments from another source for the same services reduce the County\u2019s obligation by an equivalent amount."
+ },
+ {
+  "gold": "Responder will invoice the County monthly; invoices must reference the Contract Number and include documentation the County requires",
+  "found": "Invoices are monthly and must reference the Contract Number and be mailed to the proper departmental address",
+  "verdict": "partial",
+  "reason": "It omits the required documentation and instead specifies mailing the invoice to the proper address."
+ },
+ {
+  "gold": "Sample contract Schedule B: County remits payment within sixty days of invoice approval by the Department Head and Ulster County Comptroller",
+  "found": "The RFP measures the 60-day payment period from invoice receipt and approval, while the sample agreement measures it from approval",
+  "verdict": "partial",
+  "reason": "It omits that approval must come from both the Department Head and the County Comptroller."
+ },
+ {
+  "gold": "Invoices must include reporting of wages and salaries of Firm and subcontractor employees and Living Wage certification",
+  "found": "Submit original invoices with supporting detail, including wage reporting and Living Wage certification",
+  "verdict": "partial",
+  "reason": "It omits that wage and salary reporting covers both the Firm\u2019s and subcontractors\u2019 employees."
+ },
+ {
+  "gold": "Claims may not be submitted in advance or accrued prior to expenditure",
+  "found": "Do not submit claims in advance or accrue them before expenditure",
+  "verdict": "full",
+  "reason": "It states that claims cannot be submitted in advance or accrued before expenditure."
+ },
+ {
+  "gold": "Strict adherence to Schedule C insurance is required; deviations without Risk Management authorization delay contract execution",
+  "found": "Insurance deviations require prior authorization; unauthorized deviations delay contract finalization",
+  "verdict": "partial",
+  "reason": "It omits the specific Schedule C requirements and Risk Management\u2019s authorization."
+ },
+ {
+  "gold": "Certificates of Insurance must be filed with Risk Management before commencing work, with County of Ulster PO Box 1800 as Certificate Holder",
+  "found": "File required insurance certificates with Risk Management before starting work",
+  "verdict": "partial",
+  "reason": "It omits the required Certificate Holder name and address."
+ },
+ {
+  "gold": "Firm must give immediate notice to County of circumstances or incidents that might give rise to future claims",
+  "found": "Immediately notify the County of incidents that might lead to claims",
+  "verdict": "full",
+  "reason": "It requires immediate notice to the County of incidents that might lead to claims."
+ },
+ {
+  "gold": "Acceptable WC proof forms are C-105.2, U-26.3, SI-12, GSI-105.2 or GSI-12; DB proof forms are DB-120.1 or DB-155",
+  "found": "Provide disability benefits coverage proof using Form DB-120.1 or Form DB-155, as applicable",
+  "verdict": "partial",
+  "reason": "It omits the acceptable workers\u2019 compensation proof forms."
+ },
+ {
+  "gold": "County may terminate in whole or part at any time for convenience, Firm default, or insolvency, by written notice effective upon mailing",
+  "found": "The County may terminate the Agreement by written notice for convenience, noncompliance, or insolvency",
+  "verdict": "partial",
+  "reason": "It omits termination in whole or part and that notice is effective upon mailing."
+ },
+ {
+  "gold": "If terminated for non-convenience reasons, cost of replacement services is charged to the Firm or set off against sums due",
+  "found": "For termination other than convenience, the Firm may be charged for replacement services; the County may withhold payments for damages",
+  "verdict": "partial",
+  "reason": "It does not specify that replacement costs may be set off against sums due."
+ },
+ {
+  "gold": "County may withhold payments as set-off until damages owed by the Firm are determined; Firm remains liable for breach damages",
+  "found": "For termination other than convenience, the Firm may be charged for replacement services; the County may withhold payments for damages",
+  "verdict": "partial",
+  "reason": "It omits that withholding continues until damages are determined and that the Firm remains liable for breach damages."
+ },
+ {
+  "gold": "County may set off monies due under this or any other County contract, and for tax or fee delinquencies and penalties",
+  "found": "The County may set off amounts due under this or other agreements, or by operation of law, against amounts owed to the Firm",
+  "verdict": "partial",
+  "reason": "It does not specifically mention tax or fee delinquencies and penalties."
+ },
+ {
+  "gold": "Breach of conflict-of-interest warranties lets County annul the Agreement and recover all monies paid",
+  "found": "County may annul the agreement for breach of the Firm\u2019s representations and recover amounts paid",
+  "verdict": "full",
+  "reason": "It states that the County may annul for breach of the Firm\u2019s representations and recover amounts paid."
+ },
+ {
+  "gold": "Firm must immediately notify the County Attorney if it or its staff or subcontractors become debarred; failure results in immediate termination",
+  "found": "False status statements or failure to notify the County Attorney of a status change results in immediate termination and other remedies",
+  "verdict": "partial",
+  "reason": "It does not specify debarment or that notice must be immediate."
+ },
+ {
+  "gold": "If tax-exempt, Firm must furnish its latest IRS Form 990 before execution and stay current; County may withhold final payment for noncompliance",
+  "found": "If a nonprofit Firm remains noncompliant with Form 990 filing requirements, County may withhold final payment until compliance is cured",
+  "verdict": "partial",
+  "reason": "It omits the latest Form 990 due before execution and the requirement to stay current."
+ },
+ {
+  "gold": "Firm may not assign the Agreement or Services without prior written consent; unconsented assignment is void and uncompensated",
+  "found": "Obtain prior written County consent before assigning contract rights, interests, obligations, or services",
+  "verdict": "partial",
+  "reason": "It omits that an unconsented assignment is void and uncompensated."
+ },
+ {
+  "gold": "Failure to obtain assignment consent is grounds for termination for cause with forfeiture of all monies due except past employee wages",
+  "found": "Assignment without required consent is void, uncompensated, and may trigger termination for cause",
+  "verdict": "partial",
+  "reason": "It omits forfeiture of monies due and the exception for past employee wages."
+ },
+ {
+  "gold": "Subcontracts must flow down Agreement terms, Schedule C insurance and Article 15 confidentiality, and create no relation with the County",
+  "found": "Ensure subcontracted work follows the contract, including Schedule C insurance requirements",
+  "verdict": "partial",
+  "reason": "It omits the Article 15 confidentiality flow-down and the requirement that subcontracts create no County relationship."
+ },
+ {
+  "gold": "Subcontracts must flow down Agreement terms, Schedule C insurance and Article 15 confidentiality, and create no relation with the County",
+  "found": "Ensure subcontracts do not impair County rights or create a contractual relationship between the subcontractor and County",
+  "verdict": "partial",
+  "reason": "It omits the requirement to flow down the Agreement terms, Schedule C insurance, and Article 15 confidentiality."
+ },
+ {
+  "gold": "On signing, Firm must provide names and scope of all subcontractors and supply subcontract copies on request",
+  "found": "Provide the Department Head with each subcontractor\u2019s name and scope of work upon signing the agreement",
+  "verdict": "partial",
+  "reason": "It omits the requirement to supply subcontract copies on request."
+ },
+ {
+  "gold": "On signing, Firm must provide names and scope of all subcontractors and supply subcontract copies on request",
+  "found": "Provide copies of subcontract agreements when the County requests them",
+  "verdict": "partial",
+  "reason": "It omits providing subcontractor names and scope of work upon signing."
+ },
+ {
+  "gold": "Firm is fully responsible for acts and omissions of its subcontractors and is not relieved of responsibility by any subcontract",
+  "found": "Remain responsible for subcontractors\u2019 acts and omissions and do not use subcontracting to avoid contract responsibilities",
+  "verdict": "full",
+  "reason": "It states responsibility for subcontractors\u2019 acts and omissions and that subcontracting does not avoid the Firm\u2019s responsibilities."
+ },
+ {
+  "gold": "Firm must perform with its own equipment and facilities and qualified personnel to reputable professional standards; County relies on accuracy of results",
+  "found": "Use the firm\u2019s own equipment and facilities wherever and whenever possible",
+  "verdict": "partial",
+  "reason": "It weakens the own-equipment-and-facilities requirement to \u201cwherever and whenever possible\u201d and omits qualified personnel and performance standards."
+ },
+ {
+  "gold": "Firm must perform with its own equipment and facilities and qualified personnel to reputable professional standards; County relies on accuracy of results",
+  "found": "Assign qualified personnel and perform services to expected professional standards, skill, diligence, and quality-control measures",
+  "verdict": "partial",
+  "reason": "It omits the own-equipment-and-facilities requirement and the County\u2019s reliance on accurate results."
+ },
+ {
+  "gold": "Firm must immediately notify County of third-party requests for Confidential Information and oppose such requests, cooperating to obtain protective orders",
+  "found": "Immediately notify the County of any outside request or inquiry concerning confidential information",
+  "verdict": "partial",
+  "reason": "It omits the duty to oppose requests and cooperate to obtain protective orders."
+ },
+ {
+  "gold": "Firm needs prior written County approval for media statements or publications; publication entitles County to a royalty fee and irrevocable license",
+  "found": "Obtain prior written County approval before making media statements or publishing materials about the services or collected data",
+  "verdict": "partial",
+  "reason": "It omits the County\u2019s royalty fee and irrevocable license rights."
+ },
+ {
+  "gold": "Firm needs prior written County approval for media statements or publications; publication entitles County to a royalty fee and irrevocable license",
+  "found": "Obtain County written approval before making media statements or publishing material about the services or collected data, during or after the agreement",
+  "verdict": "partial",
+  "reason": "It omits the County\u2019s royalty fee and irrevocable license rights."
+ },
+ {
+  "gold": "Firm needs prior written County approval for media statements or publications; publication entitles County to a royalty fee and irrevocable license",
+  "found": "A publication requires prior written permission; unless otherwise agreed, the County receives a royalty-free? no.",
+  "verdict": "partial",
+  "reason": "It omits the County\u2019s royalty fee and irrevocable license rights."
+ },
+ {
+  "gold": "Invoices and supporting records are subject to County, State and Federal audit; Firm must provide documentation justifying fees on request",
+  "found": "Submit invoices and supporting books, records, and accounts for County audit",
+  "verdict": "partial",
+  "reason": "It omits State and Federal audit rights and providing documentation justifying fees on request."
+ },
+ {
+  "gold": "Prevailing Wage Rates and supplements under NYS Labor Law 220 must be paid if applicable",
+  "found": "For covered public work agreements, pay workers at least the prevailing wage and supplements designated by the New York State Commissioner of Labor",
+  "verdict": "full",
+  "reason": "It states the requirement to pay applicable prevailing wages and supplements designated by the New York State Commissioner of Labor."
+ },
+ {
+  "gold": "Firm is liable for County attorney fees, costs and prejudgment interest in disputes, including suits for indemnification, deficiencies, termination and set-off",
+  "found": "The Firm is liable for the County\u2019s reasonable legal costs and prejudgment interest in disputes arising from Firm noncompliance, errors, omissions, or professional negligence",
+  "verdict": "partial",
+  "reason": "It limits the covered disputes and omits the stated costs and claims, including indemnification, deficiencies, termination, and set-off."
+ },
+ {
+  "gold": "Proposals are public documents under FOIL; confidential portions must be marked and responder has five days to act on disclosure requests",
+  "found": "If the responder does not act within five days after notice of a disclosure request, the County will release material subject to disclosure",
+  "verdict": "partial",
+  "reason": "It omits that proposals are public under FOIL and that confidential portions must be marked."
+ },
+ {
+  "gold": "Proposals are public documents under FOIL; confidential portions must be marked and responder has five days to act on disclosure requests",
+  "found": "Proposals are public documents and generally available for public inspection and copying",
+  "verdict": "partial",
+  "reason": "It omits the requirement to mark confidential portions and the five-day response period."
+ },
+ {
+  "gold": "Proposals are public documents under FOIL; confidential portions must be marked and responder has five days to act on disclosure requests",
+  "found": "Take any action deemed necessary to protect interests within five days after County notice of a disclosure request",
+  "verdict": "partial",
+  "reason": "It covers action within five days but omits that proposals are public under FOIL and confidential portions must be marked."
+ },
+ {
+  "gold": "RFP purpose requires valuations for years ending 2026 to 2028 with renewals to 2030, but contract period is January 2027 to December 2029",
+  "found": "Provide liability estimates for the optional one-year renewals for years ending December 31, 2029 and 2030",
+  "verdict": "partial",
+  "reason": "It mentions 2030 but omits valuations for 2026\u20132028 and the January 2027\u2013December 2029 contract period."
+ },
+ {
+  "gold": "RFP purpose requires valuations for years ending 2026 to 2028 with renewals to 2030, but contract period is January 2027 to December 2029",
+  "found": "Estimate liability annually for years ending December 31, 2026, 2027, and 2028",
+  "verdict": "partial",
+  "reason": "It gives the valuation years but omits the renewal period and contract period."
+ },
+ {
+  "gold": "Indicate on the Receipt Confirmation Form whether you will or will not be submitting a proposal",
+  "found": "Complete the Receipt Confirmation Form with company and contact details, proposal intent, and signature",
+  "verdict": "full",
+  "reason": "It includes indicating proposal intent on the Receipt Confirmation Form."
+ },
+ {
+  "gold": "Indicate on the Receipt Confirmation Form whether you plan to attend a bidders meeting, if one is arranged",
+  "found": "Complete the Receipt Confirmation Form with company and contact details, proposal intent, and signature",
+  "verdict": "no",
+  "reason": "It mentions proposal intent but not whether the firm plans to attend a bidders meeting."
+ },
+ {
+  "gold": "Submit the proposal no later than 4:00 P.M. on Friday, August 28, 2026 to Ulster County Department of General Services",
+  "found": "Ensure the proposal is received by 2026-08-28 4:00 P.M.",
+  "verdict": "partial",
+  "reason": "It gives the deadline but omits the submission recipient."
+ },
+ {
+  "gold": "Submit the proposal no later than 4:00 P.M. on Friday, August 28, 2026 to Ulster County Department of General Services",
+  "found": "Deliver the proposal to Ulster County Department of General Services, Edward Jordan, Director of General Services, 100 Development Court, Kingston, NY 12401",
+  "verdict": "partial",
+  "reason": "It gives the recipient but omits the submission deadline."
+ },
+ {
+  "gold": "Submit the proposal no later than 4:00 P.M. on Friday, August 28, 2026 to Ulster County Department of General Services",
+  "found": "Proposals received after 2026-08-28 4:00 P.M. will not be opened",
+  "verdict": "full",
+  "reason": "It gives the same cutoff date and time and states that late proposals will not be opened."
+ },
+ {
+  "gold": "Mark the outside of the envelope with the name and address of the company",
+  "found": "Label the outside with RFP name and number and responder name and address",
+  "verdict": "full",
+  "reason": "It includes the company name and address on the outside, along with additional identifying information."
+ },
+ {
+  "gold": "Include sufficient detail for effective evaluation and to substantiate stated claims",
+  "found": "Make the proposal clear, concise, and detailed enough for evaluation and to support stated claims",
+  "verdict": "full",
+  "reason": "It includes detail sufficient for evaluation and to support claims."
+ },
+ {
+  "gold": "Provide convincing rationale on how requirements will be met rather than restating the RFP",
+  "found": "Explain persuasively how the proposal will meet the requirements instead of merely restating them",
+  "verdict": "full",
+  "reason": "It conveys the need to explain persuasively how requirements will be met rather than restating the RFP."
+ },
+ {
+  "gold": "Submit the proposal in the format set forth in Section 4.0",
+  "found": "Follow the required proposal format; failure may cause rejection",
+  "verdict": "partial",
+  "reason": "It requires following the format but omits the reference to Section 4.0."
+ },
+ {
+  "gold": "Submit the proposal in the format set forth in Section 4.0",
+  "found": "Failure to follow the required proposal format may cause rejection",
+  "verdict": "partial",
+  "reason": "It states the consequence of failing to follow the format but does not direct the proposer to submit in that format."
+ },
+ {
+  "gold": "Comply with the Freedom of Information Law and related County and State rules",
+  "found": "Comply with FOIL and applicable County and State rules governing access to public documents",
+  "verdict": "full",
+  "reason": "It requires compliance with FOIL and applicable County and State rules."
+ },
+ {
+  "gold": "Certify no attempt to induce any firm to refrain from responding or to submit a complementary proposal",
+  "found": "Certify no attempt was made to deter responses or induce higher or noncompetitive proposals",
+  "verdict": "full",
+  "reason": "It covers deterring responses and inducing complementary or noncompetitive proposals."
+ },
+ {
+  "gold": "Certify the firm has not offered or accepted subcontracts or payments in exchange for complementary proposals or refraining from bidding",
+  "found": "Certify the firm did not receive a subcontract or value in exchange for submitting a complementary proposal",
+  "verdict": "partial",
+  "reason": "It covers receiving value for a complementary proposal but omits offering value and refraining from bidding."
+ },
+ {
+  "gold": "Certify the firm has not offered or accepted subcontracts or payments in exchange for complementary proposals or refraining from bidding",
+  "found": "Certify no subcontract or value was offered to induce another party not to respond or to submit a complementary proposal",
+  "verdict": "partial",
+  "reason": "It covers offering value to induce another party but omits accepting value and refraining from bidding."
+ },
+ {
+  "gold": "Do not assign rights, obligations or services without prior written consent of the Executive or Director of General Services",
+  "found": "Obtain prior written County consent before assigning contract rights, interests, obligations, or services",
+  "verdict": "full",
+  "reason": "It requires prior written County consent before assignment of the listed contract interests or duties."
+ },
+ {
+  "gold": "Include in subcontracts that nothing impairs the rights of the County",
+  "found": "Include required County contract provisions in every subcontract for services",
+  "verdict": "partial",
+  "reason": "It requires County provisions in subcontracts but does not specify that nothing may impair County rights."
+ },
+ {
+  "gold": "Include in subcontracts that the subcontractor is bound by the Article 15 confidentiality provision",
+  "found": "Require subcontractors to comply with the contract confidentiality provision",
+  "verdict": "full",
+  "reason": "It requires subcontractors to comply with the contract confidentiality provision."
+ },
+ {
+  "gold": "Oppose third-party requests for Confidential Information and cooperate with the County in obtaining a protective order",
+  "found": "For outside disclosure requests, oppose the request and cooperate with the County to obtain a protective order or remedy, unless the County waives compliance or determines disclosure is legally required",
+  "verdict": "full",
+  "reason": "It includes opposing the request and cooperating with the County to obtain a protective order or remedy."
+ },
+ {
+  "gold": "Obtain confidentiality agreements from firm officers, directors, agents or employees if requested by the County",
+  "found": "Obtain confidentiality agreements from firm or subcontractor personnel when the County requests them",
+  "verdict": "full",
+  "reason": "It requires confidentiality agreements from personnel when requested by the County."
+ },
+ {
+  "gold": "Do not discriminate in hiring or against employees under NYS Labor Law 220-e, where applicable",
+  "found": "For covered public building, public work, or materials agreements performed in New York, do not discriminate in hiring or intimidate employees on listed grounds",
+  "verdict": "full",
+  "reason": "It covers nondiscrimination in hiring and against employees for covered agreements."
+ },
+ {
+  "gold": "Do not discriminate in hiring or against employees under NYS Labor Law 239 for building service agreements",
+  "found": "For covered building service agreements, do not discriminate in hiring or intimidate employees on listed grounds",
+  "verdict": "full",
+  "reason": "It covers nondiscrimination in hiring and against employees for covered building service agreements."
+ },
+ {
+  "gold": "Include a policy clause that insurance is primary without contribution from County insurance",
+  "found": "Ensure insurance policies are primary, provide required advance cancellation or amendment notice, and allow the County to pay premiums and charge the cost back",
+  "verdict": "partial",
+  "reason": "It says insurance is primary but does not state that it is without contribution from County insurance."
+ },
+ {
+  "gold": "Include a policy clause that insurance is primary without contribution from County insurance",
+  "found": "Insurance must be primary and non-contributory; cancellation requires 30 days\u2019 notice, or 10 days for non-payment",
+  "verdict": "full",
+  "reason": "It expressly requires insurance to be primary and non-contributory."
+ },
+ {
+  "gold": "Include a policy clause giving the County the option to pay premiums and charge back the Firm",
+  "found": "Ensure insurance policies are primary, provide required advance cancellation or amendment notice, and allow the County to pay premiums and charge the cost back",
+  "verdict": "full",
+  "reason": "It says the County may pay premiums and charge the cost back."
+ },
+ {
+  "gold": "Continue performance of the Agreement to the extent not terminated",
+  "found": "After termination, the County may procure similar services elsewhere, and the Firm must continue performing any services not terminated",
+  "verdict": "full",
+  "reason": "It requires continued performance of services that were not terminated."
+ },
+ {
+  "gold": "Keep fees within the not-to-exceed amount for the Agreement term",
+  "found": "Contract fee must not exceed the amount to be inserted for the full term; the amount is unspecified",
+  "verdict": "full",
+  "reason": "It says the fee must stay within the amount for the full term; the reference does not specify a dollar amount."
+ },
+ {
+  "gold": "Invoice the County on the specified periodic basis at the agreed rate",
+  "found": "Specify the invoice frequency, service rate, and applicable payment cap",
+  "verdict": "partial",
+  "reason": "It covers frequency and rate but does not expressly say to invoice the County."
+ },
+ {
+  "gold": "Invoice the County on the specified periodic basis at the agreed rate",
+  "found": "Invoice frequency, rates, and per-period cap must be specified in the Agreement; fields are placeholders",
+  "verdict": "partial",
+  "reason": "It covers frequency and rates, but does not expressly say to invoice the County."
+ },
+ {
+  "gold": "Do not use ACORD forms as proof of Workers Compensation or Disability Benefits insurance",
+  "found": "Provide acceptable New York workers\u2019 compensation coverage proof, or Form CE-200 if exempt; ACORD forms are not accepted",
+  "verdict": "full",
+  "reason": "It expressly says ACORD forms are not accepted as proof."
+ },
+ {
+  "gold": "Contact the insurance agent to obtain acceptable proof of WC and DB coverage",
+  "found": "Provide acceptable disability benefits coverage proof, or Form CE-200 if exempt",
+  "verdict": "partial",
+  "reason": "It addresses disability benefits proof but omits workers\u2019 compensation proof and contacting the agent."
+ },
+ {
+  "gold": "Contact the insurance agent to obtain acceptable proof of WC and DB coverage",
+  "found": "Provide acceptable New York workers\u2019 compensation coverage proof, or Form CE-200 if exempt; ACORD forms are not accepted",
+  "verdict": "partial",
+  "reason": "It addresses workers\u2019 compensation proof but omits disability benefits proof and contacting the agent."
+ },
+ {
+  "gold": "Contact the insurance agent to obtain acceptable proof of WC and DB coverage",
+  "found": "Bring the insurance requirements to your insurance agent to ensure proper coverage and limits are in place",
+  "verdict": "partial",
+  "reason": "It says to consult the agent about coverage and limits, but does not specify obtaining acceptable proof of WC and DB coverage."
+ },
+ {
+  "gold": "Certify non-inclusion on the Prohibited Entities List upon contract renewal, extension or assignment",
+  "found": "When renewing, extending, or assigning the contract, certify the bidder or contractor is not on the Prohibited Entities List",
+  "verdict": "full",
+  "reason": "It requires the certification upon renewal, extension, or assignment."
+ }
+]

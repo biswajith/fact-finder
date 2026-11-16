@@ -1,0 +1,179 @@
+judge: 46 pairs asked, 0 from cache poc/ablation/p1_cap8k/durham/facts.judge.json, 0 unanswered; 10 matched below the cutoff, 0 wording matches rejected, 20 found but partial
+recall any code 0.971, without judge partials 0.887
+  + matched below the cutoff: Oracle HCM scope: HCM Base, HR Help Desk, Recruiting, Workforce Health and Safety Incidents, HCM Communicate, Talent Management, Workforce Compensation, Payroll (US), Time and Labor, Learning
+      -> Implement Oracle Fusion Workforce Health and Safety Incidents Cloud Service  (It names only Workforce Health and Safety Incidents, not the full HCM scope.)
+  + matched below the cutoff: If City withholds trade secret records, proponent must defend and indemnify City at its sole expense with counsel acceptable to City Attorney
+      -> For trade-secret nondisclosure, defend, indemnify, and hold City indemnitees harmless from all related charges  (It omits that the proponent must pay at its sole expense and use counsel acceptable to the City Attorney.)
+  + matched below the cutoff: A contract between the City and a company on the Iran or Israel-boycott lists may be void
+      -> A contract with a company on either listed State Treasurer list may be void  (It states that a contract with a company on either listed State Treasurer list may be void.)
+  + matched below the cutoff: City may disqualify a proponent showing less than full understanding of the RFP, including cancelling an award
+      -> The City may disqualify a proponent it considers insufficiently informed  (It omits that the City may cancel an award.)
+  + matched below the cutoff: Designate trade secret material with the words trade secrets at initial disclosure, kept separate and clearly marked
+      -> For trade secrets, prominently mark qualifying material “trade secrets” when first disclosed and separate it from nonconfidential material  (It states that qualifying material must be prominently marked “trade secrets” when first disclosed and separated from nonconfidential material.)
+  + matched below the cutoff: Answer: how your company promotes equitable contracting and procurement opportunities to Underutilized Businesses
+      -> Submit a separate UBE Statement of Intent answering both questions about promoting equitable UBE opportunities and efforts to provide contracting opportunities  (It asks how the company promotes equitable contracting and procurement opportunities for Underutilized Businesses.)
+  + matched below the cutoff: Describe discovery and business analysis approach, techniques and tools to document processes and gather requirements
+      -> Explain techniques and tools for documenting current processes, identifying inefficiencies, and gathering requirements  (It omits the explicit business-analysis approach.)
+  + matched below the cutoff: List other charges such as interface/integration tools in Other Charges
+      -> List additional charges not covered in the listed categories  (It omits the examples of other charges, such as interface or integration tools.)
+  + matched below the cutoff: Provide managed services options, support fee types and post-go-live training options (optional)
+      -> Provide support options for managed services  (It omits support fee types and post-go-live training options.)
+  + matched below the cutoff: Workforce Diversity Questionnaire listed as a required proposal item, but section 3.9 only recommends it with the proposal and requires it before contract
+      -> Submit the Workforce Diversity Questionnaire before contract execution; submission with the proposal is recommended  (It states both the before-contract requirement and the recommendation to submit with the proposal.)
+  ~ partial: City works with Info-Tech Research Group; implementation follows the Info-Tech methodology
+      -> The City and Info-Tech are advancing to implementation of the selected Oracle solution  (It omits that implementation follows the Info-Tech methodology.)
+  ~ partial: Full list of applications and expected disposition is in Appendix B and the Proponent Application Inventory list
+      -> Appendix B lists applications and their expected disposition  (It omits the Proponent Application Inventory list.)
+  ~ partial: Oracle HCM scope: HCM Base, HR Help Desk, Recruiting, Workforce Health and Safety Incidents, HCM Communicate, Talent Management, Workforce Compensation, Payroll (US), Time and Labor, Learning
+      -> Implement Oracle Fusion Workforce Health and Safety Incidents Cloud Service  (It names only Workforce Health and Safety Incidents, not the full HCM scope.)
+  ~ partial: Oracle scope: HIPAA Advanced Security, Database Vault and Break Glass, WebCenter Forms Recognition
+      -> Implement Oracle Database Vault and Break Glass for Fusion Cloud Service  (It omits HIPAA Advanced Security and WebCenter Forms Recognition.)
+  ~ partial: City information offered in good faith, may contain errors; City not liable for its use
+      -> RFP information is provided in good faith  (It omits that information may contain errors and that the City is not liable for its use.)
+  ~ partial: Submissions are generally public data once received, governed by NC General Statutes
+      -> Proposal submissions are generally available to the public  (It omits that public disclosure is governed by North Carolina General Statutes.)
+  ~ partial: If City withholds trade secret records, proponent must defend and indemnify City at its sole expense with counsel acceptable to City Attorney
+      -> For trade-secret nondisclosure, defend, indemnify, and hold City indemnitees harmless from all related charges  (It omits that the proponent must pay at its sole expense and use counsel acceptable to the City Attorney.)
+  ~ partial: Contractor without owned autos must keep Hired and Non-Owned Auto Liability, by CGL endorsement or separate policy
+      -> Maintain hired and non-owned auto liability coverage if the contractor owns no automobiles  (It omits that coverage may be provided by a CGL endorsement or a separate policy.)
+  ~ partial: City may negotiate any term with any proponent and contract for some or all work with non-proponents
+      -> City may negotiate any proposal or RFP term and may waive deadlines or non-compliance  (It omits the City’s ability to contract for some or all of the work with non-proponents.)
+  ~ partial: City requires a partner with proven Oracle expertise in utility billing (customer accounts, meter reading, billing)
+      -> Demonstrate proven Oracle implementation expertise, especially in local-government utility billing  (It omits the specific utility-billing areas of customer accounts, meter reading, and billing.)
+code  gold  extr  recall any code other comb merged extr~gold
+B       42    62   0.738      1.0    11    3      0     0.484
+C       39    62   0.744    0.974     9    0      0     0.484
+D        8    22     1.0      1.0     0    0      0       0.5
+E       19    23   0.684    0.895     4    0      1     0.652
+G        9    40   0.667      1.0     3    0      0     0.375
+Q        3     4   0.667      1.0     1    0      0       0.5
+R       86   205   0.919    0.953     3    1      4     0.493
+S       25    40    0.76      1.0     6    0      0      0.45
+X        7     5   0.714      1.0     2    0      0       1.0
+all    238   463 recall any code 0.971
+4 gold facts found inside an extracted fact that also states another gold fact (comb)
+5 missed gold facts matched only a fact already paired with another, and it does not state them fully (merged)
+
+code values wrong incompl recall, values ok
+B        16     0       2             0.952
+C        11     0       1             0.949
+D         8     0       0               1.0
+E         1     0       1             0.842
+G         3     0       0               1.0
+Q         2     0       2             0.333
+R         3     0       1             0.942
+S         5     0       1              0.96
+X         1     0       0               1.0
+all  recall with values ok 0.937
+
+value incomplete (8):
+  ! ADA Coordinator: voice (919) 560-4197, fax 560-4196, TTY (919) 560-1200, ADA@durhamnc.gov; request at least 48 hours before event or deadline
+    -> ADA Coordinator contact: voice (919) 560-4197, fax 560-4196, TTY (919) 560-1200, ADA@durhamnc.gov  (missing ['48'])
+  ! Durham population 283,506 (2020 Census), 4th most populous city in North Carolina
+    -> City population was 283,506 in the 2020 Census  (missing ['4'])
+  ! City intends to use RFP #24-0031 Appendix A Model Services Contract, modified to reflect RFP and proposal
+    -> City intends to use Appendix A Model Services Contract, modified to reflect the RFP and proposal  (missing ['24', '31'])
+  ! Completed RFP #24-0031 Proponent Response Template (Excel) covering Section 4 functional and Section 6 proponent requirements
+    -> Submit the completed RFP #24-0031 Proponent Response Template in Microsoft Excel  (missing ['4', '6'])
+  ! Provide details of 3 completed similar projects: description, similarities, milestone dates, initial estimated and total final cost
+    -> For each comparable project, provide its description, similarities, key milestone dates, discovered costs, initial estimated costs, and final total cost  (missing ['3'])
+  ! Criterion Experience & Qualifications: viability, similar public work, municipal Oracle ERP experience (NC preferred), implementations in last 3 years, references, team; no weight stated
+    -> Evaluation criteria include experience and qualifications: viability, Oracle and municipal experience, comparable projects, references, and implementation team knowledge; no points or weight stated  (missing ['3'])
+  ! Attachment A is the EBOP form in sections 3.10 and 3.15, but section 3.17 calls Attachment A the Workforce Diversity form and EBOP Attachment B
+    -> Attachment A is identified as the EBOP form in submission instructions but as the Workforce Diversity form in proposal format; EBOP forms are also called Attachment B  (missing ['3.1', '3.15', '3.17'])
+  ! Workforce Diversity Questionnaire listed as a required proposal item, but section 3.9 only recommends it with the proposal and requires it before contract
+    -> Submit the Workforce Diversity Questionnaire before contract execution; submission with the proposal is recommended  (missing ['3.9'])
+flag mandatory: {'gold': 100, 'extracted': 67, 'both': 59}
+flag risk: {'gold': 11, 'extracted': 26, 'both': 11}
+filed under another code (gold -> extracted): {('B', 'R'): 6, ('C', 'R'): 6, ('B', 'G'): 4, ('S', 'R'): 4, ('C', 'G'): 3, ('S', 'G'): 2, ('B', 'S'): 1, ('G', 'E'): 1, ('G', 'C'): 1, ('G', 'R'): 1, ('X', 'G'): 1, ('X', 'E'): 1, ('R', 'G'): 1, ('R', 'B'): 1, ('R', 'C'): 1, ('E', 'B'): 1, ('E', 'R'): 1, ('E', 'G'): 1, ('E', 'C'): 1, ('Q', 'D'): 1}
+extracted B, no gold match (32):
+  + RFP issued 2024-05-10 and due 2024-06-10 [p1.3]
+  + The City selected Oracle in phase one; this RFP seeks only an implementation partner for phase two [p4.6,p4.8]
+  + The City seeks a cooperative partner respectful of City culture and wishes for a business-critical relationship [p5.5,p5.6]
+  + Do not contact City personnel directly; direct all questions, marketing materials, and other contact through the identified City contact [p5.9,p5.10]
+  + City contact for questions is Underutilized Business Compliance Division, email ubcfinance@durhamnc.gov; copy Ahmed Ebrahim, aebrahim@infotech.com [p5.8,p5.9,p12.14,p12.20]
+  + Current financial and procurement systems are Tyler Munis [p7.t1r1]
+  + Current core HR systems include Tyler Munis [p7.t1r3,p7.t1r4]
+  + City address for insurance certificates is 101 City Hall Plaza, Durham, NC 27701 [p11.3,p11.4]
+  + Oracle solution includes ERP, HCM, and Utility Billing modules and services listed in the solution bill of material [p17.10,p17.t1r1,p17.t1r4,p17.t1r5,p17.t1r6,p17.t1r7,p17.t1r8,p17.t1r9,p17.t1r10,p18.t1r1,p18.t1r2,p18.t1r3,p18.t1r4,p18.t1r5,p18.t1r6,p18.t1r7,p18.t1r8,p18.t1r9,p18.t1r10,p18.t1r11,p18.t1r12,p18.t1r13]
+  + The City expects business process reengineering, project management, content and data migration assistance, integration, and report development [p18.3]
+
+missed C (1):
+  - Pricing is indicative; short-listed proponents may refine pricing during the demonstration period [p14.15,p22.8]
+extracted C, no gold match (32):
+  + Pay for legal counsel acceptable to the City Attorney when defending trade-secret nondisclosure claims [p10.5,p10.6]
+  + City may require proof of ability to pay expected trade-secret nondisclosure obligations [p10.10]
+  + If no owned automobiles, maintain hired and non-owned auto coverage; auto coverage is required only if vehicles serve the contract or visit City sites [p10.23,p10.24]
+  + Name City of Durham as additional insured on Commercial General Liability [p10.30,p10.31]
+  + Notify the City within five business days of receiving insurance cancellation, non-renewal, or noncompliance notice, and provide the notice or written details [p11.2]
+  + Submit the completed Contractor Workforce Diversity Questionnaire before contract authorization; submission with the proposal is recommended [p11.7,p11.8]
+  + Keep proposed prices valid for 180 days from the RFP due date [p22.31,p12.20]
+  + Provide estimated costs for each implementation sub-item and identify cost years for multi-year implementation [p22.10,p22.11,p22.12]
+  + Identify additional charges, assumptions, discounts, and price conditions in the pricing template [p22.15,p22.16,p22.18,p22.19]
+  + Provide hourly rates, rate descriptions, example tasks, rate distinctions, applicable resource rates, time tracking, and sample billing reports or invoices [p23.1,p23.2,p23.3,p23.4,p23.5]
+extracted D, no gold match (11):
+  + RFP issued [p1.3]
+  + Tell the City in the proposal if unavailable to present during identified short-list weeks [p8.4]
+  + Request ADA assistance as soon as possible, no later than 48 hours before the event or deadline [p11.22]
+  + Contract period: 3 years, with two one-year renewal options [p23.9]
+  + City may terminate the contract on thirty (30) days written notice [p23.10]
+  + Shortlist notification: estimated 30 days after the previous step [p8.t3r3]
+  + Partner presentations: estimated 60 days after the previous step [p8.t3r4]
+  + Proponents must notify the City in their proposals if unavailable to present during the identified weeks; weeks are not specified [p8.4]
+  + Insurance certificates provide a minimum thirty (30) day endeavor to notify when available [p11.1]
+  + Livable wage rate of $17.60 per hour applies through 2023-06-30; subsequent rate reset date is unspecified [p12.8,p12.9]
+
+missed E (2):
+  - City may accept the proposal in its best interest, whether or not lowest priced [p13.20]
+  - Reference contacts will be requested from short-listed proponents only [p22.4,p16.t1r1]
+extracted E, no gold match (8):
+  + Mandatory pass/fail screen: proposal must meet 100% of mandatory requirements; Oracle-approved partner in good standing and authorized in the United States is required [p16.1,p16.2,p16.t2r1]
+  + Presentation dates are TBD; the City provides short-listed proponents the agenda and details [p17.3,p17.4]
+  + Price is evaluated as an indicative project cost for design, configuration, implementation, and operationalization, plus applicable support, training, and maintenance costs [p16.t1r2]
+  + The City will record shortlisted proponents’ selection presentations [p17.2]
+  + Customer reference feedback is a selection factor [p19.1]
+  + Compliance with City terms and conditions is a selection factor [p19.2]
+  + Ability to integrate with other City systems is a selection factor [p19.3]
+  + Cost and quality of ongoing training, maintenance, and support are selection factors [p19.4]
+extracted G, no gold match (25):
+  + For contracts valued at $1,000 or more, affirm that the company is not on the listed Iran or Israel boycott lists and has no reason to expect it will appear on them, unless stated otherwise in the proposal [p11.16,p11.17,p11.18]
+  + Maintain the required insurance coverages and limits throughout the contract, including applicable liability and workers’ compensation coverage [p10.17,p10.19,p10.21,p10.28]
+  + Submit one proposal with a single primary proponent, regardless of the number of subcontractors or partner organizations [p14.19,p14.20]
+  + Disclose all partners and subcontractors, their business relationships, stability and duration, roles, responsibilities, and scope of work [p14.21,p14.22,p14.23,p14.24]
+  + The Operating Model guides operational decisions [p4.11]
+  + The implementation will follow Info-Tech’s ERP implementation methodology [p4.16]
+  + “City” means City of Durham, “proponent” means a proposal submitter or potential submitter, and “contractor” means the party contracted by the City [p5.17]
+  + “Contractor” generally means a successful proponent with a fully executed contract; “should” signals preferred practice, not an automatic rejection condition [p5.18,p5.19]
+  + The City will retain the original RFP and related materials in an archival copy under North Carolina public records retention requirements [p6.2]
+  + The City may change RFP dates at its discretion [p8.3]
+extracted Q, no gold match (2):
+  + Proposal format requires Attachment B EBOP forms, but the submission checklist lists Attachment A EBOP forms and omits Attachment B [p12.22,p12.26,p14.18]
+  + Appendix A Model Services Contract and Appendix B applications list are referenced as appended, but neither appears before the document ends [p5.22,p7.6,p20.4,p23.11]
+
+missed R (4):
+  - Answer: what efforts you have provided to Underutilized Businesses to get contracting opportunities with your company [p13.3]
+  - For each support tier give required time commitments and penalties for changing tiers [p20.21]
+  - For each support tier give support availability (e.g. 24/7, business hours) [p20.21]
+  - Confirm the proponent has supported all modules required by the RFP [p16.t1r2]
+extracted R, no gold match (104):
+  + Work cooperatively with the City and respect its culture and wishes [p5.6]
+  + Direct all questions, marketing materials, and other contact to the designated City contact; do not contact City personnel directly [p5.9,p5.10]
+  + State any objections to the Model Services Contract in the proposal [p5.22,p5.23]
+  + Submit the proposal by 2024-06-10 at 2pm ET [p1.3,p8.t3r2]
+  + Prominently mark trade-secret material when first disclosed to the City [p9.19]
+  + Designate material as trade secrets only with a reasonable, good-faith belief that it contains trade secrets [p9.20]
+  + Separate trade-secret material from other materials and clearly mark any trade-secret portions of a page [p9.22,p9.23]
+  + Promptly notify the City when a record is no longer believed in good faith to contain a trade secret [p9.26]
+  + Defend, indemnify, and hold the City and other Indemnitees harmless for charges arising from the City's nondisclosure of designated records [p10.4]
+  + Pay defense costs and use legal counsel reasonably acceptable to the City Attorney [p10.5,p10.6]
+extracted S, no gold match (22):
+  + Complete and submit the Workforce Diversity Questionnaire online [p13.4,p11.7]
+  + Disclose any potential conflict of interest [p14.16]
+  + Disclose all partnerships and subcontractors, relationships, stability and duration, roles, responsibilities, contributions, and scopes of work [p14.19,p14.20,p14.21,p14.22,p14.23,p14.24]
+  + Submit completed Attachment A Workforce Diversity form [p14.17]
+  + Submit completed Attachment B Equal Business Opportunity Program Procurement Forms [p14.18]
+  + Use the RFP's answering sequence when answering its questions [p13.15]
+  + Provide any relevant information not applicable to enumerated questions as a proposal appendix [p13.17]
+  + Q: The RFP identifies Attachment A as both the EBOP form and the Workforce Diversity form, and identifies EBOP forms as Attachment B [p12.26,p14.17,p14.18]
+  + Submit by 2024-06-10 2:00 pm ET [p12.20]
+  + Use subject line RFP #24-0031 – Proposal Submission - (proponent name) [p12.20]

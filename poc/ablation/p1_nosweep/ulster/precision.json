@@ -1,0 +1,111 @@
+{
+  "facts": 517,
+  "duplicates": {
+    "pairs": 9,
+    "facts_involved": 17,
+    "examples": [
+      [
+        "Submit the fee/cost proposal separately and unbound from the main proposal",
+        "Section IV fee/cost proposal must be submitted separately and unbound"
+      ],
+      [
+        "Submit one original and one photocopy of the technical proposal",
+        "Submit fee/cost proposal original and one photocopy"
+      ],
+      [
+        "Schedule C requires umbrella or excess liability of at least $2,000,000.00",
+        "Provide umbrella or excess liability coverage of at least $2,000,000.00, follow-form with no additional exclusions"
+      ],
+      [
+        "Schedule C requires automobile liability with a minimum $1,000,000.00 Combined Single Limit",
+        "Provide automobile liability coverage with a $1,000,000.00 minimum combined single limit for owned, hired, and non-owned vehicles"
+      ],
+      [
+        "The County must be named as an additional insured on commercial general liability policies",
+        "Name the County as additional insured on commercial general liability coverage, primary and non-contributory"
+      ]
+    ]
+  },
+  "model": {
+    "B": {
+      "n": 26,
+      "supported": 0.962,
+      "partly": 0.038,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.962
+    },
+    "C": {
+      "n": 88,
+      "supported": 0.841,
+      "partly": 0.114,
+      "unsupported": 0.045,
+      "noise": 0.0,
+      "precision": 0.841
+    },
+    "D": {
+      "n": 26,
+      "supported": 0.923,
+      "partly": 0.077,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.923
+    },
+    "E": {
+      "n": 9,
+      "supported": 1.0,
+      "partly": 0.0,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 1.0
+    },
+    "G": {
+      "n": 14,
+      "supported": 0.929,
+      "partly": 0.071,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.929
+    },
+    "Q": {
+      "n": 6,
+      "supported": 1.0,
+      "partly": 0.0,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 1.0
+    },
+    "R": {
+      "n": 290,
+      "supported": 0.931,
+      "partly": 0.059,
+      "unsupported": 0.01,
+      "noise": 0.0,
+      "precision": 0.931
+    },
+    "S": {
+      "n": 46,
+      "supported": 0.87,
+      "partly": 0.13,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.87
+    },
+    "X": {
+      "n": 12,
+      "supported": 1.0,
+      "partly": 0.0,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 1.0
+    },
+    "all": {
+      "n": 517,
+      "supported": 0.915,
+      "partly": 0.072,
+      "unsupported": 0.014,
+      "noise": 0.0,
+      "precision": 0.915
+    }
+  }
+}

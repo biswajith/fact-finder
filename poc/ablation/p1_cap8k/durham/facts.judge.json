@@ -1,0 +1,278 @@
+[
+ {
+  "gold": "City works with Info-Tech Research Group; implementation follows the Info-Tech methodology",
+  "found": "The City and Info-Tech are advancing to implementation of the selected Oracle solution",
+  "verdict": "partial",
+  "reason": "It omits that implementation follows the Info-Tech methodology."
+ },
+ {
+  "gold": "Full list of applications and expected disposition is in Appendix B and the Proponent Application Inventory list",
+  "found": "Appendix B lists applications and their expected disposition",
+  "verdict": "partial",
+  "reason": "It omits the Proponent Application Inventory list."
+ },
+ {
+  "gold": "Oracle HCM scope: HCM Base, HR Help Desk, Recruiting, Workforce Health and Safety Incidents, HCM Communicate, Talent Management, Workforce Compensation, Payroll (US), Time and Labor, Learning",
+  "found": "Implement Oracle Fusion Workforce Health and Safety Incidents Cloud Service",
+  "verdict": "partial",
+  "reason": "It names only Workforce Health and Safety Incidents, not the full HCM scope."
+ },
+ {
+  "gold": "Oracle scope: HIPAA Advanced Security, Database Vault and Break Glass, WebCenter Forms Recognition",
+  "found": "Implement Oracle Database Vault and Break Glass for Fusion Cloud Service",
+  "verdict": "partial",
+  "reason": "It omits HIPAA Advanced Security and WebCenter Forms Recognition."
+ },
+ {
+  "gold": "City information offered in good faith, may contain errors; City not liable for its use",
+  "found": "RFP information is provided in good faith",
+  "verdict": "partial",
+  "reason": "It omits that information may contain errors and that the City is not liable for its use."
+ },
+ {
+  "gold": "Submissions are generally public data once received, governed by NC General Statutes",
+  "found": "Proposal submissions are generally available to the public",
+  "verdict": "partial",
+  "reason": "It omits that public disclosure is governed by North Carolina General Statutes."
+ },
+ {
+  "gold": "If City withholds trade secret records, proponent must defend and indemnify City at its sole expense with counsel acceptable to City Attorney",
+  "found": "Pay for legal counsel acceptable to the City Attorney when defending trade-secret nondisclosure claims",
+  "verdict": "partial",
+  "reason": "It omits the duty to defend and indemnify the City at the proponent\u2019s sole expense."
+ },
+ {
+  "gold": "If City withholds trade secret records, proponent must defend and indemnify City at its sole expense with counsel acceptable to City Attorney",
+  "found": "For trade-secret nondisclosure, defend, indemnify, and hold City indemnitees harmless from all related charges",
+  "verdict": "partial",
+  "reason": "It omits that the proponent must pay at its sole expense and use counsel acceptable to the City Attorney."
+ },
+ {
+  "gold": "If City withholds trade secret records, proponent must defend and indemnify City at its sole expense with counsel acceptable to City Attorney",
+  "found": "Pay defense costs and use legal counsel reasonably acceptable to the City Attorney",
+  "verdict": "partial",
+  "reason": "It omits the duty to indemnify the City."
+ },
+ {
+  "gold": "Contractor without owned autos must keep Hired and Non-Owned Auto Liability, by CGL endorsement or separate policy",
+  "found": "Maintain hired and non-owned auto liability coverage if the contractor owns no automobiles",
+  "verdict": "partial",
+  "reason": "It omits that coverage may be provided by a CGL endorsement or a separate policy."
+ },
+ {
+  "gold": "A contract between the City and a company on the Iran or Israel-boycott lists may be void",
+  "found": "A contract with a company on either listed State Treasurer list may be void",
+  "verdict": "full",
+  "reason": "It states that a contract with a company on either listed State Treasurer list may be void."
+ },
+ {
+  "gold": "City desires contractors not discriminate and take affirmative action on protected characteristics in employment",
+  "found": "Take affirmative action to ensure equal employment and treatment without regard to the listed protected grounds",
+  "verdict": "full",
+  "reason": "It states the affirmative-action obligation and the protected grounds."
+ },
+ {
+  "gold": "City may negotiate any term with any proponent and contract for some or all work with non-proponents",
+  "found": "City may negotiate any proposal or RFP term and may waive deadlines or non-compliance",
+  "verdict": "partial",
+  "reason": "It omits the City\u2019s ability to contract for some or all of the work with non-proponents."
+ },
+ {
+  "gold": "City requires a partner with proven Oracle expertise in utility billing (customer accounts, meter reading, billing)",
+  "found": "Demonstrate proven Oracle implementation expertise, especially in local-government utility billing",
+  "verdict": "partial",
+  "reason": "It omits the specific utility-billing areas of customer accounts, meter reading, and billing."
+ },
+ {
+  "gold": "Proponent must comply with NC law on transacting business in NC; City verifies before contracting",
+  "found": "Comply with North Carolina law governing business transactions in the state before contracting",
+  "verdict": "partial",
+  "reason": "It omits that the City verifies compliance before contracting."
+ },
+ {
+  "gold": "City may disqualify a proponent showing less than full understanding of the RFP, including cancelling an award",
+  "found": "The City may disqualify a proponent it considers insufficiently informed",
+  "verdict": "partial",
+  "reason": "It omits that the City may cancel an award."
+ },
+ {
+  "gold": "City may disqualify a proponent showing less than full understanding of the RFP, including cancelling an award",
+  "found": "The City may cancel an award if it determines the proponent did not understand the RFP",
+  "verdict": "partial",
+  "reason": "It omits the City\u2019s ability to disqualify the proponent."
+ },
+ {
+  "gold": "City may reject a proposal not complying with requested format or instructions, though it may waive non-compliance",
+  "found": "The City may reject a proposal for failure to comply with stated requests, including the requested format",
+  "verdict": "partial",
+  "reason": "It omits that the City may waive non-compliance."
+ },
+ {
+  "gold": "City sends email confirmation of proposal receipt",
+  "found": "The City will email proponents confirmation that their proposals were received",
+  "verdict": "full",
+  "reason": "It states that the City will email confirmation of proposal receipt."
+ },
+ {
+  "gold": "Designate trade secret material with the words trade secrets at initial disclosure, kept separate and clearly marked",
+  "found": "Separate trade-secret material from other materials and clearly mark any trade-secret portions of a page",
+  "verdict": "partial",
+  "reason": "It omits the requirement to use the words \u201ctrade secrets\u201d at initial disclosure."
+ },
+ {
+  "gold": "Designate trade secret material with the words trade secrets at initial disclosure, kept separate and clearly marked",
+  "found": "Designate material as trade secrets only with a reasonable, good-faith belief that it contains trade secrets",
+  "verdict": "partial",
+  "reason": "It omits the requirements to mark and separate trade-secret material at initial disclosure."
+ },
+ {
+  "gold": "Designate trade secret material with the words trade secrets at initial disclosure, kept separate and clearly marked",
+  "found": "For trade secrets, prominently mark qualifying material \u201ctrade secrets\u201d when first disclosed and separate it from nonconfidential material",
+  "verdict": "full",
+  "reason": "It states that qualifying material must be prominently marked \u201ctrade secrets\u201d when first disclosed and separated from nonconfidential material."
+ },
+ {
+  "gold": "Disclose reasoning for trade secret designations on request and notify City if belief ends",
+  "found": "Promptly explain the basis for trade-secret designations when the City requests it",
+  "verdict": "partial",
+  "reason": "It omits the requirement to notify the City if the proponent\u2019s belief ends."
+ },
+ {
+  "gold": "Answer: how your company promotes equitable contracting and procurement opportunities to Underutilized Businesses",
+  "found": "Submit a separate UBE Statement of Intent answering both questions about promoting equitable UBE opportunities and efforts to provide contracting opportunities",
+  "verdict": "full",
+  "reason": "It asks how the company promotes equitable contracting and procurement opportunities for Underutilized Businesses."
+ },
+ {
+  "gold": "Answer: how your company promotes equitable contracting and procurement opportunities to Underutilized Businesses",
+  "found": "Submit a separate RFP #24-0031 UBE Statement of Intent answering both questions about promoting equitable opportunities and efforts to provide UBE contracting opportunities",
+  "verdict": "full",
+  "reason": "It asks how the company promotes equitable opportunities and efforts to provide UBE contracting opportunities."
+ },
+ {
+  "gold": "Answer: what efforts you have provided to Underutilized Businesses to get contracting opportunities with your company",
+  "found": "Submit a separate UBE Statement of Intent answering both questions about promoting equitable UBE opportunities and efforts to provide contracting opportunities",
+  "verdict": "full",
+  "reason": "It asks for the efforts provided to create UBE contracting opportunities and includes the related equitable-opportunities question."
+ },
+ {
+  "gold": "Answer: what efforts you have provided to Underutilized Businesses to get contracting opportunities with your company",
+  "found": "Submit a separate RFP #24-0031 UBE Statement of Intent answering both questions about promoting equitable opportunities and efforts to provide UBE contracting opportunities",
+  "verdict": "full",
+  "reason": "It asks for the efforts provided to create UBE contracting opportunities and includes the related equitable-opportunities question."
+ },
+ {
+  "gold": "Demonstrate a comprehensive approach and experience and success in similar projects",
+  "found": "Demonstrate a comprehensive approach to meeting all RFP requirements",
+  "verdict": "partial",
+  "reason": "It omits experience and success on similar projects."
+ },
+ {
+  "gold": "Describe discovery and business analysis approach, techniques and tools to document processes and gather requirements",
+  "found": "Explain techniques and tools for documenting current processes, identifying inefficiencies, and gathering requirements",
+  "verdict": "partial",
+  "reason": "It omits the explicit business-analysis approach."
+ },
+ {
+  "gold": "For each support tier give required time commitments and penalties for changing tiers",
+  "found": "For each support tier, describe services, price and invoicing, commitment terms and penalties, availability, request process, response time, escalation, and prioritization",
+  "verdict": "partial",
+  "reason": "It does not specify required time commitments or that penalties apply to changing tiers."
+ },
+ {
+  "gold": "For each support tier give support availability (e.g. 24/7, business hours)",
+  "found": "For each support tier, describe services, price and invoicing, commitment terms and penalties, availability, request process, response time, escalation, and prioritization",
+  "verdict": "full",
+  "reason": "It requires availability information for each support tier."
+ },
+ {
+  "gold": "Describe how often updates, patches and upgrades are released and how they are communicated and implemented",
+  "found": "Describe maintenance and update support, including update, patch, and upgrade frequency and how they are communicated and implemented",
+  "verdict": "full",
+  "reason": "It covers release frequency and how updates, patches, and upgrades are communicated and implemented."
+ },
+ {
+  "gold": "List other charges such as interface/integration tools in Other Charges",
+  "found": "Use the Other slots for additional charges as needed",
+  "verdict": "partial",
+  "reason": "It does not mention interface or integration tools as examples of other charges."
+ },
+ {
+  "gold": "List other charges such as interface/integration tools in Other Charges",
+  "found": "List additional charges not covered in the listed categories",
+  "verdict": "partial",
+  "reason": "It omits the examples of other charges, such as interface or integration tools."
+ },
+ {
+  "gold": "List other charges such as interface/integration tools in Other Charges",
+  "found": "Use the Other slots to list specific items not otherwise mentioned",
+  "verdict": "no",
+  "reason": "It asks for other items, not other charges."
+ },
+ {
+  "gold": "Provide managed services options, support fee types and post-go-live training options (optional)",
+  "found": "Provide support options for managed services",
+  "verdict": "partial",
+  "reason": "It omits support fee types and post-go-live training options."
+ },
+ {
+  "gold": "Provide managed services options, support fee types and post-go-live training options (optional)",
+  "found": "For Ongoing Training, state the training type, post-go-live options, and attach supporting documentation",
+  "verdict": "partial",
+  "reason": "It covers post-go-live training options but omits managed services options and support fee types."
+ },
+ {
+  "gold": "Provide managed services options, support fee types and post-go-live training options (optional)",
+  "found": "Support charges are optional and excluded from the overall score",
+  "verdict": "partial",
+  "reason": "It states support charges are optional but omits managed services options and post-go-live training options."
+ },
+ {
+  "gold": "Confirm the proponent has supported all modules required by the RFP",
+  "found": "Evaluation criteria include cost: indicative project cost breakdown, support, training and maintenance costs, implementation cost breakdown, and confirmation all required modules are supported; no points or weight stated",
+  "verdict": "full",
+  "reason": "It includes confirmation that all required modules are supported."
+ },
+ {
+  "gold": "Criterion Experience & Qualifications: viability, similar public work, municipal Oracle ERP experience (NC preferred), implementations in last 3 years, references, team; no weight stated",
+  "found": "Evaluation criteria include experience and qualifications: viability, Oracle and municipal experience, comparable projects, references, and implementation team knowledge; no points or weight stated",
+  "verdict": "partial",
+  "reason": "It omits the preference for North Carolina experience and implementations in the last three years, and does not specify similar public work."
+ },
+ {
+  "gold": "Evaluation completed after presentations; proposal most valuable to the City is selected and moved to negotiation",
+  "found": "Presentation selection uses the proposal considered most valuable to the City; selected proponents proceed to negotiations",
+  "verdict": "full",
+  "reason": "It states that the proposal considered most valuable is selected and proceeds to negotiations."
+ },
+ {
+  "gold": "Other factors: approach, methodology, ability to meet requirements, similar local government experience, references, T&C compliance, integration, support and training cost",
+  "found": "The City may consider project approach and understanding, implementation methodology and success, ability to meet requirements, and local government experience",
+  "verdict": "partial",
+  "reason": "It omits references, terms-and-conditions compliance, integration, and support and training costs."
+ },
+ {
+  "gold": "Workforce Diversity Questionnaire listed as a required proposal item, but section 3.9 only recommends it with the proposal and requires it before contract",
+  "found": "Submit the completed Contractor Workforce Diversity Questionnaire before any contract is authorized for execution",
+  "verdict": "partial",
+  "reason": "It states the before-contract requirement but omits that submission with the proposal is recommended."
+ },
+ {
+  "gold": "Workforce Diversity Questionnaire listed as a required proposal item, but section 3.9 only recommends it with the proposal and requires it before contract",
+  "found": "Submit the Workforce Diversity Questionnaire before contract execution; submission with the proposal is recommended",
+  "verdict": "full",
+  "reason": "It states both the before-contract requirement and the recommendation to submit with the proposal."
+ },
+ {
+  "gold": "Workforce Diversity Questionnaire listed as a required proposal item, but section 3.9 only recommends it with the proposal and requires it before contract",
+  "found": "Submit the completed Contractor Workforce Diversity Questionnaire before contract authorization; submission with the proposal is recommended",
+  "verdict": "full",
+  "reason": "It states both the before-contract requirement and the recommendation to submit with the proposal."
+ },
+ {
+  "gold": "Support charges are optional and not scored, but the Cost criterion and award factors include support, training and maintenance costs",
+  "found": "Support costs are listed as cost evaluation criteria, but support charges are stated to be optional and excluded from scoring",
+  "verdict": "full",
+  "reason": "It states that support costs are included in cost evaluation criteria while support charges are optional and excluded from scoring."
+ }
+]

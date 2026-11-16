@@ -1,0 +1,238 @@
+B|Buyer is the City of Durham, North Carolina|p1.1,p4.2|
+B|Solicitation RFP #24-0031 for Oracle ERP Implementation Partner|p1.2,p5.22|
+B|City seeks an implementation partner to deploy and integrate Oracle ERP and Utility Billing solutions|p4.2,p4.3,p4.8|
+B|RFP is the second phase of a two-step process; Oracle was selected as the enterprise software in the first phase|p4.6,p4.7,p17.10|
+B|Oracle selected as the City's ERP, Human Capital Management (HCM) and Utility Billing solution|p17.10,p17.14|
+B|Proponents involved in the software phase, including Oracle VARs/resellers, get no preference and are not excluded|p4.9|
+B|City works with Info-Tech Research Group; implementation follows the Info-Tech methodology|p4.15,p4.16,p17.13,p17.15|
+B|Initial submissions contact: Underutilized Business Compliance Division, ubcfinance@durhamnc.gov|p5.8,p5.9,p12.20|
+B|Copy Ahmed Ebrahim, Info-Tech, aebrahim@infotech.com; Info-Tech is the post-submission proponent contact|p5.8,p5.9,p12.20|
+B|Printable Workforce Diversity Questionnaire available by emailing purchmailbox@durhamnc.gov|p11.6,p13.5|
+B|UBE/EBOP help: City Division of Contracts & Compliance, Department of Finance, (919) 560-4180|p11.11|
+B|ADA Coordinator: voice (919) 560-4197, fax 560-4196, TTY (919) 560-1200, ADA@durhamnc.gov; request at least 48 hours before event or deadline|p11.22,p11.23|
+B/C|Coverage: all City departments and entities the City provides financial support to|p5.12|
+B|Durham population 283,506 (2020 Census), 4th most populous city in North Carolina|p6.4|
+B|City has largely unintegrated disparate systems, some unsupported, with heavy manual work and no single source of truth|p6.17,p6.18,p6.20,p6.21,p6.22|
+B|Solution must report and integrate data for Finance, Budget & Management Services, Customer Billing Services (Water Management) and Human Resources|p6.24|
+B|Current financial, procurement, core HR, budget and utility billing system is Tyler Munis|p7.t1r1,p7.t1r3,p7.t1r10,p7.t1r11|
+B|Current asset solutions: Tyler Munis, AssetWorks, FacilityDude, CityWorks, Boss (IT service desk)|p7.t1r2|
+B|Current HR talent solutions: NeoGov, Cornerstone, Saba|p7.t1r5|
+B|Current workforce (time and attendance) solutions: Kronos and Tyler Munis|p7.t1r8|
+B|Current budget tools also include SharePoint and Excel|p7.t1r10|
+B|Other current software includes WasteWorks, Faster, Neighborly, NextGen, OnBase, Grayco, FuelMaster, CivicPlus, Paymentus and ESRI|p7.t1r12|
+B|Full list of applications and expected disposition is in Appendix B and the Proponent Application Inventory list|p7.6,p20.4,p20.5|
+B|Record to Report (Finance & Accounting): 35 users, 247 limited users|p7.t2r1|
+B|Procure to Pay (Purchasing): 13 users, 353 limited users|p7.t2r2|
+B|Acquire to Dispose (Asset Mgmt): 62 users, 17 limited users|p7.t2r3|
+B|HR Core: 100 users, 2900 limited users|p7.t2r4|
+B|HR Talent Mgmt: 3000 users, 120 limited users|p7.t2r5|
+B|HR Workforce Mgmt: 3000 users|p7.t2r6|
+B|Plan to Perform (Budget & Forecast): 164 users, 105 limited users|p8.t1r1|
+B|Meter to Cash (Utility Billing/CIS): 40 users, 50 limited users|p8.t1r2|
+B|Full-time employees: 2459|p8.t2r1|
+B|Part-time employees: 258|p8.t2r2|
+B|Seasonal employees: 186|p8.t2r3|
+B|Total employees: 2903|p8.t2r4|
+B|Oracle HCM scope: HCM Base, HR Help Desk, Recruiting, Workforce Health and Safety Incidents, HCM Communicate, Talent Management, Workforce Compensation, Payroll (US), Time and Labor, Learning|p17.t1r1,p17.t1r2,p17.t1r4,p17.t1r5,p17.t1r6,p17.t1r7,p17.t1r8,p17.t1r9,p17.t1r10,p17.t1r11,p18.t1r1|
+B|Oracle scope includes an Additional Test Environment for Oracle Fusion Cloud Service|p18.t1r1|
+B|Oracle scope: Fusion ERP, Procurement, Supply Chain Execution and Risk Management Cloud Services|p18.t1r2,p18.t1r3,p18.t1r4,p18.t1r5|
+B|Oracle scope: HIPAA Advanced Security, Database Vault and Break Glass, WebCenter Forms Recognition|p18.t1r6,p18.t1r7,p18.t1r8|
+B|Oracle scope: Enterprise Performance Management Enterprise Cloud Service plus Additional Application|p18.t1r9,p18.t1r10,p18.t1r11|
+B|Oracle scope: Oracle Utilities Customer Cloud Service (B90577) and Oracle PaaS and IaaS Universal Credits|p18.t1r12,p18.t1r13|
+B|City will require specific interfaces between Oracle ERP and other City systems|p20.1|
+C|City intends to use RFP #24-0031 Appendix A Model Services Contract, modified to reflect RFP and proposal|p5.22,p5.20|
+C/R|Proponent objecting to any contract term should state the objections in its proposal|p5.23|desirable
+C|Issuing the RFP and receiving proposals does not commit the City to award a contract|p5.14|
+C|No proponent claims against the City arising from participating in the process or from non-award|p8.12,p8.13|risk
+C|Notice of award is not acceptance; City accepts only by executing a formal contract|p8.15|
+C|City information offered in good faith, may contain errors; City not liable for its use|p9.1,p9.2,p9.3,p9.4|risk
+C|Respondent should not use City logos, trademarks or trade names without prior written approval|p9.5|
+C|Accepted proposals become City property and will not be returned|p9.6|
+C|Submissions are generally public data once received, governed by NC General Statutes|p9.9,p10.15,p10.16|risk
+C|If City withholds trade secret records, proponent must defend and indemnify City at its sole expense with counsel acceptable to City Attorney|p10.4,p10.5,p10.6,p10.8,p10.9|risk
+C|City may require proof of ability to pay indemnity amounts; if not timely provided, City need not keep records confidential|p10.10,p10.11|risk
+C|RFP and proposal governed by laws of the State of North Carolina|p10.14|
+C|Contractor must maintain required insurance on a primary basis at its sole expense for the life of the contract|p10.17|mandatory
+C|Insurance requirements do not limit contractor's liabilities or obligations under the contract|p10.18|risk
+C|Commercial General Liability: at least $1,000,000 each occurrence and $2,000,000 aggregate|p10.19|mandatory
+C|CGL must not exclude or limit Products/Completed Operations, Contractual, Cross, or Personal and Advertising Injury Liability|p10.20|mandatory
+C|Automobile Liability: at least $1,000,000 combined single limit, covering owned, non-owned and hired autos, only if vehicles used or on City site|p10.21,p10.22,p10.24|mandatory
+C|Contractor without owned autos must keep Hired and Non-Owned Auto Liability, by CGL endorsement or separate policy|p10.23|mandatory
+C|Umbrella/Excess may satisfy limits; annual aggregate not less than highest each-occurrence limit of required policies|p10.25,p10.26|
+C|City of Durham must be Additional Insured on Umbrella/Excess unless certificate states Follow-Form coverage|p10.27|mandatory
+C|Workers Compensation per NC General Statute Chapter 97; Employers Liability at least $1,000,000 each accident, each employee, policy limit|p10.28|mandatory
+C|Workers Compensation policy must include a Waiver of Subrogation|p10.29|mandatory
+C|City must be endorsed as Additional Insured on CGL, reading City of Durham as its interest may appear|p10.30,p10.31|mandatory
+C|Provide Certificate of Insurance showing all coverages, with minimum 30-day insurer endeavor to notify|p11.1|mandatory
+C/D|Notify City within 5 business days of any insurance non-renewal, cancellation or non-compliance notice|p11.2|mandatory
+C|Certificate holder: Attn Technology Solutions Department, City of Durham, 101 City Hall Plaza, Durham, NC 27701|p11.3,p11.4|
+C|All primary insurance carriers must be authorized to do business in North Carolina|p11.4|mandatory
+C|A contract between the City and a company on the Iran or Israel-boycott lists may be void|p11.19|risk
+C|City desires contractors not discriminate and take affirmative action on protected characteristics in employment|p11.25,p11.26,p12.1,p12.2,p12.3,p12.4|desirable
+C|Include the City EEO Policy statement in every purchase order and subcontract related to City contracts|p12.5|desirable
+C|City desires livable wage of $17.60 per hour through 2023-06-30; rate to be reset afterward|p12.7,p12.8,p12.9|desirable,unclear
+C|Contents of the RFP and the proposal become part of any resulting contract|p13.11|risk
+C|City may negotiate any term with any proponent and contract for some or all work with non-proponents|p13.21,p13.23|risk
+C|Pricing is indicative; short-listed proponents may refine pricing during the demonstration period|p14.15,p22.8|
+C|Pricing must be in USD|p22.29|mandatory
+C|Resulting contract proposed to be fixed price unless otherwise stated|p22.30|
+C/D|Prices must remain valid for 180 days from the RFP due date|p22.31,p22.32|mandatory
+C|Contract period 3 years with two one-year renewal options|p23.9|
+C|City may terminate any resulting contract on 30 days written notice|p23.10|risk
+G|Proponent must be an Oracle approved partner in good standing, authorized in the US to implement Oracle Fusion|p16.t2r1|mandatory
+G|Must have implemented similar scope within last 5 years for a US municipality comparable in size to Durham; NC preferred, not mandatory|p16.t2r2|mandatory
+G|Must have implemented for at least two municipalities of 100k to 500k population|p16.t2r2|mandatory
+G/R|Proponent must have experience successfully implementing Oracle ERP in a local government environment|p18.1|mandatory
+G/R|City requires a partner with proven Oracle expertise in utility billing (customer accounts, meter reading, billing)|p4.4|mandatory
+G|Proponent must comply with NC law on transacting business in NC; City verifies before contracting|p13.7,p13.8|mandatory
+G|By bidding, proponent affirms it is not on NC Treasurer's Israel-boycott or Iran investment lists (contracts of $1,000 or more)|p11.16,p11.17,p11.18|mandatory
+G/S|Completed Workforce Diversity Questionnaire required before any contract is executed; not an award factor|p11.7,p11.5|mandatory
+G/S|Submit one proposal with a single primary proponent representing any partnership|p14.19,p14.20|mandatory
+X|Contacting City personnel directly or outside the designated contact may result in disqualification|p5.9,p5.10,p5.11|
+X|City may disqualify a proponent showing less than full understanding of the RFP, including cancelling an award|p8.8,p8.9,p8.10,p8.11|
+X|Proposal must respond to all RFP requirements to be considered|p13.10|mandatory
+X|City may reject a proposal if evidence or investigation fails to show proponent is properly qualified|p13.14|
+X|City may reject any, any part of, or all proposals|p13.20|
+X|City may reject a proposal not complying with requested format or instructions, though it may waive non-compliance|p13.24,p13.25|
+X|Submission must meet 100% of mandatory requirements to be considered for evaluation and award|p16.1|mandatory
+D|RFP issued: 2024-05-10|p1.3,p8.t3r1|
+D|Last date for questions: 2024-05-24 14:00 ET; later questions requiring addenda will not be answered|p8.t3r1,p12.19|
+D|Proposals due: 2024-06-10 14:00 ET|p1.3,p8.t3r2,p12.20|mandatory
+D|Notification to short-listed proponents: estimated 30 days after proposal close|p8.t3r3|
+D|Partner presentations: estimated 60 days after short-list notification; dates TBD|p8.t3r4,p17.4|
+D|Final partner recommendation: estimated 30 days after presentations|p8.t3r5|
+D|Final award (target): estimated 90 days after final recommendation|p8.t3r6|
+D|City aims to answer questions requiring addenda within 5 business days|p12.16|
+S|Submit proposals by email to ubcfinance@durhamnc.gov, copying aebrahim@infotech.com|p12.20,p12.22|mandatory
+S|Proposal email subject: RFP #24-0031 - Proposal Submission - (proponent name)|p12.20|mandatory
+S|Questions by email to City contact with subject: RFP #24-0031 - Re: (description of question)|p12.14,p12.16,p5.10|mandatory
+S|Addenda and Q&A posted on the City Purchasing Division webpage and shared with all recipients|p12.17,p12.18|
+S|City sends email confirmation of proposal receipt|p12.21|
+S|Proposal response in PDF or Microsoft Word format|p12.23|mandatory
+S|Completed RFP #24-0031 Proponent Response Template (Excel) covering Section 4 functional and Section 6 proponent requirements|p12.24,p14.12,p14.13,p21.13|mandatory
+S|Completed RFP #24-0031 Proponent Pricing Template (Excel)|p12.25,p14.14,p22.33,p22.7|mandatory
+S|Completed RFP #24-0031 Attachment A EBOP Instruction and Fillable Form (UBE forms)|p12.26,p11.10,p11.11,p11.12,p11.13,p14.18|mandatory
+S|UBE Statement of Intent as a separate document|p13.1|mandatory
+S|Completed Workforce Diversity Questionnaire (online form), recommended with proposal; not counted in page maximum|p13.4,p11.5,p11.8,p11.9,p14.17|mandatory
+S|Proposals must be submitted in the format described in the RFP|p13.9|mandatory
+S|Answer RFP questions using the same sequence as the RFP|p13.15|mandatory
+S|Prepare proposal simply and economically; put other relevant information in an appendix|p13.16,p13.17|desirable
+S/R|Include an Executive Summary of the ERP offering|p13.28|mandatory
+S/R|Include proponent name, address and contact person's name, mailing address, email and telephone|p14.1,p14.2|mandatory
+S/R|State full exact legal name, year established, head office location and other contact addresses|p14.4,p21.14|mandatory
+S/R|State legal entity type and ownership, and state of organization if not individual or general partnership|p14.5,p21.15|mandatory
+S/R|If organized outside NC, state whether it holds an NC Secretary of State certificate of authority|p14.6|mandatory
+S/R|State whether the entity exists at submission, and if not, when it will be formed|p14.7|mandatory
+S/R|State names and titles of individuals who will sign the contract|p14.8|mandatory
+S/R|Provide overview of the proposed solution and components|p14.9|mandatory
+S/R|State explicitly any assumptions about City actions, facilities or participation|p14.10,p14.11|desirable
+S/R|Explain any potential conflict of interest, such as a connection to a City employee involved in award|p14.16|desirable
+S|Designate trade secret material with the words trade secrets at initial disclosure, kept separate and clearly marked|p9.19,p9.20,p9.22,p9.23,p9.24|mandatory
+R|Disclose reasoning for trade secret designations on request and notify City if belief ends|p9.21,p9.26|mandatory
+R|Answer: how your company promotes equitable contracting and procurement opportunities to Underutilized Businesses|p13.2|mandatory
+R|Answer: what efforts you have provided to Underutilized Businesses to get contracting opportunities with your company|p13.3|mandatory
+R|Notify City in proposal if not available to present on the identified weeks if short-listed|p8.4|desirable,unclear
+R|Furnish information requested by City on competence, organization and financial resources|p13.12,p13.13|mandatory
+R|Disclose all partners and subcontractors, the relationship nature, and partnership stability over the contract period|p14.21,p14.22,p21.12|mandatory
+R|Describe roles of primary proponent and each partner, including each partner's scope of work|p14.23,p14.24|mandatory
+R|Demonstrate a comprehensive approach and experience and success in similar projects|p4.5|desirable
+R|Be responsible for final design, installation, implementation, commissioning, configuration, UAT, training, integration and connectivity to existing applications|p18.2|mandatory
+R|Perform all professional services: best practices, process reengineering, training, project management, data migration, implementation, integration, report development|p18.3|mandatory
+R|Use experienced Oracle ERP experts who implemented comparable projects with similar modules|p18.4|desirable
+R|Describe project management approach and implementation methodology in detail|p19.5|mandatory
+R|Propose a realistic phasing of the solution components|p19.6|desirable
+R|State all assumptions and dependencies driving the implementation approach (big bang or phased)|p19.7|mandatory
+R|Provide bios of lead resources and project team organization with roles and responsibilities|p19.8|mandatory
+R|Provide project plan by module with timelines, milestones, deliverables and City staff commitment|p19.9|mandatory
+R|Show critical path and task dependencies in the project plan|p19.10|mandatory
+R|Include a risk management plan with risks and mitigation strategies|p19.11|mandatory
+R|Identify implementation approach (phased or big bang), risk mitigation and delay prevention|p19.12|mandatory
+R|Describe tools for project tracking, documentation and collaboration|p19.13|mandatory
+R|Include regular review meetings|p19.14|mandatory
+R|Provide change management plan with readiness, stakeholder engagement and change impact assessment|p19.15|mandatory
+R|Provide communication plan: techniques, frequency, format, points of contact and materials|p19.16|mandatory
+R|Include a crisis communication plan|p19.17|mandatory
+R|Describe discovery and business analysis approach, techniques and tools to document processes and gather requirements|p19.18,p19.19|mandatory
+R|Describe design/configuration approach with version control and change tracking|p19.20|mandatory
+R|Describe data migration prerequisites, activities and City versus proponent roles|p19.21|mandatory
+R|Describe data validation and data cleansing processes|p19.22|mandatory
+R|Describe systems integration with REST API, Web Services and FBDI, plus error handling and troubleshooting|p19.23|mandatory
+R|Explain training organization by user type or process, delivery method and training effectiveness evaluation|p19.24|mandatory
+R|Describe testing levels and responsibilities (functional, UAT, system integration) and bug tracking and resolution|p19.25,p19.26|mandatory
+R|Describe move to production: deployment and business readiness, release management, back-out plan, approvals|p19.27|mandatory
+R|Describe post go-live monitoring, support, ticketing, maintenance of upgrades and patches, and user feedback loop|p19.28,p19.29,p19.30|mandatory
+R|Configure, code and test all applications, extensions and interfaces for each interface developed|p20.2|mandatory
+R|Identify existing experience and pre-built connectors for listed City software|p20.3|desirable
+R|Describe testing methodology, phases and roles of implementation team and City resources|p20.7|mandatory
+R|Outline success and acceptance criteria and KPIs for each testing phase|p20.8|mandatory
+R|Identify testing dependencies, risks and mitigation strategies|p20.9|desirable
+R|Provide a realistic testing schedule with milestones, deliverables and review meetings|p20.10,p20.11|desirable
+R|Describe how defects are documented and resolved, including re-testing and validation|p20.12,p20.13|desirable
+R|Describe training, support and documentation for knowledge transfer during testing|p20.14,p20.15|desirable
+R|Describe the formal acceptance process, criteria, validation and sign-off|p20.16,p20.17|mandatory
+R|Describe support levels/tiers and price each package (optional)|p20.18,p20.19|desirable
+R|Include ongoing training options beyond implementation training|p20.20|desirable
+R|For each support tier give nature of services and price and invoicing method|p20.21|desirable
+R|For each support tier give required time commitments and penalties for changing tiers|p20.21|desirable
+R|For each support tier give support availability (e.g. 24/7, business hours)|p20.21|desirable
+R|For each support tier give request procedure, expected response time, escalation and prioritization process|p20.21|desirable
+R|Provide a standard SLA with response times, escalation and severity levels and resolution targets|p21.1,p21.2|desirable
+R|Describe how often updates, patches and upgrades are released and how they are communicated and implemented|p21.2|desirable
+R|Describe other beneficial services such as performance tuning, consulting, system auditing and proactive monitoring|p21.3|desirable
+R|Detail training offerings for system administrators, normal users and super users|p21.4|desirable
+R|Specify preferred training patterns|p21.5|desirable
+R|Indicate certification programs by user role with structure, benefits and costs|p21.6|desirable
+R|Explain customized training options and their pricing models|p21.7|desirable
+R|Detail how training materials are kept current with updates|p21.8|desirable
+R|Describe community or forum support|p21.9|desirable
+R|Provide company information and references for projects similar in size, application and scope|p21.11|mandatory
+R|State number of people currently employed|p21.16|mandatory
+R|State number of employees dedicated to customer support|p21.17|mandatory
+R|State number of employees dedicated to implementation|p21.18|mandatory
+R|Describe organizational structure and key management personnel|p21.19|mandatory
+R|State core competencies and differentiators|p21.20|mandatory
+R|Identify certifications, awards or industry recognitions|p21.21|mandatory
+R|Disclose any legal disputes or litigation in the past 5 years|p21.22|mandatory
+R|Provide documents substantiating financial viability|p21.23|mandatory
+R|Publicly traded companies include most recent annual report|p21.24|mandatory
+R|Highlight strategic partnerships or alliances contributing to financial stability|p22.1|mandatory
+R|Give overview of company growth trend over the last five years|p22.2|mandatory
+R|Provide customer case studies and references for Oracle ERP and local government experience|p22.3|mandatory
+R|Provide evidence of ongoing relationships or repeat business with references, such as managed services|p22.5|desirable
+R|List all one-time implementation costs with an estimate per sub-item, as precisely as possible|p22.9,p22.10,p22.11|mandatory
+R|Show years in which costs are incurred for multi-year implementation|p22.12|desirable
+R|List other charges such as interface/integration tools in Other Charges|p22.15,p22.16,p22.17,p22.13|desirable
+R|Use the Vendor Comments column for assumptions, discounts and price conditions|p22.18,p22.19|desirable
+R|Attach documentation where indicated, such as support levels and training options|p22.20,p22.21|mandatory
+R|Fill all pricing fields accurately; mark non-applicable items in the comments column|p22.22,p22.23|mandatory
+R|Provide managed services options, support fee types and post-go-live training options (optional)|p22.24,p22.25,p22.26,p22.27|desirable
+R|Prices must reflect all costs associated with the implementation|p22.28|mandatory
+R|Provide details of 3 completed similar projects: description, similarities, milestone dates, initial estimated and total final cost|p22.34,p22.35|mandatory
+R|Provide a complete list of hourly billing rates with descriptions and example tasks for each|p23.1,p23.2|mandatory
+R|Identify the applicable billing rate for each proposed resource|p23.3|mandatory
+R|Describe how resource/task time is tracked for billing, with sample reports or invoice details|p23.4,p23.5|mandatory
+R|Describe any standard fixed-cost components with in-scope and out-of-scope elements|p23.6|desirable
+R|Provide other pricing information such as related pricing structures, fees and discounts|p23.7|mandatory
+R|Confirm the proponent has supported all modules required by the RFP|p16.t1r2|mandatory
+E|Selection factors include state/city experience, Oracle ERP experience, collaboration, methodology, viability, capability, references, cooperation and price|p5.3,p5.4|
+E|Willingness to cooperate and to follow the selection process is viewed as an indicator of the future relationship|p5.6,p5.7|
+E|Evaluation based on demonstrated competence, compliance, format and enterprise|p15.1,p15.2|
+E|Evaluation criteria at City's sole discretion; City may change criteria and vary the procedure|p15.3,p15.6|risk
+E|City may request clarification via interviews, presentations, samples, demonstrations or technical data|p15.4|
+E|Criteria inform a recommendation to the City Manager or City Council, who are not bound by it|p15.5|
+E|Criterion Project Understanding: insight into City challenges, issues and risks, alignment with strategic priorities, understanding of scope; no weight stated|p15.t1r1|
+E|Criterion Project Management: PM methodology, staff skills and certifications, implementation and training plan with deliverables; no weight stated|p15.t1r2|
+E|Criterion Implementation Approach: approach, discovery, data migration, roles, interfaces, training, testing, maintenance and support, implementation model; no weight stated|p15.t1r3|
+E|Criterion Experience & Qualifications: viability, similar public work, municipal Oracle ERP experience (NC preferred), implementations in last 3 years, references, team; no weight stated|p16.t1r1|
+E|Criterion Cost: indicative cost breakdown, support, training and maintenance costs, implementation cost breakdown; no weight stated|p16.t1r2|
+E|Short-listed proponents present or interview with City subject matter experts; presentation is recorded|p17.1,p17.2,p17.3|
+E|Evaluation completed after presentations; proposal most valuable to the City is selected and moved to negotiation|p17.4,p17.5,p17.6|
+E|Selected and non-selected proponents are notified in writing by email|p17.7,p17.8|
+E|Award to qualified proponent whose proposal is most advantageous, price and other factors considered|p18.5,p18.6|
+E|Other factors: approach, methodology, ability to meet requirements, similar local government experience, references, T&C compliance, integration, support and training cost|p18.7,p18.8,p18.9,p18.10,p18.11,p19.1,p19.2,p19.3,p19.4|
+E|City may accept the proposal in its best interest, whether or not lowest priced|p13.20|
+E|Support charges are optional and not used to evaluate the overall score|p22.24,p20.19|
+E|Reference contacts will be requested from short-listed proponents only|p22.4,p16.t1r1|
+Q|Attachment A is the EBOP form in sections 3.10 and 3.15, but section 3.17 calls Attachment A the Workforce Diversity form and EBOP Attachment B|p11.10,p12.26,p14.17,p14.18|
+Q|Workforce Diversity Questionnaire listed as a required proposal item, but section 3.9 only recommends it with the proposal and requires it before contract|p12.22,p13.4,p11.7,p11.8|
+Q|Support charges are optional and not scored, but the Cost criterion and award factors include support, training and maintenance costs|p22.24,p20.19,p16.t1r2,p19.4|

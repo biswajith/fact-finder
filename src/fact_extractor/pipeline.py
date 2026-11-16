@@ -13,17 +13,17 @@ from typing import Protocol
 
 from . import planner, prompts, xref
 from .llm import CallFailed, LLMClient, RateLimited, Request, Response
-from .merge import dedupe, similarity, uncited, union_passes
+from .merge import dedupe, uncited, union_passes
 from .models import CallRecord, CallSpec, Fact, TaggedDocument
 from .store import InMemoryFactStore, fact_id, to_record
-from .validate import Checked, LineBuffer, check_line, check_output, parse_line
+from .validate import Checked, LineBuffer, check_output
 
 ALL_CODES = ("B", "C", "G", "X", "D", "S", "E", "R", "Q")
 
 
 @dataclass
 class Config:
-    max_parallel: int = 32  # every extraction call of both passes at once on a ~50-page RFP
+    max_parallel: int = 32  # every extraction call at once, with room for a second pass, on a ~50-page RFP
     max_output_tokens: int = 3000
     # The check reasons at medium effort over the whole fact list; hidden reasoning counts
     # toward the cap, and at 3,000 a 700-fact list left no room for any Q line.
@@ -33,10 +33,15 @@ class Config:
     rate_limit_retries: int = 5
     backoff_base: float = 1.0
     max_splits: int = 3  # how often a cut call may be split again
-    passes: int = 2  # run every extraction call this many times and keep the union (REVIEW.md, "Recall")
+    # Run every extraction call this many times and keep the union. 1 by default: a second
+    # pass added 0-3 points of recall for ~60% more output tokens (REVIEW.md, "Trimming tests").
+    passes: int = 1
     sweep_all: bool = True  # sweep every uncited sentence, not only shall/must candidates
     sweep_chunk: int = 30  # uncited IDs per sweep call; ~1,000 output tokens each
     parallel_check: bool = True  # check runs alongside the sweep (REVIEW.md item 12)
+    # Switches for trimming tests (poc/ablation): turn a stage off to measure what it adds.
+    sweep: bool = True  # coverage sweep over uncited IDs
+    check: bool = True  # model contradiction check (xref.py still runs)
     plan: planner.PlanConfig = field(default_factory=planner.PlanConfig)
 
 
@@ -175,8 +180,9 @@ class _Run:
             if missing and out.end_count is not None:
                 rec.log.append(f"sweep gave no line for: {', '.join(missing)}")
 
-        facts = [_fact(c, spec.name) for c in out.checked if c.ok]
-        repair = asyncio.create_task(self.repair(spec, out.failed)) if out.failed else None
+        # Lines that fail validation are kept as needs_review with their problems; there is no
+        # repair call (it added no measurable recall, REVIEW.md "Trimming tests").
+        facts = [_fact(c, spec.name) for c in out.checked]
 
         cut = out.end_count is None or resp.truncated
         if cut:
@@ -190,61 +196,8 @@ class _Run:
             else:
                 rec.status = "partial"
                 rec.log.append("output cut and the call cannot be split further; kept valid lines")
-        if repair:
-            facts.extend(await repair)
         return facts
 
-    async def repair(self, spec: CallSpec, failed: list[Checked]) -> list[Fact]:
-        """Prompt 10.8, once. Lines that still fail are kept as needs_review (spec 7)."""
-        codes = ALL_CODES if spec.kind == "sweep" else spec.codes
-        rspec = CallSpec(
-            f"{spec.name}.repair", codes,
-            prompts.repair_task(codes, [(c.line.raw, "; ".join(c.reasons)) for c in failed]),
-            kind="repair",
-        )
-        rec = CallRecord(rspec.name, "repair")
-        self.calls.append(rec)
-        t0 = time.monotonic()
-        try:
-            resp, lines = await self._request(rspec, rec)
-        except CallFailed as e:
-            rec.status = "failed"
-            rec.log.append(f"call failed: {e}")
-            return [_fact(c, spec.name) for c in failed]
-        rec.seconds = time.monotonic() - t0
-        rec.usage = resp.usage
-
-        answers: list[tuple[str, Checked]] = []  # ("drop" | "line", checked)
-        for raw in lines:
-            line = parse_line(raw)
-            if line.code == "END":
-                break
-            if line.code in ("DROP", "NONE"):
-                answers.append(("drop", Checked(line, reasons=[f"repair dropped it: {line.fact}"])))
-            else:
-                answers.append(("line", check_line(line, rspec, self.doc)))
-        rec.lines = len(answers)
-        rec.failed_lines = sum(1 for _, c in answers if not c.ok)
-
-        pairs = _pair(failed, answers)
-        facts: list[Fact] = []
-        source = f"{spec.name}+repair"
-        used: set[int] = set()
-        for orig, idx in zip(failed, pairs):
-            if idx is None:
-                facts.append(_fact(orig, spec.name, extra=["repair gave no answer"]))
-                continue
-            used.add(idx)
-            kind, ans = answers[idx]
-            if kind == "drop":
-                facts.append(_fact(orig, spec.name, extra=ans.reasons))
-            else:
-                facts.append(_fact(ans, source))
-        # Repair wrote more lines than it was given: keep the valid extras.
-        for i, (kind, ans) in enumerate(answers):
-            if i not in used and kind == "line" and ans.ok:
-                facts.append(_fact(ans, source))
-        return facts
 
 
 def _timing(rec: CallRecord, sent: float, times: dict[str, float], output_tokens: int) -> None:
@@ -285,29 +238,6 @@ def _fact(c: Checked, source: str, extra: list[str] | None = None) -> Fact:
         "valid" if not problems else "needs_review", source, problems,
     )
 
-
-def _pair(failed: list[Checked], answers: list[tuple[str, Checked]]) -> list[int | None]:
-    """Match each failed line to a repair answer: by position when counts match, else by shared ID,
-    else by the most similar fact text."""
-    if len(answers) == len(failed):
-        return list(range(len(failed)))
-    out: list[int | None] = []
-    used: set[int] = set()
-    for f in failed:
-        best = None
-        for i, (_, a) in enumerate(answers):
-            if i not in used and set(a.line.ids) & set(f.line.ids):
-                best = i
-                break
-        if best is None:
-            scored = [(similarity(a.line.fact, f.line.fact), i) for i, (_, a) in enumerate(answers) if i not in used]
-            score, i = max(scored, default=(0.0, -1))
-            if score >= 0.5:
-                best = i
-        if best is not None:
-            used.add(best)
-        out.append(best)
-    return out
 
 
 def _mark_conflicts(facts: list[Fact], doc_id: str) -> None:
@@ -367,13 +297,15 @@ async def extract(
     candidate_ids = planner.candidates(doc)
     sweep_ids = planner.sweepable(doc) if cfg.sweep_all else candidate_ids
     missing = uncited(sweep_ids, facts)
-    sweep_specs = planner.sweep_calls(missing, cfg.sweep_chunk)
+    sweep_specs = planner.sweep_calls(missing, cfg.sweep_chunk) if cfg.sweep else []
 
     async def sweep() -> list[Fact]:
         rs = await asyncio.gather(*(run.run_call(s) for s in sweep_specs))
         return [f for r in rs for f in r]
 
     async def check(fs: list[Fact]) -> list[Fact]:
+        if not cfg.check:
+            return []
         spec = CallSpec("CHECK", ("Q",), prompts.check_task([f.line() for f in fs]), effort="medium", kind="check")
         return await run.run_call(spec)
 

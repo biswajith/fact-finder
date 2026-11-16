@@ -1,0 +1,28 @@
+== base / ulster
+737 facts, {'valid': 673, 'conflict': 64}, 62.71 s, cache hit 0.714, failed calls []
+== base / durham
+462 facts, {'valid': 451, 'conflict': 11}, 32.98 s, cache hit 0.697, failed calls []
+== base_rerun / ulster
+753 facts, {'valid': 714, 'conflict': 38, 'needs_review': 1}, 68.95 s, cache hit 0.649, failed calls []
+== base_rerun / durham
+488 facts, {'valid': 459, 'conflict': 29}, 35.84 s, cache hit 0.76, failed calls []
+== p1 / ulster
+619 facts, {'valid': 591, 'conflict': 28}, 48.05 s, cache hit 0.419, failed calls []
+== p1 / durham
+424 facts, {'valid': 406, 'conflict': 18}, 37.83 s, cache hit 0.513, failed calls []
+== p1_nosweep / ulster
+517 facts, {'valid': 490, 'conflict': 27}, 54.76 s, cache hit 0.802, failed calls []
+== p1_nosweep / durham
+348 facts, {'valid': 342, 'conflict': 6}, 44.47 s, cache hit 0.803, failed calls []
+== p1_narrow / ulster
+580 facts, {'valid': 526, 'conflict': 53, 'needs_review': 1}, 44.16 s, cache hit 0.719, failed calls []
+== p1_narrow / durham
+370 facts, {'valid': 361, 'conflict': 9}, 35.33 s, cache hit 0.744, failed calls []
+== p1_norepair / ulster
+645 facts, {'valid': 618, 'conflict': 21, 'needs_review': 6}, 46.23 s, cache hit 0.529, failed calls []
+== p1_norepair / durham
+442 facts, {'valid': 430, 'conflict': 9, 'needs_review': 3}, 32.99 s, cache hit 0.616, failed calls []
+== p1_cap8k / ulster
+648 facts, {'valid': 603, 'conflict': 45}, 46.06 s, cache hit 0.491, failed calls []
+== p1_cap8k / durham
+463 facts, {'valid': 445, 'conflict': 18}, 44.92 s, cache hit 0.449, failed calls []

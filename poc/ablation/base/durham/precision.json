@@ -1,0 +1,111 @@
+{
+  "facts": 462,
+  "duplicates": {
+    "pairs": 71,
+    "facts_involved": 35,
+    "examples": [
+      [
+        "Final partner recommendation: estimated 30 days after partner presentations",
+        "Final award target: estimated 90 days after final partner recommendation"
+      ],
+      [
+        "Submit completed RFP #24-0031 Proponent Response Template in Microsoft Excel",
+        "Submit the Proponent Response Template in Microsoft Excel for Section 4 functional requirements"
+      ],
+      [
+        "Submit completed RFP #24-0031 Proponent Response Template in Microsoft Excel",
+        "Submit the Proponent Response Template in Microsoft Excel for Section 6 qualifications and references"
+      ],
+      [
+        "Submit completed RFP #24-0031 Proponent Pricing Template in Microsoft Excel",
+        "Submit the Proponent Pricing Response Template in Microsoft Excel for Section 7 pricing"
+      ],
+      [
+        "Submit completed RFP #24-0031 Proponent Pricing Template in Microsoft Excel",
+        "Submit the pricing information using the RFP #24-0031 Proponent Pricing Response Template"
+      ]
+    ]
+  },
+  "model": {
+    "B": {
+      "n": 41,
+      "supported": 0.951,
+      "partly": 0.024,
+      "unsupported": 0.024,
+      "noise": 0.0,
+      "precision": 0.951
+    },
+    "C": {
+      "n": 64,
+      "supported": 0.922,
+      "partly": 0.078,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.922
+    },
+    "D": {
+      "n": 15,
+      "supported": 1.0,
+      "partly": 0.0,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 1.0
+    },
+    "E": {
+      "n": 21,
+      "supported": 0.762,
+      "partly": 0.238,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.762
+    },
+    "G": {
+      "n": 18,
+      "supported": 0.889,
+      "partly": 0.0,
+      "unsupported": 0.111,
+      "noise": 0.111,
+      "precision": 0.889
+    },
+    "Q": {
+      "n": 4,
+      "supported": 1.0,
+      "partly": 0.0,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 1.0
+    },
+    "R": {
+      "n": 231,
+      "supported": 0.857,
+      "partly": 0.1,
+      "unsupported": 0.043,
+      "noise": 0.0,
+      "precision": 0.857
+    },
+    "S": {
+      "n": 47,
+      "supported": 0.894,
+      "partly": 0.043,
+      "unsupported": 0.064,
+      "noise": 0.043,
+      "precision": 0.894
+    },
+    "X": {
+      "n": 21,
+      "supported": 0.952,
+      "partly": 0.0,
+      "unsupported": 0.048,
+      "noise": 0.048,
+      "precision": 0.952
+    },
+    "all": {
+      "n": 462,
+      "supported": 0.885,
+      "partly": 0.078,
+      "unsupported": 0.037,
+      "noise": 0.011,
+      "precision": 0.885
+    }
+  }
+}

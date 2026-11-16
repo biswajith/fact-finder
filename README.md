@@ -11,7 +11,7 @@ code departs from the spec and why. Read it before changing behaviour.
 
 ```
 PDF -> tag (IDs + anchor map) -> plan calls -> parallel extract (cached prefix)
-    -> validate -> repair once -> dedupe -> coverage sweep -> contradiction check
+    -> validate -> dedupe -> coverage sweep -> contradiction check
     -> in-memory fact store + Decisions hand-off
 ```
 
@@ -62,7 +62,17 @@ uv run fact-extractor extract rfp.pdf --deal-id deal_442 \
 uv run fact-extractor compare poc/gold/gold_*.txt --facts facts.json --show 10
 # ask the model about close calls; verdicts are cached in facts.judge.json
 uv run fact-extractor compare poc/gold/gold_*.txt --facts facts.json --judge
+
+# 6. Precision: are the facts right, and worth reading?
+uv run fact-extractor precision facts.json --sample 60          # CSV for a person to label
+uv run fact-extractor precision facts.json --labels facts.sample.csv --grade
 ```
+
+`compare` measures recall only. `precision` reports near-duplicate pairs, scores
+a labelled sample (`supported` y/p/n, `useful` u/x), and with `--grade` asks the
+model the same two questions for every fact (cached in
+`poc/precision.grades.json`). The model grades its own extractor's output, so
+check its agreement with a labelled sample before trusting it.
 
 `tag` and `anchors` should be your first stop when results look wrong: if the
 text or IDs are off here, no prompt change will fix it.
@@ -74,7 +84,10 @@ text or IDs are off here, no prompt change will fix it.
 | `--deal-id` | required | Stored on every fact. |
 | `--doc-id` | file name | Part of the stable `fact_id`. |
 | `--model` | `$FACT_EXTRACTOR_MODEL` | |
-| `--parallel` | 16 | Max concurrent calls. |
+| `--parallel` | 32 | Max concurrent calls. |
+| `--passes` | 1 | Run every extraction call this many times and keep the union. 2 adds 0-3 points of recall for ~60% more output tokens. |
+| `--max-output-tokens` | 3000 | Output cap per extraction call. A cut call is split and rerun. |
+| `--no-sweep`, `--no-check` | off | Turn a stage off, for trimming tests (`poc/ablation/`). |
 | `--sequential-check` | off | Run the contradiction check after the sweep so it sees sweep facts. Slower. |
 | `--out` | `-` (stdout) | Facts JSON. |
 | `--report` | none | Run report JSON: per-call timing, tokens, cache hits, failures. |
@@ -98,7 +111,7 @@ A one-line summary and latency stats print to stderr when the run ends.
 Categories: `B` buyer info, `C` contract terms, `G` go/no-go gate,
 `X` disqualifier, `D` date, `S` submission item, `E` evaluation criterion,
 `R` requirement, `Q` contradiction. Flags: `mandatory`, `desirable`, `risk`,
-`unclear`, `replaced`. Status: `valid`, `needs_review` (failed validation twice,
+`unclear`, `replaced`. Status: `valid`, `needs_review` (failed validation,
 see `problems`), `conflict` (cited by a `Q` fact).
 
 ### From code
@@ -133,6 +146,7 @@ for the Decisions API.
 | `xref.py` | 8.3 Contradictions: cross-references checked in code |
 | `compare.py` | 13. Acceptance: score facts against a reference list |
 | `pipeline.py` | 3, 8, 11, 12: orchestration and failures |
+| `precision.py` | Precision: labelled samples, model grades, near-duplicates |
 | `store.py` | 9. Store (in memory, not MongoDB) |
 
 `poc/` holds output from proof-of-concept runs on the Ulster County RFP
@@ -145,13 +159,15 @@ counts as the same code.
 
 **Cost and runs**
 
-- **Every call runs twice by default** (`Config.passes = 2`) and the union is
-  kept, for recall. A run on a ~50-page RFP is roughly 40 model calls, plus
-  sweep chunks and a check. The second pass reads the cached document prefix,
-  but you still pay for the output tokens.
-- **`--parallel` is 16 on the CLI but `Config.max_parallel` is 32.** The CLI
-  value wins when you use the CLI. With 2 passes, 16 means calls queue; raise it
-  if `queue_seconds` in the report is not zero, lower it if you hit rate limits.
+- **One pass by default.** A run on a ~50-page RFP is roughly 15 extraction
+  calls, plus sweep chunks and a check. `--passes 2` runs every call twice and
+  keeps the union: 0-3 points more recall in the trimming tests, about 60% more
+  output tokens and 15-20 s more.
+- **No repair call.** A line that fails validation (unknown ID, number not in
+  the cited text) is kept as `needs_review` with the reason in `problems`.
+- **`--parallel` defaults to 32**, enough for every call of two passes at once
+  on a ~50-page RFP. Raise it if `queue_seconds` in the report is not zero,
+  lower it if you hit rate limits.
 - **A 429 halves the concurrency limit for the rest of the run** and retries
   with backoff (5 times). Failed calls are listed in `failed_calls` in the
   report; the run still completes with what it has.
@@ -207,12 +223,9 @@ counts as the same code.
 
 **Development**
 
-- `uv run pytest` makes no network calls. At the time of writing 43 pass and
-  `tests/test_pipeline.py::test_sweep_all_includes_sentences_without_candidate_words`
-  fails; fix or update it before relying on the suite.
-- `.env` holds a real key. `.gitignore` excludes it, but **this directory is not
-  a git repository yet**, so run `git init` before the first commit and confirm
-  `git status` does not list `.env`.
+- `uv run pytest` makes no network calls.
+- `.env` holds a real key. `.gitignore` excludes it; confirm `git status` never
+  lists `.env`.
 - `load_env` is a minimal parser: `KEY=value` lines, optional quotes and
   `export`, no variable expansion or multi-line values.
 - The default model ID `gpt-6-luna` comes from the spec. If the API rejects it,

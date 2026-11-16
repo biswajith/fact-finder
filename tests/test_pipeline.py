@@ -107,19 +107,18 @@ async def test_cut_category_call_splits_by_category(doc):
     assert "A.B" in names and "A.E" in names
 
 
-async def test_repair_then_needs_review(doc):
+async def test_failed_lines_kept_as_needs_review_without_a_repair_call(doc):
     def h(req):
-        name = task_name(req)
-        if name == "C":
+        if task_name(req) == "C":
             return "D|Pre-bid meeting 2027-02-11|p1.4|\nD|Award date 2027-04-01|p77.1|\nEND|2\n"
-        if name == "REPAIR":
-            assert "p77.1" in req.task and "reason: numbers not in the cited text: 2027-02-11" in req.task
-            return "D|Pre-bid meeting 2027-02-10|p1.4|\nDROP|no source for award date|p77.1|\nEND|2\n"
         return handler(req)
 
-    res = await extract(doc, ScriptedClient(h), deal_id="d", cfg=FAST)
+    client = ScriptedClient(h)
+    res = await extract(doc, client, deal_id="d", cfg=FAST)
+    assert not any("REPAIR" in task_name(r) for r in client.requests)
     texts = {f["text"]: f for f in res.facts}
-    assert texts["Pre-bid meeting 2027-02-10"]["status"] == "valid"
+    wrong = texts["Pre-bid meeting 2027-02-11"]
+    assert wrong["status"] == "needs_review" and any("2027-02-11" in p for p in wrong["problems"])
     award = texts["Award date 2027-04-01"]
     assert award["status"] == "needs_review" and award["unresolved_ids"] == ["p77.1"]
 
@@ -265,3 +264,12 @@ async def test_check_gets_its_own_token_budget(doc):
     await extract(doc, client, deal_id="d", cfg=Config(backoff_base=0, passes=1, sweep_all=False))
     budgets = {task_name(r): r.max_output_tokens for r in client.requests}
     assert budgets["CHECK"] == 8000 and budgets["A"] == 3000
+
+
+async def test_stages_can_be_switched_off(doc):
+    client = ScriptedClient(handler)
+    cfg = Config(backoff_base=0, warmup_timeout=1, passes=1, sweep_all=False, sweep=False, check=False)
+    res = await extract(doc, client, deal_id="d", cfg=cfg)
+    names = {task_name(r) for r in client.requests}
+    assert not any(n.startswith(("SWEEP", "CHECK")) for n in names)
+    assert "Data retained for 7 years" not in {f["text"] for f in res.facts}

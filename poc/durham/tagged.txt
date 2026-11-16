@@ -1,0 +1,578 @@
+[p1.1] City of Durham
+[p1.2] Request for Proposal (RFP) #24-0031 For Oracle ERP Implementation Partner
+[p1.3] Date of Issue: May 10, 2024 Due Date: June 10, 2024
+[p2.h1] Table of Contents
+[p2.t1r1] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 11 . . ; Column 3: PURPOSE 4 ........................................................................................................................................ ; Column 4:
+[p2.t1r2] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 12 . . ; Column 3: ERPPROJECTOVERVIEW 4 .............................................................................................................. ; Column 4:
+[p2.t1r3] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 13 . . ; Column 3: COVERAGE&PARTICIPATION 5 ........................................................................................................ ; Column 4:
+[p2.t1r4] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 14 . . ; Column 3: DEFINITIONS 5 .................................................................................................................................. ; Column 4:
+[p2.t1r5] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 15 . . ; Column 3: CONTRACT 5 ..................................................................................................................................... ; Column 4:
+[p2.t1r6] 1 .: 2 . ; STATEMENTOFWORK 4 .....................................................................................................................: GENERALINFORMATION 6 ................................................................................................................. ; Column 3: ; Column 4:
+[p2.t1r7] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 21 . . ; Column 3: ORIGINALRFPDOCUMENT 6 ............................................................................................................ ; Column 4:
+[p2.t1r8] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 22 . . ; Column 3: ABOUTCITYOFDURHAM 6 .............................................................................................................. ; Column 4:
+[p2.t1r9] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 23 . . ; Column 3: MAJORDRIVERSFORENTERPRISERESOURCEPLANNING 6 .............................................................. ; Column 4:
+[p2.t1r10] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 24 . . ; Column 3: EXISTINGTECHNOLOGYENVIRONMENT 7 ........................................................................................ ; Column 4:
+[p2.t1r11] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 25 . . ; Column 3: EXPECTEDUSERS 7 ........................................................................................................................... ; Column 4:
+[p2.t1r12] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 26 . . ; Column 3: SCHEDULEOFEVENTS 8 ................................................................................................................... ; Column 4:
+[p2.t1r13] 1 .: 3 . ; STATEMENTOFWORK 4 .....................................................................................................................: PROPOSALPREPARATIONINSTRUCTIONS 8 ................................................................................ ; Column 3: ; Column 4:
+[p2.t1r14] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 31 . . ; Column 3: PROPONENT’SUNDERSTANDINGOFTHERFP 8 ................................................................................ ; Column 4:
+[p2.t1r15] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 32 . . ; Column 3: PRE-CONTRACTUAL EXPENSES 8 ...................................................................................................... ; Column 4:
+[p2.t1r16] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 33 . . ; Column 3: GOODFAITHSTATEMENT 9 .............................................................................................................. ; Column 4:
+[p2.t1r17] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 34 . . ; Column 3: INTELLECTUALPROPERTY 9 ............................................................................................................. ; Column 4:
+[p2.t1r18] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 35 . . ; Column 3: RESPONDENT’SPROPOSAL 9 ............................................................................................................. ; Column 4:
+[p2.t1r19] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 36 . . ; Column 3: TRADESECRETSANDCONFIDENTIALITY 9 . ...................................................................................... ; Column 4:
+[p2.t1r20] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 37 . . ; Column 3: GOVERNINGLAW 10 ......................................................................................................................... ; Column 4:
+[p2.t1r21] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 38 . . ; Column 3: INSURANCE 10 .................................................................................................................................. ; Column 4:
+[p2.t1r22] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 39 . . ; Column 3: WORKFORCEDIVERSITYQUESTIONNAIRE 11 ................................................................................... ; Column 4:
+[p2.t1r23] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 310 . . ; Column 3: UBEPARTICIPATION 11 .................................................................................................................... ; Column 4:
+[p2.t1r24] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 311 . . ; Column 3: STATETREASURER’SLISTSREGARDINGIRANANDBOYCOTTOFISRAEL 11 . .................................... ; Column 4:
+[p2.t1r25] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 312 . . ; Column 3: NOTICEUNDERTHEAMERICANSWITHDISABILITIESACT 11 . .......................................................... ; Column 4:
+[p2.t1r26] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 313 . . ; Column 3: VALUESOFCITYREGARDINGTREATMENTOFEMPLOYEEOFCONTRACTORS 11 ............................. ; Column 4:
+[p2.t1r27] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 314 . . ; Column 3: COMMUNICATION 12 ........................................................................................................................ ; Column 4:
+[p2.t1r28] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 315 . . ; Column 3: PROPOSALSUBMISSION 12 ................................................................................................................ ; Column 4:
+[p2.t1r29] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 316 . . ; Column 3: DISCRETIONOFTHECITY 13 . ............................................................................................................ ; Column 4:
+[p2.t1r30] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 317 . . ; Column 3: PROPOSALFORMAT 13 ...................................................................................................................... ; Column 4:
+[p2.t1r31] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 318 . . ; Column 3: PARTNERSHIPS 14 ............................................................................................................................. ; Column 4:
+[p2.t1r32] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 319 . . ; Column 3: METHODOFAWARD 15 .................................................................................................................... ; Column 4:
+[p2.t1r33] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 320 . . ; Column 3: EVALUATION 15 ................................................................................................................................ ; Column 4:
+[p2.t1r34] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 321 . . ; Column 3: MANDATORYREQUIREMENTS 16 ..................................................................................................... ; Column 4:
+[p2.t1r35] 1 .: 4 . ; STATEMENTOFWORK 4 .....................................................................................................................: SCOPEOFWORK SPECIFICATIONS&REQUIREMENTS 17 , ..................................................... ; Column 3: ; Column 4:
+[p2.t1r36] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 41 . . ; Column 3: SOLUTIONBILLOFMATERIAL 17 ..................................................................................................... ; Column 4:
+[p2.t1r37] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 42 . . ; Column 3: PROJECTOBJECTIVE 18 ..................................................................................................................... ; Column 4:
+[p2.t1r38] 1 .: 5 . ; STATEMENTOFWORK 4 .....................................................................................................................: SUPPORTSERVICES 20 ......................................................................................................................... ; Column 3: ; Column 4:
+[p2.t1r39] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 51 . . ; Column 3: SUPPORTLEVELS/TIERS 20 ............................................................................................................... ; Column 4:
+[p2.t1r40] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 52 . . ; Column 3: ONGOINGTRAINING 21 ..................................................................................................................... ; Column 4:
+[p2.t1r41] 1 .: 6 . ; STATEMENTOFWORK 4 .....................................................................................................................: PROPONENTPROFILE QUALIFICATIONS&REFERENCES 21 , ................................................ ; Column 3: ; Column 4:
+[p2.t1r42] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 61 . . ; Column 3: PROPONENTPROFILE 21 ................................................................................................................... ; Column 4:
+[p2.t1r43] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 62 . . ; Column 3: VIABILITY 21 .................................................................................................................................... ; Column 4:
+[p2.t1r44] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: 63 . . ; Column 3: REFERENCES 22 ................................................................................................................................ ; Column 4:
+[p2.t1r45] 1 .: ; STATEMENTOFWORK 4 .....................................................................................................................: ; Column 3: ; Column 4: 2
+[p3.t1r1] 7 .: ; BUDGET&ESTIMATEDPRICING 22 .................................................................................................: 71 . . ; Column 3: IMPLEMENTATIONPRICING 22 ..........................................................................................................
+[p3.t1r2] 7 .: ; BUDGET&ESTIMATEDPRICING 22 .................................................................................................: 72 . . ; Column 3: COMPARABLEPROJECTCOSTREFERENCE 22 ...................................................................................
+[p3.t1r3] 7 .: ; BUDGET&ESTIMATEDPRICING 22 .................................................................................................: 73 . . ; Column 3: HOURLYRESOURCERATES 23 ..........................................................................................................
+[p3.t1r4] 7 .: ; BUDGET&ESTIMATEDPRICING 22 .................................................................................................: 74 . . ; Column 3: STANDARDCOSTS 23 ........................................................................................................................
+[p3.t1r5] 7 .: ; BUDGET&ESTIMATEDPRICING 22 .................................................................................................: 75 . . ; Column 3: OTHERPRICINGCONSIDERATIONS 23 ...............................................................................................
+[p3.t1r6] 7 .: 8 . ; BUDGET&ESTIMATEDPRICING 22 .................................................................................................: TERMSOFCONTRACT 23 .................................................................................................................... ; Column 3:
+[p3.t1r7] 7 .: ; BUDGET&ESTIMATEDPRICING 22 .................................................................................................: 81 . . ; Column 3: PERIODOFCONTRACT 23 .................................................................................................................
+[p4.1] 1. Statement of Work
+[p4.h1] 1.1. Purpose
+[p4.2] The purpose of this request for proposal (RFP) is to invite qualified implementation partners to submit a proposal for the deployment and integration of Oracle's Enterprise Resource Planning (ERP) and Utility Billing solutions for the City of Durham in North Carolina (the City).
+[p4.3] This RFP outlines the City’s specific requirements regarding the implementation, customization, and operational integration of the Oracle solution.
+[p4.4] The City requires a partner with proven expertise in effectively implementing Oracle's solutions, particularly in areas critical to local government operations such as utility billing (including customer accounts management, meter reading, and customer billing processes).
+[p4.5] Proponents should demonstrate a comprehensive approach to meet all the outlined requirements in this RFP, emphasizing their experience and success in similar projects.
+[p4.6] This solicitation represents the second phase of a two-step process.
+[p4.7] The first phase involved the selection of Oracle as the Enterprise software solution.
+[p4.8] This RFP focuses exclusively on seeking a partner for the implementation phase.
+[p4.9] It is important to note that any proponent involved in the initial software solution phase, including VARs / Resellers of Oracle licenses, will neither be given preferential treatment nor be excluded from this implementation RFP process.
+[p4.10] The City is committed to a fair and transparent selection process, focusing on securing the most competent and compatible partner for this critical implementation phase.
+[p4.11] The Operating Model, as depicted in the figure below, serves as a strategic framework guiding operational decisions.
+[p4.12] It plays a crucial role in defining the boundaries and scope of the system, as well as determining which mega-processes (represented by the grey bars in the middle) will receive implementation support.
+[p4.13] This model is instrumental in consolidating core operational processes into comprehensive mega-processes.
+[p4.14] These conglomerates are essentially a series of interconnected, sequential processes that work synergistically to produce a unified output.
+[p4.h2] 1.2. ERP Project Overview
+[p4.15] The City, in collaboration with Info-Tech Research Group Inc (Info-Tech), is now advancing to the next critical phase of its enterprise solution journey – the implementation of the selected Oracle solution.
+[p4.16] This process, integral to the successful deployment of the ERP and Utility Billing solutions, will be conducted through a structured and collaborative approach, adhering to the proven Info-Tech methodology for ERP Implementation projects.
+[p5.1] The project continues to be strategically aligned with the City's business vision and goals, ensuring that the implementation phase is driven by the business requirements previously established.
+[p5.2] The focus is now on partnering with a capable and experienced Oracle implementation partner, who will be instrumental in transforming the defined future business processes and IT requirements into a fully functional Oracle environment.
+[p5.3] The City's Partner selection decision will be based on Partner’s competency evaluated across a number of factors.
+[p5.4] Factors to be considered include State/City Implementation Experience, Oracle ERP Solution Implementation experience, Collaboration, Communication & Support, Implementation Methodology, Proponent viability, Proponent capability, customer references, willingness to work cooperatively, and overall price.
+[p5.5] The City will be establishing a business-critical relationship with the Proponent whose implementation services are retained.
+[p5.6] One of the most significant requirements of a Proponent is the Proponent’s willingness to work cooperatively with the City, respecting the City's culture and wishes.
+[p5.7] The Proponent's willingness to adhere to the selection process set forth in this document will be viewed by the City as an indicator of the nature of the future relationship.
+[p5.8] The City has designated their Underutilized Business Compliance Division for all initial proponent submissions and Info-Tech consulting partner as the post-submission proponent contact related to this RFP.
+[p5.9] Attention: Underutilized Business Compliance Division Email: ubcfinance@durhamnc.gov Copying: Ahmed Ebrahim Email: aebrahim@infotech.com UNDER NO CIRCUMSTANCES is the proponent to contact City personnel directly.
+[p5.10] All questions, marketing materials, and other forms of contact must be directed through the identified City of Durham Contact.
+[p5.11] Violation of this request may cause a proponent to be deemed as unwilling to work in a harmonious manner with the City and result in the proponent's disqualification from the selection process.
+[p5.h1] 1.3. Coverage & Participation
+[p5.12] The intended coverage of this RFP, and any agreement resulting from this solicitation, shall be for the use of all departments at the City as well as the entities for which City of Durham is providing financial support.
+[p5.13] In the event of any material change to the requirement or details contained herein, the City will endeavor to provide enough time to participating proponents to make the necessary adjustments to their proposals.
+[p5.14] Issuance of this RFP and receipt of proposals does not commit City of Durham to award a contract.
+[p5.15] This RFP, any addenda to it, and any attached schedules, constitute the entire RFP.
+[p5.h2] 1.4. Definitions
+[p5.16] Definitions in this RFP: City, RFP, Proposal, Proponent, Contractor, Should.
+[p5.17] Unless the context indicates otherwise – (a) The expressions “RFP,” “this RFP,” and “the RFP” refer to this document as it may be amended or updated. (b) “City” and “city” mean the City of Durham. (c) The “proposal” is the response of a person, firm, or corporation proposing to provide the services sought by this RFP. (d) The word “Proponent” or “proponent” is the person, firm, or corporation that submits a proposal or that is considering submitting a proposal. (e) The word “Contractor” or “contractor” is the person, firm, or corporation with which the City enters into a contract to provide the services sought by this RFP.
+[p5.18] That is, “contractor” generally refers to a successful proponent that has obtained a fully executed contract with the City, while “proponent” is generally reserved to the stage before a contract has been signed. (f) The word “should” is used to tell proponents what the City thinks it wants and/or what the project manager thinks is best.
+[p5.19] Proponents that want to increase the likelihood of being selected will, in general, do what the RFP says proponents “should” do, but failure to comply with all “shoulds” will not necessarily and automatically result in rejection.
+[p5.h3] 1.5. Contract
+[p5.20] The City anticipates that the conclusion of the RFP process will be a contract between the City and the successful proponent under which the successful proponent will provide the software solution generally described in this
+[p5.21] RFP.
+[p5.22] It is the City’s intention to use the contract that is appended as RFP #24-0031– -Appendix A- Model Services Contract, modified and filled in to reflect the RFP and the proposal.
+[p5.23] If a proponent objects to any of the contract, it should state the objections in its proposal.
+[p6.1] 2. General Information
+[p6.h1] 2.1. Original RFP Document
+[p6.2] The City shall retain the RFP, and all related terms and conditions, exhibits and other attachments, in original form in an archival copy in accordance with retention requirements contained in North Carolina public records law.
+[p6.h2] 2.2. About City of Durham
+[p6.3] Durham (/ˈdʌrəm/DURR-əm) is a city in the U.S. state of North Carolina and the county seat of Durham County.(7) Small portions of the city limits extend into Orange County and Wake County.
+[p6.4] With a population of 283,506 in the 2020 Census, Durham is the 4th-most populous city in North Carolina, and the 74th-most populous city in the United States.(8) The city is located in the east-central part of the Piedmont region along the Eno River.
+[p6.5] Durham is the core of the four-county Durham-Chapel Hill Metropolitan Area, which has a population of 649,903 as of 2020 U.S. Census.
+[p6.6] The Office of Management and Budget also includes Durham as a part of the Raleigh-Durham-Cary Combined Statistical Area, commonly known as the Research Triangle, which has a population of 2,043,867 as of 2020 U.S. Census.(9) A railway depot was established in 1849 on land donated by Bartlett S. Durham, the namesake of the city.
+[p6.7] Following the American Civil War, the community of Durham Station expanded rapidly, in part due to the tobacco industry.
+[p6.8] The town was incorporated by act of the North Carolina General Assembly, in April 1869.
+[p6.9] The establishment of Durham County was ratified by the General Assembly 12 years later, in 1881.
+[p6.10] It became known as the founding place and headquarters of the American Tobacco Company.
+[p6.11] Textile and electric power industries also played an important role.
+[p6.12] While these industries have declined, Durham underwent revitalization and population growth(10) to become an educational, medical, and research center.(11) Durham is home to several recognized institutions of higher education, most notably Duke University and North Carolina Central University.
+[p6.13] Durham is also a national leader in health-related activities, which are focused on the Duke University Hospital and many private companies.
+[p6.14] Duke and its Duke University Health System are the largest employers in the city.
+[p6.15] North Carolina Central University is a historically black university that is part of the University of North Carolina system.
+[p6.16] Together, the two universities make Durham one of the vertices of the Research Triangle area; central to this is the Research Triangle Park(12) south of Durham, which encompasses an area of 11 square miles and is devoted to research facilities.
+[p6.h3] 2.3. Major drivers for Enterprise Resource Planning
+[p6.17] The City operates in an environment of largely unintegrated disparate systems, some of which are unsupported and lack reporting capabilities.
+[p6.18] The City operates through a significant amount of manual interaction from users across the entire organization.
+[p6.19] In addition, some strategic processes are poorly supported by the existing technologies.
+[p6.20] The existing ecosystem of applications (and supporting environment of manual tools) are not sufficient to support the needed business capabilities.
+[p6.21] As expectations from the business and residents increase, the absence of a single source of truth is emerging as a major challenge.
+[p6.22] Multiple systems of record, along with other departments’ local solutions, create an operating environment rampant with inefficiency and manual activity that can inhibit process effectiveness.
+[p6.23] An accurate picture of the operations is expected to play a pivotal role in supporting the long-term sustainability, rising community expectations, and continuous improvement of services at the City.
+[p6.24] To support the City’s strategic direction, a solution must have the ability to produce efficient and timely reports to internal and external stakeholders, to integrate business processes, and to provide consistent corporate data across various users in multiple departments including the Finance Department, Budget & Management Services Department, The Customer Billing Services Division within the Department of Water Management, and Human Resources.
+[p6.25] Challenges are many and include the following:
+[p6.26] • Multiple systems of record resulting in the duplication of data, complicating data availability, cross checking, and reporting.
+[p6.27] • Manual processes and lack of visibility into disparate systems creating inconsistent information.
+[p6.28] • Time-consuming data reconciliation processes and lack of visibility into disparate systems, creating inconsistent answers to the same questions.
+[p6.29] • The inability to make data-driven business decisions due to the absence of aggregate data from a single integrated, reliable set of information.
+[p6.30] • Increased resource effort spent on non-value-added functions (e.g., re-keying, data validation, tracing transactions).
+[p7.1] • Individual departments operating with different systems, which contribute to a lack of coordination and cohesion between the departments.
+[p7.2] • A recognition that operationally, the existing tools may be a barrier to scalability and future operations.
+[p7.3] With IT increasingly expected to effectively partner with the business to support organizational objectives, an integrated ERP solution is needed to address both today’s support model and tomorrow’s needs.
+[p7.4] Unaddressed, the City risks not realizing the efficiencies, costs savings, and innovation opportunities needed to support the organization’s strategy and objectives today and in the future.
+[p7.h1] 2.4. Existing Technology Environment
+[p7.5] Table 1 provides the relevant technology environment in operation at the City.
+[p7.t1r1] Column 1: ; CurrentFinancialSolution: CurrentProcurementSolution ; Column 3: ; TylerMunis: TylerMunis
+[p7.t1r2] Column 1: CurrentAssetSolution ; CurrentFinancialSolution: ; Column 3: ; TylerMunis: TylerMunis AssetWorks FacilityDude CityWorks , , , , Boss(ITServiceDeskSoftware)
+[p7.t1r3] Column 1: ; CurrentFinancialSolution: CurrentCoreHRSolution(Employee ; Column 3: ; TylerMunis: TylerMunis
+[p7.t1r4] Column 1: ; CurrentFinancialSolution: record positionmanagement Benefits) , , ; Column 3: ; TylerMunis:
+[p7.t1r5] Column 1: ; CurrentFinancialSolution: CurrentHRTalent(TalentAcquisition On , ; Column 3: ; TylerMunis: NeoGov Cornerstone Saba , ,
+[p7.t1r6] Column 1: ; CurrentFinancialSolution: &OffBoarding Performance , ; Column 3: ; TylerMunis:
+[p7.t1r7] Column 1: ; CurrentFinancialSolution: Management) ; Column 3: ; TylerMunis:
+[p7.t1r8] Column 1: ; CurrentFinancialSolution: CurrentWorkforce(Time&attendance , ; Column 3: ; TylerMunis: Kronos TylerMunis ,
+[p7.t1r9] Column 1: ; CurrentFinancialSolution: etc) ; Column 3: ; TylerMunis:
+[p7.t1r10] Column 1: ; CurrentFinancialSolution: CurrentBudget ; Column 3: ; TylerMunis: TylerMunis SharePoint Excel , ,
+[p7.t1r11] Column 1: ; CurrentFinancialSolution: CurrentUtility ; Column 3: ; TylerMunis: TylerMunis(Utility)
+[p7.t1r12] Column 1: OtherSoftware ; CurrentFinancialSolution: ; Column 3: ; TylerMunis: WasteWorks Faster Neighborly NextGen OnBase , , , , , Boss Grayco FuelMaster Saba CivicPlus , , , , , Paymentus CivicPlus ESRI , ,
+[p7.6] A full list of applications and anticipated disposition is provided in Appendix B
+[p7.h2] 2.5. Expected Users
+[p7.7] Tables 2 & 3 provide a breakdown of expected users by module & employee count.
+[p7.8] Table 2: User Counts This table provides a breakdown of expected users by function.
+[p7.9] Users required full access to the identified function.
+[p7.10] Whereas limited user will require limits access (reports, queries, etc).
+[p7.t2r1] Column 1: RecordtoReport(Finance&Accounting Mgmt) ; Module/Function: ; Column 3: ; Column 4: 35 ; Users: ; Column 6: 247 ; Limitedusers: ; Column 8:
+[p7.t2r2] Column 1: ProcuretoPay(PurchasingMgmt) ; Module/Function: ; Column 3: ; Column 4: 13 ; Users: ; Column 6: 353 ; Limitedusers: ; Column 8:
+[p7.t2r3] Column 1: Acquiretodispose(AssetMgmt) ; Module/Function: ; Column 3: ; Column 4: 62 ; Users: ; Column 6: 17 ; Limitedusers: ; Column 8:
+[p7.t2r4] Column 1: HR Core (Employee record position – , management benefits) , ; Module/Function: ; Column 3: ; Column 4: 100 ; Users: ; Column 6: 2900 ; Limitedusers: ; Column 8:
+[p7.t2r5] Column 1: HR Talent Mgmt (Recruiting – , onboarding perform L&D) , , ; Module/Function: ; Column 3: ; Column 4: 3000 ; Users: ; Column 6: 120 ; Limitedusers: ; Column 8:
+[p7.t2r6] Column 1: HR Workforce Mgmt Employee record - – , positionmanagement benefits) , ; Module/Function: ; Column 3: ; Column 4: 3000 ; Users: ; Column 6: ; Limitedusers: ; Column 8:
+[p8.t1r1] Column 1: PlantoPerform(Budget&forecastMgmt) ; Module/Function: ; Column 3: ; Column 4: 164 ; Users: ; Column 6: 105 ; Limitedusers: ; Column 8:
+[p8.t1r2] Column 1: MetertoCash(UtilityBilling/CIS) ; Module/Function: ; Column 3: ; Column 4: 40 ; Users: ; Column 6: 50 ; Limitedusers: ; Column 8:
+[p8.1] Table 3: Employee Count
+[p8.t2r1] Column 1: FullTime ; Employee: ; Column 3: ; Column 4: 2459 , ; Count: ; Column 6:
+[p8.t2r2] Column 1: PartTime ; Employee: ; Column 3: ; Column 4: 258 ; Count: ; Column 6:
+[p8.t2r3] Column 1: Seasonal ; Employee: ; Column 3: ; Column 4: 186 ; Count: ; Column 6:
+[p8.t2r4] Column 1: TotalEmployees ; Employee: ; Column 3: ; Column 4: 2903 , ; Count: ; Column 6:
+[p8.h1] 2.6. Schedule of Events
+[p8.2] The following table is the schedule governing this RFP.
+[p8.3] Dates may change in accordance with the City’s needs or unforeseen circumstances at its sole discretion.
+[p8.4] Proponents are asked to notify the City as part of their proposals if they would not be available to present on the weeks identified if short-listed.
+[p8.5] Table 4: Schedule of Events
+[p8.t3r1] Column 1: ; IssuanceofRFP: LastdateforSubmittingQuestions/Time ; May10 2024 ,: May24 2024 at2pmET , ,
+[p8.t3r2] Column 1: ; IssuanceofRFP: ReceiveProposals/RFPCloseDate/Time ; May10 2024 ,: June10 2024 at2pmET , ,
+[p8.t3r3] Column 1: ; IssuanceofRFP: NotificationtoShort -listedProponents ; May10 2024 ,: Anestimated30daysafterthepreviousstep
+[p8.t3r4] Column 1: ; IssuanceofRFP: PartnerPresentations ; May10 2024 ,: Anestimated60daysafterthepreviousstep
+[p8.t3r5] Column 1: ; IssuanceofRFP: FinalPartnerRecommendation ; May10 2024 ,: Anestimated30daysafterthepreviousstep
+[p8.t3r6] Column 1: ; IssuanceofRFP: FinalAward(Target) ; May10 2024 ,: Anestimated90daysafterthepreviousstep
+[p8.6] 3. Proposal Preparation Instructions
+[p8.h2] 3.1. Proponent’s Understanding of the RFP
+[p8.7] In responding to this RFP, the proponent accepts full responsibility to understand the RFP in its entirety and in detail, including making any inquiries to the City, through Info-Tech, as necessary to gain such understanding.
+[p8.8] The City reserves the right to disqualify any proponent who demonstrates less than such understanding.
+[p8.9] Further, the City reserves the right to determine, at its sole discretion, whether the proponent has demonstrated such understanding.
+[p8.10] That right extends to cancellation of award, if award has been made.
+[p8.11] Such disqualification and/or cancellation shall be at no fault, cost, or liability whatsoever to the City.
+[p8.h3] 3.2. Pre-Contractual Expenses
+[p8.12] No proponent will have any claims or rights against the City arising out of the participation by a proponent in the proposal process.
+[p8.13] No proponent will have any claims or rights against the City for the City’s failure to award a contract to it or for awarding a contract to another person, firm, or corporation, regardless of whether the other person, firm, or corporation participated in the RFP process or did not submit a proposal that complied with the
+[p8.14] RFP.
+[p8.15] A notice of award will not constitute acceptance by the City; the City’s only method of acceptance is the City’s execution of a formal contract in accordance with law.
+[p9.h1] 3.3. Good Faith Statement
+[p9.1] All information provided by the City in this RFP is offered in good faith.
+[p9.2] Individual items are subject to change at any time.
+[p9.3] The City makes no certification that any item is without error.
+[p9.4] The City is not responsible or liable for any use of the information or for any claims asserted therefrom.
+[p9.h2] 3.4. Intellectual Property
+[p9.5] The Respondent should not use any intellectual property of the City, including, but not limited to, all logos, registered trademarks, or trade names of the City, at any time without the prior written approval of the City, as appropriate.
+[p9.h3] 3.5. Respondent’s Proposal
+[p9.6] All accepted proposals shall become the property of the City and will not be returned.
+[p9.7] 3.6.
+[p9.8] Trade Secrets and Confidentiality.
+[p9.9] As a general rule, all submissions to the City are available to any member of the public.
+[p9.10] However, if materials qualify as provided in this section, the City will take reasonable steps to keep trade secrets confidential.
+[p9.11] Definitions.
+[p9.12] In this section (Trade Secrets and Confidentiality) – The term “proponent” includes the proponent as contractor (that is, after it is a party to a contract with the City).
+[p9.13] The term “trade secret” means business or technical information, including but not limited to, a formula, pattern, program, device, compilation of information, method, technique, or process that:
+[p9.14] a. Derives independent actual or potential commercial value from not being generally known or readily ascertainable through independent development or reverse engineering by persons who can obtain economic value from its disclosure or use; and
+[p9.15] b. Is the subject of efforts that are reasonable under the circumstances to maintain its secrecy.
+[p9.16] The existence of a trade secret shall not be negated merely because the information comprising the trade secret has also been developed, used, or owned independently by more than one person or licensed to other persons.
+[p9.17] The term “record” means all documents, papers, letters, maps, books, photographs, films, sound recordings, magnetic or other tapes, electronic data-processing records, artifacts, or other documentary material, regardless of physical form or characteristics, received by the City in connection with the proponent’s proposal.
+[p9.18] (a) Designation of Confidential Records.
+[p9.19] To the extent that the proponent wishes to maintain the confidentiality of trade secrets contained in materials provided to the City, the proponent shall prominently designate the material with the words “trade secrets” at the time of its initial disclosure to the City.
+[p9.20] The proponent shall not designate any material provided to the City as trade secrets unless the proponent has a reasonable and good-faith belief that the material contains a trade secret.
+[p9.21] When requested by the City, the proponent shall promptly disclose to the City the proponent’s reasoning for designating material as trade secrets; the proponent may need to label parts of that reasoning as trade secrets.
+[p9.22] In providing materials to the City, the proponent shall make reasonable efforts to separate those designated as trade secrets from those not so designated, both to facilitate the City’s use of the materials and to minimize the opportunity for accidental disclosure.
+[p9.23] For instance, if only a sentence or paragraph on a page is a trade secret, the page must be marked clearly to communicate that distinction.
+[p9.24] To avoid mistake or confusion, it is generally best to have only trade secret information on a page and nothing else on that page.
+[p9.25] To the extent authorized by applicable state and federal law, the City shall maintain the confidentiality of records designated “trade secrets” in accordance with this section.
+[p9.26] Whenever the proponent ceases to have a good-faith belief that a particular record contains a trade secret, it shall promptly notify the City.
+[p9.27] (b) Request by Public for Access to Record.
+[p9.28] When any person requests the City to provide access to a record designated as a trade secret in accordance with subsection (a) above, the City may
+[p9.29] (1) decline the request for access,
+[p9.30] (2) notify the proponent of the request and that the City has provided, or intends to provide, the person access to the record because applicable law requires that the access be granted, or
+[p10.1] (3) notify the proponent of the request and that the City intends to decline the request.
+[p10.2] Before declining the request, the City may require the proponent to give further assurances so that the City can be certain that the proponent will comply with subsection (c) below.
+[p10.3] (c) Defense of City.
+[p10.4] If the City declines the request for access to a record designated as trade secrets in accordance with subsection (a), then, in consideration of the promises in (b) above and for considering the proponent’s proposal, the proponent agrees that it shall defend, indemnify, and save harmless Indemnitees from and against all Charges that arise in any manner from, in connection with, or out of the City’s nondisclosure of the records.
+[p10.5] In providing that defense, the proponent shall, at its sole expense, defend Indemnitees with legal counsel.
+[p10.6] The legal counsel shall be limited to attorneys reasonably acceptable to the City Attorney.
+[p10.7] Definitions.
+[p10.8] As used in this subsection (c), “Charges" means claims, judgments, costs, damages, losses, demands, liabilities, fines, penalties, settlements, expenses, attorneys’ fees, and interest.
+[p10.9] Indemnitees" means the City, and officers, officials, independent contractors, agents, and employees, of the City. “Indemnitees” does not include the proponent.
+[p10.10] The City may require the proponent to provide proof of the proponent’s ability to pay the amounts that may reasonably be expected to become monetary obligations of the proponent pursuant to this section.
+[p10.11] If the proponent fails to provide that proof in a timely manner, the City shall not be required to keep confidential the records whose non-disclosure gives rise to the potential monetary obligation.
+[p10.12] Nothing in this agreement shall require the City to require any person (including the City itself) to be placed in substantial risk of imprisonment, of being found by a court to be in contempt, or of being in violation of a court order.
+[p10.13] This subsection (c) is separate from and is to be construed separately from any other indemnification and warranty provisions in the contract between the City and the proponent.
+[p10.h1] 3.7. Governing Law
+[p10.14] This RFP and the Respondent’s proposal shall be governed by the laws of the State of North Carolina.
+[p10.15] All data collected, created, received, maintained, or disseminated for any purposes in the course of the Respondent’s submission of a proposal to the City and the City’s evaluation of the same will be governed by the North Carolina General Statutes.
+[p10.16] Once a proposal has been received by the City, that proposal is generally considered to be public data.
+[p10.h2] 3.8. Insurance
+[p10.17] The contractor agrees to maintain, on a primary basis and at its sole expense, at all times during the life of this Contract the following applicable coverages and limits.
+[p10.18] The requirements contained herein, as well as the City’s review or acceptance of insurance maintained by Contractor, is not intended to and shall not in any manner limit or qualify the liabilities or obligations assumed by Contractor under this Contract.
+[p10.19] Commercial General Liability – Combined single limit of no less than $1,000,000 each occurrence and $2,000,000 aggregate.
+[p10.20] Coverage shall not contain any endorsement(s) excluding nor limiting Product/Completed Operations, Contractual Liability, Cross Liability, or Personal and Advertising Injury Liability.
+[p10.21] Automobile Liability – Limits of no less than $1,000,000 Combined Single Limit.
+[p10.22] Coverage shall include liability for Owned, Non-Owned and Hired automobiles.
+[p10.23] In the event Contractor does not own automobiles, Contractor agrees to maintain coverage for Hired and Non-Owned Auto Liability, which may be satisfied by way of endorsement to the Commercial General Liability policy or separate Auto Liability policy.
+[p10.24] Automobile coverage is only necessary if vehicles are used in the provision of services under this Contract and/or are brought on a City of Durham site.
+[p10.25] Umbrella or Excess Liability – Contractor may satisfy the minimum liability limits required above under an Umbrella or Excess Liability policy.
+[p10.26] There is no minimum Per Occurrence limit of liability under the Umbrella or Excess Liability, however, the Annual Aggregate limits shall not be less than the highest ‘Each Occurrence’ limit for required policies.
+[p10.27] Contractor agrees to endorse the City of Durham as an ‘Additional Insured’ on the Umbrella or Excess Liability unless the Certificate of Insurance states the Umbrella or Excess Liability provides coverage on a ‘Follow-Form’ basis.
+[p10.28] Worker’s Compensation & Employers Liability – Contractor agrees to maintain Worker’s Compensation Insurance in accordance with North Carolina General Statute Chapter 97 and with Employer Liability limits of no less than $1,000,000 for each accident, each employee, and policy limit.
+[p10.29] This policy must include a Waiver of Subrogation.
+[p10.30] Additional Insured – The contractor agrees to endorse the City as an Additional Insured on the Commercial General Liability.
+[p10.31] The Additional Insured shall read City of Durham as its interest may appear.
+[p11.1] Certificate of Insurance – Contractor agrees to provide City of Durham a Certificate of Insurance evidencing that all coverage, limits, and endorsements required herein are maintained and in full force and effect, and Certificates of Insurance shall provide a minimum thirty (30) day endeavor to notify, when available, by Contractor’s insurer.
+[p11.2] If Contractor receives a non-renewal or cancellation notice from an insurance carrier affording coverage required herein or receives notice that coverage no longer complies with the insurance requirements herein, Contractor agrees to notify the City within five (5) business days with a copy of the non-renewal or cancellation notice, or written specifics as to which coverage is no longer in compliance.
+[p11.3] The Certificate Holder address should read:
+[p11.4] Attn: Technology Solutions Department, City of Durham 101 City Hall Plaza Durham, NC 27701 All primary insurance carriers must be authorized to do business in North Carolina
+[p11.h1] 3.9. Workforce Diversity Questionnaire
+[p11.5] A completed Contractor Workforce Diversity Questionnaire is located online, click link for online form.
+[p11.6] For printable copy, please email purchmailbox@durhamnc.gov.
+[p11.7] The Diversity Questionnaire will not be used as a factor in determining a recommendation for award; however, the completed Diversity Questionnaire will be required of the Contractor before any contract will be authorized for execution.
+[p11.8] It is recommended that the Diversity Questionnaire be submitted at the same time as the Proposal in order to facilitate the processing of the Contractor’s information.
+[p11.9] This form is not included as part of any submittal page maximum.
+[p11.h2] 3.10. UBE Participation
+[p11.10] See the statement with this RFP in RFP #24-0031 Attachment A – EBOP fillable professional Services for Equal Business Opportunity Program (EBOP) which includes the UBE (Underutilized Business Enterprise) participation information and instructions on which UBE forms to fill in and return.
+[p11.11] The form is included in attachment A. For help, call the City’s Division of Contracts & Compliance in the Department of Finance at (919) 560-4180.
+[p11.12] Proponents can print out the UBE forms that are in the RFP and fill them in.
+[p11.13] Here’s another option: after proponents have read the UBE material in this RFP to learn which UBE forms to fill in, proponents may, if desired, go to the Contracts & Compliance Division's webpage to find versions that can filled in online, printed out, and submitted.
+[p11.14] 3.11.
+[p11.15] State Treasurer’s lists regarding Iran and Boycott of Israel.
+[p11.16] If the value of the contract is $1,000 or more, the following applies unless the proponent otherwise states in its proposal: the proponent affirms (by submitting a proposal) that (1) its name does not appear on the list of companies that are engaged in a boycott of Israel developed by the N. C. State Treasurer under N.C.G.S.
+[p11.17] 147 86.81(a)(1) or on a list created by the Treasurer pursuant to N.C.G.S.
+[p11.18] 147 86.58 as a company engaging in investment activities in Iran, and (2) it has no reason to expect that its name will appear on either of those lists.
+[p11.19] Take notice that a contract between a company named on either list and the City may be void.
+[p11.20] 3.12.
+[p11.21] Notice under the Americans with Disabilities Act.
+[p11.22] A person with a disability may receive an auxiliary aid or service to effectively participate in city government activities by contacting the ADA Coordinator, voice (919) 560-4197, fax 560-4196, TTY (919) 560-1200, or ADA@durhamnc.gov, as soon as possible but no later than 48 hours before the event or deadline date.
+[p11.23] Aviso bajo el Acto de Americanos Discapacitados – Una persona con una discapacidad puede recibir asistencia o servicio auxiliar para participar efectivamente en actividades del gobierno de la ciudad con ponerse en contacto con el Coordinador de ADA, buzón de voz (919) 560-4197, fax (919) 560-4196, TTY (919) 560-1200, o ADA@durhamnc.gov, lo más antes posible pero no menos de 48 horas antes del evento o fecha indicada.
+[p11.h3] 3.13. Values of City regarding Treatment of Employee of Contractors
+[p11.24] A. Statement of City EEO Policy.
+[p11.25] The City of Durham opposes discrimination in employment because of race, color, religion, national origin, sex, disability, age, familial status, military status, sexual orientation, gender identity, and protected hairstyle.
+[p11.26] Therefore, it desires that firms doing business with the City:
+[p12.1] 1. Not discriminate against any employee or applicant for employment because of race, color, religion, national origin, sex, disability, age, familial status, military status, sexual orientation, gender identity, and protected hairstyle.
+[p12.2] 2. Take affirmative action to ensure that applicants are employed and that employees are treated equally during employment, without regard to race, color, religion, national origin, sex, disability, age familial status, military status, sexual orientation, gender identity, and protected hairstyle.
+[p12.3] This action includes employment, upgrading, demotion, transfer, recruitment or advertising, layoff or termination, rates of pay or other forms of compensation, and selection for training, including apprenticeship.
+[p12.4] 3. State, in solicitations or advertisements for employees, that all qualified applicants will receive consideration for employment without regard to race, color, religion, national origin, sex, disability, age, familial status, military status, sexual orientation, gender identity, and protected hairstyle.
+[p12.5] 4. Include this Statement of City EEO Policy in every purchase order for goods to be used in performing City contracts and in every subcontract related to City contracts.
+[p12.6] B. Livable Wage.
+[p12.7] The City of Durham desires that firms doing business with the City pay their workers a livable wage rate while working on City contracts.
+[p12.8] The livable wage rate is $17.60 per hour through June 30, 2023.
+[p12.9] The City will re-set the rate for the period after June 30, 2023.
+[p12.h1] 3.14. Communication
+[p12.10] Verbal communication shall not be effective unless formally confirmed in writing by a specified official in charge of managing this RFP process.
+[p12.11] In no case shall verbal communication govern over written communication.
+[p12.12] Proponents’ Inquiries.
+[p12.13] Applicable terms and conditions herein shall govern communications and inquiries between the City and proponents as they relate to this RFP.
+[p12.14] Inquiries, questions, and requests for clarification related to this RFP shall be directed via email to the specified City of Durham contact.
+[p12.15] The identified City of Durham contact will facilitate the collection of responses for the City project team.
+[p12.16] All inquiries and questions must contain the following subject line: Subject: RFP #24-0031– Re: (description of question) Addenda:The City will make a good-faith effort to provide a written response to each question or request for clarification that requires addenda within five (5) business days.
+[p12.17] All questions, answers, and addenda will be shared with all recipients.
+[p12.18] Addenda questions and answers will be posted to the City website on the Purchasing Division’s webpage.
+[p12.19] The City will not respond to any questions or requests for clarification that require addenda, if received by the City afterMay 24, 2024 @ 2:00 pm ET.
+[p12.h2] 3.15. Proposal Submission
+[p12.20] Proposals must be delivered electronically via email to the designated City of Durham contact: Name: Underutilized Business Compliance Division Email:ubcfinance@durhamnc.gov Subject: RFP #24-0031 – Proposal Submission - (proponent name) Copying: Name: Ahmed Ebrahim Email: aebrahim@infotech.com on or prior toJune 10, 2024 @ 2:00 pm ET.
+[p12.21] A confirmation of receipt of proposal will be sent to proponents via email.
+[p12.22] Proponents are required to submit proposals electronically via email, including the following:
+[p12.23] 1. proposal response in PDF or Microsoft Word format
+[p12.24] 2. completed RFP #24-0031 Proponent Response Template using Microsoft Excel
+[p12.25] 3. completed RFP #24-0031 Proponent Pricing Template using Microsoft Excel
+[p12.26] 4. completed RFP #24-0031 Attachment A - EBOP Instruction and Fillable Form
+[p13.1] 5. completed RFP #24-0031 UBE Statement of Intent – In a separate document please address the two following questions:
+[p13.2] a. Please explain how your company/organization is committed to promote equitable contacting and procurement opportunities to Underutilized Businesses?
+[p13.3] b. Please explain what efforts have you provided to Underutilized Businesses to get contracting opportunities with your company?
+[p13.4] 6. Completed RFP #24-0031 Link to form - click link for Workforce Diversity Questionnaire online form.
+[p13.5] a. To request a printable copy, please email purchmailbox@durhamnc.gov
+[p13.6] Proposals will not be reviewed prior to the RFP deadline identified above.
+[p13.7] All proponents must be in compliance with North Carolina law governing the transaction of business in the State of North Carolina.
+[p13.8] Upon award of the contract, the City will verify compliance prior to contracting.
+[p13.9] Proposals must be submitted in the format described in this RFP.
+[p13.10] To be considered, the proposal must respond to all requirements in the RFP.
+[p13.11] The contents of this RFP and your proposal shall become part of any contract(s) entered as a result of this RFP.
+[p13.12] The City reserves the right to request additional information which, in the City's opinion, is necessary to assure that the proposer's competence, business organization, and financial resources are adequate to perform in accordance with this RFP and any resultant contract.
+[p13.13] The City may make such investigation as it sees fit to determine the ability of the proposer to perform the work, and the proposer shall furnish the City all such information and data for this purpose as requested by the City.
+[p13.14] The City reserves the right to reject any proposal if the evidence submitted by, or investigation of, such proposer fails to satisfy the City that such proposer is properly qualified to carry out the obligations of the contract and to satisfactorily perform the work specified.
+[p13.15] When asked, proposers shall also include their answers to the questions listed in this RFP using the same answering sequence as put forth in the RFP.
+[p13.16] Proposals should be prepared simply and economically, providing a straightforward, concise description of the proposer’s ability to meet the requirements of the RFP.
+[p13.17] Any other information thought to be relevant, but not applicable to the enumerated questions, should be provided as an appendix to the proposal.
+[p13.18] 3.16.
+[p13.19] Discretion of the City.
+[p13.20] A. The City of Durham reserves the right to (i) reject any, any part of, or all proposals, or (ii) accept that proposal which the City deems to be in its best interest, whether or not it is the lowest dollar proposal.
+[p13.21] B. NOTWITHSTANDING anything to the contrary in this document or in any addendums to this document, unless the contrary provision refers specifically to this provision, the City reserves the right (i) to negotiate changes of any nature with any proponent with respect to any term, condition, or provision in this document and/or in any proposals, whether or not something is stated to be mandatory and whether or not it is said that a proposal will be rejected if certain information or documentation is not submitted with it, and (ii) to enter into an agreement for some or all of the work with one or more persons, firms, or corporations that do not submit proposals.
+[p13.22] For example, all deadlines are for the administrative convenience or needs of the City and may be waived by the City in its discretion.
+[p13.23] This subparagraph B applies to the entire RFP, including the UBE portions.
+[p13.24] C. Where the City asks or tells proponents to do stated things, such as that a proposal should follow a stated format or that the proponent should do stated things in seeking the contract, the City may reject a proposal because it does not comply with those requests, so the proponent is adding to its risk of rejection by non-compliance.
+[p13.25] Still, the City may, in its discretion, waive non-compliance.
+[p13.26] This subsection (C) does not limit subsections (A) and (B).
+[p13.27] D. Of course, once a contract is signed, the parties to the contract may enforce the contract according to its terms as allowed by applicable law.
+[p13.h1] 3.17. Proposal Format
+[p13.28] In addition to an Executive Summary of the ERP offering and any marketing collateral provided, each proposal must contain the following items:
+[p14.1] 1. Contact information.
+[p14.2] Include the proponent’s name and address, and the contact information (name, mailing address, email address, and telephone number) of the person whom the City should contact regarding the proposal.
+[p14.3] 2. Legal Status of the Proponent and Signers.
+[p14.4] State the full, exact legal name of the proponent.
+[p14.5] State whether the proponent is an individual, corporation, limited partnership, general partnership, limited liability company, professional corporation, professional association, etc. If it is anything other than an individual or a general partnership, specify the State under which the entity is organized.
+[p14.6] If the State under which the entity is organized is not North Carolina, specify whether the proponent has received a certificate of authority from the N. C. Secretary of State to transact business in North Carolina.
+[p14.7] State whether the entity is in existence at the time the proposal is submitted, and if not, whether and when the proponent intends to officially form the entity.
+[p14.8] State the names and titles of the individuals who will sign the contract with the City.
+[p14.9] 3. An overview of the solution and components being proposed
+[p14.10] 4. Assumptions regarding City of Durham actions and participation.
+[p14.11] If the proposal assumes that the City will take certain actions, provide facilities, or do anything else, the proposal should state these assumptions explicitly.
+[p14.12] 5. Functional Requirements: Proponents are required to submit an electronic copy of the Proponent Response Template (in Microsoft Excel), representing the functional requirements as described in Section 4.
+[p14.13] 6. Proponent Qualifications and References: Proponents are required to submit an electronic copy of the Proponent Response Template (in Microsoft Excel), representing the proponent requirements as outlined in Section 6.
+[p14.14] 7. Pricing: Proponents are required to submit an electronic copy of the Proponent Pricing Response Template (in Microsoft Excel), representing the pricing outline as described in Section 7.
+[p14.15] The City considers this “indicative pricing” and short-listed proponents will be afforded the opportunity to provide refined pricing during the demonstration period.
+[p14.16] 8. Conflict of Interest: If the proponent has any grounds to believe there could be a conflict of interest, such as that a City employee who is involved in awarding the contract has a connection with the proponent, that potential conflict should be explained.
+[p14.17] 9. Workforce Diversity form:completed Attachment A
+[p14.18] 10. Equal Business Opportunity Program Procurement Forms: completed Attachment B
+[p14.h1] 3.18. Partnerships
+[p14.19] • Proponents must submit one proposal for evaluation regardless of the number of sub-contractors or other entities delivering the scope of work as the City is seeking a single primary proponent.
+[p14.20] Where multiple organizations are providing a proposal as a partnership, a single primary proponent must represent the partnership.
+[p14.21] • Proponents must disclose any and all partnerships/subcontractor’s included in the execution of the obligations under this RFP.
+[p14.22] This disclosure should include the names of the primary proponents and all partners, the nature of the business relationship, and confirmation of the partnership’s stability and duration relevant to the period of the proposed contract.
+[p14.23] Each proposal must include a comprehensive overview of the roles and responsibilities of the proponent and its partners. o Primary Proponent Responsibilities: Outline the core functions and services that will be directly managed and executed by the primary Proponent. o Partner Contributions: Describe the specific contributions, services, or resources each partner will provide.
+[p14.24] Include the scope of work for which each partner will be responsible.
+[p15.h1] 3.19. Method of Award
+[p15.1] The evaluation of each response to this RFP will be based on its demonstrated competence, compliance, format, and enterprise.
+[p15.2] The purpose of this RFP is to identify those proponents that have the interest, capability, and financial strength to supply the Citywith Oracle’s implementation as identified in the Scope of Work.
+[p15.h2] 3.20. Evaluation
+[p15.3] The specific evaluation criteria to be used by the City will include such criteria as the City may determine in its sole discretion.
+[p15.4] As part of the evaluation process, the City may request that some or all of the proponents provide additional information or details for clarification, which may include attending interviews, making a presentation, supplying samples, performing demonstrations, and/or furnishing additional technical data.
+[p15.5] The evaluation criteria are intended to be used to make a recommendation to the entity or person (the City Manager or the City Council) who will award the contract, but who are not bound to use these criteria or to award on the basis of the recommendation.
+[p15.6] The City reserves the right to change the criteria and to otherwise vary from this procedure as it determines to be in the City’s interest.
+[p15.7] Evaluation Criteria:
+[p15.t1r1] Column 1: ProjectUnderstanding ; EvaluationCriteria: ; Column 3: ; Column 4: Proponent’sunderstandingof andinsightinto thechallenges , , , issuesandrisksfacedbytheCity;alignmentwiththestrategic prioritiesoftheCity;andunderstandingofthenatureandscope ofWork . ; Description: ; Column 6:
+[p15.t1r2] Column 1: ProjectManagement ; EvaluationCriteria: ; Column 3: ; Column 4: Proponent’sprojectmanagementmethodology combinedwith , technical - or skill -based staff (including relevance of education , training andcertifications);theproposedimplementationand , trainingplan includingdeliverablesforeachstageoftheproject , . ; Description: ; Column 6:
+[p15.t1r3] Column 1: ImplementationApproach ; EvaluationCriteria: ; Column 3: ; Column 4: Proponent’simplementationmethodologywhichisa combinationof: A Proposedimplementationapproach . B Discoveryandbusinessprocessanalysis . C Datamigrationactivities . D RolesofProponentvsCityresourcesateachphase . , includingdeliverablesforeachstage , E Designinginterfaces . F Trainingtechnique . G Testing . H MaintenanceandSupport . I Implementationmodelalongwiththetypeof . implementationmodel . ; Description: ; Column 6:
+[p16.t1r1] Column 1: Experience&Qualifications ; EvaluationCriteria: ; Column 3: ; Column 4: Proponent’sstrength viability strategicdirection qualifications , , , , andexperiencewithOracleERPsolution including: , A Detailsofsimilarscopeof workundertakenwithinpublic . and/orCityexperience . B Generalbreadthandextentofexperience asindicatedby . , thenumberofprojectsandthedurationofindividual involvementineach . C ExperienceimplementingOracleERPformunicipalities . , specificallyforacityequivalenttothesizeoftheCityof DurhamormunicipalitiesintheUSA preferablyNC , . D Experienceimplementingwithatleasttwomunicipalitiesof . 100k 500k population – . E Numberofsuccessfulimplementationsinthelast3years . . F Input from provided references during the short -list . Proponentphasewillalsobeincludedinthese considerations . G Feedbackfromreferencesabouttheproponent’s . performance . H Knowledgeandexperienceoftheimplementationteam . , emphasizingtherelevanceoftheirskillstotheproject requirementsandtherolestheywillplay . ; Description: ; Column 6:
+[p16.t1r2] Column 1: Cost ; EvaluationCriteria: ; Column 3: ; Column 4: Proponentmustprovide: A Anindicativeprojectcostbreakdowntodesign . , configure implement andoperationalizetheselected , , Oraclesolutionbasedontheofferedapproach . B Detailsonsupport training andmaintenancecosts(if . , , applicable) . C Costbreakdownoftheimplementation . . D Confirmationthattheproponenthassupportedallthe . modulesrequiredbytheRFP . ; Description: ; Column 6:
+[p16.h1] 3.21. Mandatory Requirements
+[p16.1] The submission must meet 100% of the mandatory requirements to be considered for evaluation and award.
+[p16.2] The following are those mandatory requirements.
+[p16.t2r1] Column 1: OracleApprovedPartner ; Category: ; Column 3: ; Column 4: TheproponentmustbeanOracleapprovedpartner ingood , standingandauthorizedintheUnitedStatestoimplementOracle Fusionandrelatedsolutionsasoutlinedinsection41ofthisRFP . . ; MandatoryRequirements: ; Column 6:
+[p16.t2r2] Column 1: OracleImplementationExperience ; Category: ; Column 3: ; Column 4: Theproponentmustpossessandprovidetheirexperience implementingsimilarscopetotheCity’swithinthelast5years with: a) Experienceimplementingamunicipality/Citycomparablein sizetotheCityofDurhamwithintheUnitedStates(while experienceinNorthCarolinaispreferred itisnotmandatory) , b) Experienceimplementingwithatleasttwomunicipalitiesof 100k 500k population – . ; MandatoryRequirements: ; Column 6:
+[p16.3] Selection and Notification
+[p17.1] Proponents shortlisted by the City deemed to possess the capacity to compete for this contract will be requested to participate in a presentation/interview with the City subject matter experts.
+[p17.2] The selection presentation will be recorded.
+[p17.3] The City will provide the agenda and details to the short-listed Proponents as per the schedule outlined below.
+[p17.4] Presentation Dates: TBD The evaluation of the participants shall be completed at the end of the presentation process by the City’s selection team.
+[p17.5] At this point, the proposal considered most valuable to the City will be selected.
+[p17.6] Following the Proponent presentations, selected Proponent(s) will be moved into the negotiation phase of this process.
+[p17.7] Written notification will be sent to these Proponents via email.
+[p17.8] Those Proponents not selected for the presentation and/or negotiation phase will receive written notification by email.
+[p17.9] 4. Scope of Work, Specifications & Requirements
+[p17.h1] 4.1. Solution Bill of Material
+[p17.10] The City has gone through extensive due diligence to select Oracle ERP as the chosen Enterprise Resource Planning (ERP), Human Capital Management (HCM) and Utility Billing solution.
+[p17.11] Refer to for a full list of Oracle Solution Components to be implemented below.
+[p17.12] The purpose of this list is to provide prospective implementation partners, hereafter referred to as the proponent, with information to enable them to prepare and submit an implementation proposal for the implementation of the Oracle Solution.
+[p17.13] To select the right partner, the City has engaged Info-Tech Research Group to provide assistance.
+[p17.14] The first part of this engagement with Info-Tech was focused on building a clear vision and strategy for ERP, HCM and Utility Billing System; and the second part was to evaluate and select the ERP, HCM and Utility Billing solution, and subsequently a competent implementation partner.
+[p17.15] This is a formal process, following the ITRG methodology for ERP Partner Selection projects.
+[p17.16] It uses a structured approach to determine a qualified Partner for the implementation of solution that satisfies the City’s business process requirements and the supporting Information Technology (IT) and software requirements.
+[p17.t1r1] No .: 1 ; Column 2: OracleFusionHumanCapitalManagementBaseCloudService ; Module’sName: ; Column 4:
+[p17.t1r2] No .: ; Column 2: ; Module’sName: OracleFusionHumanCapitalManagementBaseCloudService ; Column 4:
+[p17.t1r4] No .: 2 ; Column 2: ; Module’sName: OracleFusionHumanResourceHelpDeskCloudService ; Column 4:
+[p17.t1r5] No .: 3 ; Column 2: ; Module’sName: OracleFusionRecruitingCloudService ; Column 4:
+[p17.t1r6] No .: 4 ; Column 2: ; Module’sName: OracleFusionWorkforceHealthandSafetyIncidentsCloudService ; Column 4:
+[p17.t1r7] No .: 5 ; Column 2: ; Module’sName: OracleFusionHCMCommunicateCloudService ; Column 4:
+[p17.t1r8] No .: 6 ; Column 2: ; Module’sName: OracleFusionTalentManagementCloudService ; Column 4:
+[p17.t1r9] No .: 7 ; Column 2: ; Module’sName: OracleFusionWorkforceCompensationCloudService ; Column 4:
+[p17.t1r10] No .: 8 ; Column 2: ; Module’sName: OracleFusionPayrollCloudServiceforUnitedStates ; Column 4:
+[p17.t1r11] No .: 9 ; Column 2: ; Module’sName: OracleFusionTimeandLaborCloudService ; Column 4:
+[p18.t1r1] 10: 11 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OracleFusionLearningCloudService ; Column 4:
+[p18.t1r2] 10: 12 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OracleFusionEnterpriseResourcePlanningCloudService ; Column 4:
+[p18.t1r3] 10: 13 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OracleFusionProcurementCloudService ; Column 4:
+[p18.t1r4] 10: 14 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OracleFusionSupplyChainExecutionCloudService ; Column 4:
+[p18.t1r5] 10: 15 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OracleFusionRiskManagementCloudService ; Column 4:
+[p18.t1r6] 10: 16 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OracleHIPAAAdvancedSecurityforFusionSaaSintheOraclePublicCloud ; Column 4:
+[p18.t1r7] 10: 17 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OracleDatabaseVaultandBreakGlassforFusionCloudService ; Column 4:
+[p18.t1r8] 10: 18 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OracleFusionWebCenterFormsRecognitionCloudService ; Column 4:
+[p18.t1r9] 10: 19 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OracleEnterprisePerformanceManagementEnterpriseCloudService ; Column 4:
+[p18.t1r10] 10: 20 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OracleAdditionalApplicationforOracleEnterprisePerformanceManagementEnterprise ; Column 4:
+[p18.t1r11] 10: ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: CloudService ; Column 4:
+[p18.t1r12] 10: 21 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OracleUtilitiesCustomerCloudService(B90577) ; Column 4:
+[p18.t1r13] 10: 22 ; Column 2: ; OracleAdditionalTestEnvironmentforOracleFusionCloudService: OraclePaaSandIaaSUniversalCredits ; Column 4:
+[p18.h1] 4.2. Project Objective
+[p18.1] The ideal Proponent must have experience in successfully implementing the Oracle ERP solution within a local government environment.
+[p18.2] The successful Proponent shall be responsible for the final City-approved design, installation, implementation, and commissioning of the Oracle ERP solution, including configuration, user acceptance testing, training, system integration, and connectivity to existing applications.
+[p18.3] The City expects the Proponent to perform all related professional services (e.g., best practices guidance, business process reengineering, training, project management, content and data migration assistance, implementation, integration, and report development) in a timely and professional manner.
+[p18.4] Services should be provided by experienced Oracle ERP solution experts who have successfully implemented this solution at comparable projects with similar requirements for the solution modules/components in scope (section 4.1).
+[p18.5] The RFP process seeks to find the best and overall experienced partner for the City for this investment.
+[p18.6] The award shall be made to the qualified Proponent whose proposal is most advantageous to the City with price and other factors considered.
+[p18.7] Other factors that may contribute to the selection process include, but are not limited to, the following:
+[p18.8] • Project approach and understanding of the City’s objectives and requirements.
+[p18.9] • Proponent’s implementation methodology and implementation success
+[p18.10] • Ability to meet the City’s requirements, including functionality, usability, performance, flexibility, integration, and technology.
+[p18.11] • Proponent’s experience implementing with local government environments similar to the City
+[p19.1] • Feedback from customer references
+[p19.2] • Compliance with the City’s terms and conditions
+[p19.3] • Ability to integrate with other City systems.
+[p19.4] • Cost and quality of ongoing training, maintenance, and support
+[p19.h1] 4.2.1. Implementation Methodology
+[p19.5] Proponent shall provide a detailed description of its project management approach and implementation methodology.
+[p19.6] The Proponent is asked to propose a realistic phasing of the solution components.
+[p19.7] Clearly state all assumptions and dependencies driving the recommended implementation approach (e.g., big bang, phased) Proponent must provide a detailed overview of the following:
+[p19.8] 1. Project Team: Proponent shall include Bios of lead resources, along with the organizational structure of the project team, defining roles and responsibilities clearly to ensure effective collaboration and accountability.
+[p19.9] 2. Project Plan: This section should include a breakdown by modules, timelines, milestones, deliverables, and clearly defined expectations of City staff commitment.
+[p19.10] Emphasize the critical path and any dependencies among tasks.
+[p19.11] Include a risk management plan that outlines potential risks and mitigation strategies.
+[p19.12] 3. Project Management: Identify implementation approach (Phased or Big Bang), risks mitigation, and prevention of delays.
+[p19.13] Elaborate on the tools and technologies that will be used for project tracking, documentation, and collaboration.
+[p19.14] Include regular review meetings to ensure alignment with the project objectives.
+[p19.15] 4. Change Management: This includes organizational change readiness and a change management plan, along with stakeholder engagement strategies and how the change impact will be assessed and managed.
+[p19.16] 5. Communication Plan: It should detail communication techniques, planned frequency, format, and key points of contact, as well as a description of how communication will be carried out and any materials used.
+[p19.17] Include a crisis communication plan to address any major issues or changes in project direction.
+[p19.18] 6. Discovery and Business Analysis: Detail overview of approach to identify process inefficiency.
+[p19.19] Explain the techniques and tools that will be used to document current processes, identify inefficiencies, and gather requirements.
+[p19.20] 7. Design/Configuration: Detail the approach for detailing requirements and workflows, along with a version control and change tracking system to ensure that all changes are documented and reviewed.
+[p19.21] 8. Data Migration: Include pre-requisites and activities as part of the proposed approach and role of City and Proponent staff.
+[p19.22] Describe the data validation and data cleansing processes to ensure data accuracy and completeness.
+[p19.23] 9. Systems Integration: Discuss experienced developers to build interfaces with REST API, Web Services, FBDI, and also describe the error handling and troubleshooting processes to manage integration issues.
+[p19.24] 10. Training Techniques: Explain how training sessions are organized based on user type or business processes and delivery method, along with evaluation methods to assess the effectiveness of the training, such as quizzes or feedback surveys.
+[p19.25] 11. Testing: This section should include details and responsibilities on the various levels of testing, such as functional, user acceptance and system integration testing.
+[p19.26] Detail the bug tracking and resolution processes to ensure that issues are promptly identified and resolved.
+[p19.27] 12. Move to Production: Cover system deployment readiness, business readiness review and release management strategy, along with a back-out plan in case of deployment failures, and the process for obtaining the necessary approvals before moving to production.
+[p19.28] 13. Post Go-Live: This includes post go-live system monitoring, support, and ticketing process.
+[p19.29] Discuss longterm system maintenance, including how upgrades, patches, and enhancements will be managed.
+[p19.30] Include a feedback loop to capture user feedback for continuous improvement.
+[p20.h1] 4.2.2. Integration Requirements
+[p20.1] The City will require specific interfaces to be developed between the Oracle ERP and other City systems.
+[p20.2] For each interface to be developed, the Proponent shall configure, code, and test all application, application extensions, and data acquisition/interfaces.
+[p20.3] The proponent should identify existing experience and/or pre-built connectors for any of the listed software.
+[p20.4] Refer to Appendix B for a list of applications and expected disposition.
+[p20.5] Further details regarding specific requirements can be found in the attached RFP #24-0031 Proponent Application Inventory list.
+[p20.h2] 4.2.3. Project Testing & Acceptance
+[p20.6] Testing at different phases of the implementation will be critical to ensuring that the solution meets the needs of the City.
+[p20.7] The Proponent must provide detailed descriptions of their testing methodology, phases, and roles/responsibilities of the implementation team and the City’s resources.
+[p20.8] Additionally, it is imperative that the Proponent outlines the criteria for success and acceptance at each phase of testing, alongside any predefined benchmarks or key performance indicators (KPIs) that will be used to measure the effectiveness and efficiency of the solution.
+[p20.9] This should include a clear delineation of any dependencies, risks, and mitigation strategies associated with the testing process.
+[p20.10] Furthermore, a comprehensive schedule indicating the timeline for each testing phase, including milestones, deliverables, and review meetings, should be provided.
+[p20.11] This schedule should be realistic, taking into account the City’s operational constraints and any other potential challenges that may arise during the implementation process.
+[p20.12] It is also beneficial for the Proponent to elaborate on how discrepancies, defects, or deviations from the expected outcomes will be documented, addressed, and resolved, ensuring that the final solution is robust, reliable, and meets the City’s requirements.
+[p20.13] This should include the process for re-testing and validation following any necessary modifications or corrections.
+[p20.14] Moreover, it is advisable for the Proponent to describe any training, support, and documentation that will be provided to the City’s resources to ensure a smooth transition and effective knowledge transfer throughout the testing phases.
+[p20.15] This will enable the City to independently operate, maintain, and troubleshoot the solution postimplementation.
+[p20.16] Lastly, it is essential that the Proponent provides a detailed description of the acceptance process, including the criteria and procedures for formal acceptance of the solution by the City.
+[p20.17] This should encompass any final validation, approval, and sign-off processes required to confirm that the solution meets the stipulated requirements and is ready for operational deployment.
+[p20.18] 5. Support Services Proponents are requested to describe various support levels/tiers available to customers and to provide pricing for each package.
+[p20.19] The City considers this optional at this time but wants to understand post-implementation support options and prices.
+[p20.20] Include any ongoing training options or provisions over and above training included in the implementation activities.
+[p20.h3] 5.1. Support Levels/Tiers
+[p20.21] • Provide an overview of your various Support Levels/Tiers, clearly identifying the following for each: o Nature of the services o Price of the services (and how it is invoiced) o Requirements related to required time commitments to a certain support level/tier agreement. o Any penalties if a decision is made to change support levels/tiers within the committed time frame. o Availability and accessibility of support personnel (e.g., 24/7, business hours, etc.) o The procedure for requesting support and the expected response time. o Provide a description of the process for escalating issues, and how prioritization of support requests is handled.
+[p21.1] • Provide a copy of a standard (i.e., any tier type) service level agreement, in accordance with the proposed services.
+[p21.2] Include: o Standard issue resolution response times o Escalation and severity levels o Definitions of severity levels and the corresponding resolution targets. o Maintenance and update support, indicating how often updates, patches, and upgrades are released, and how these are communicated and implemented for the City.
+[p21.3] • Provide information on other services/offerings that you feel would benefit the City. o Include any additional services such as performance tuning, optimization, consulting services, and/or system auditing. o Detail any proactive monitoring, alerting services, or preventative maintenance offerings.
+[p21.h1] 5.2. Ongoing Training
+[p21.4] • Provide details on your training offerings (e.g., classroom training, onsite training, online remote training, tutorials, reference materials, etc.) for system administrators, and both normal and super users.
+[p21.5] • Specify your preferred training patterns (e.g., train super users who then train remaining users, large training sessions with all users, ad-hoc trainings as needed by users on specific topics, etc.)
+[p21.6] • Indicate if there are certification programs available for different user roles, and describe the structure, benefits, and costs of these programs.
+[p21.7] • Explain the availability of customized training solutions tailored to meet the specific needs of the City and provide pricing models for custom training offerings.
+[p21.8] • Detail how training materials are kept up to date with system updates and upgrades.
+[p21.9] • Describe any community or forum support, where users can share experiences, solutions, and learn from each other.
+[p21.10] 6. Proponent profile, qualifications & references
+[p21.11] In this section we ask that the Proponent provide information about the company and the services offered, including references and descriptions of projects similar in size, application, and scope.
+[p21.12] All partnerships and third parties proposed as part of the software, services, or support response must be disclosed in the RFP.
+[p21.13] Specifically, please provide the below information in the RFP #24-0031 City of Durham - Partner Response Template
+[p21.h2] 6.1. Proponent Profile
+[p21.14] • Full legal name, year established, head office location, and other contact addresses.
+[p21.15] • Company’s legal status and ownership (corporation, private, publicly traded, etc.).
+[p21.16] • Number of people currently employed.
+[p21.17] • Number of employees dedicated to customer support.
+[p21.18] • Number of employees dedicated to implementation activity.
+[p21.19] • Description of organizational structure and key management personnel.
+[p21.20] • Company's core competencies and differentiators.
+[p21.21] • Identification of any certifications, awards, or industry recognitions received.
+[p21.22] • Disclosure of any legal disputes or litigation the company has been involved with in the past 5 years.
+[p21.h3] 6.2. Viability
+[p21.23] • Provide documents that would substantiate your financial viability.
+[p21.24] • For publicly traded companies, please include your most recent annual report, inclusive of financial performance.
+[p22.1] • Highlight any strategic partnerships or alliances that contribute to your financial stability.
+[p22.2] • Overview of the company’s growth trend over the last five years.
+[p22.h1] 6.3. References
+[p22.3] Proponents are expected to provide customer case studies and references indicating previous experience with the Oracle ERP solution as well as relevant local government experience.
+[p22.4] Actual point of contact for customer references will be requested from the shortlisted Proponents.
+[p22.5] Additionally, provide any evidence of ongoing relationships or repeat business with these references such as managed services.
+[p22.6] 7. Budget & Estimated Pricing
+[p22.h2] 7.1. Implementation Pricing
+[p22.7] A pricing sheet template is provided for Proponents to price the implementation activities.
+[p22.8] The City considers this to be indicative pricing and understands that it may change during discovery/negotiation with the selected proponent.
+[p22.9] However, the proponent is asked to be as precise as possible utilizing the provided information.
+[p22.10] Implementation Charges: List out all the one-time costs associated with the initial setup and implementation of the solution.
+[p22.11] For each sub-item (like Installation, Integration, Customization, etc.), provide an estimated cost.
+[p22.12] Proponents are requested to show the years in which the costs will be incurred if multi-year implementation.
+[p22.13] If there are specific items not mentioned, use the 'Other (please specify)' slots to add them.
+[p22.14] The template will sum the sections / rows.
+[p22.15] Other Charges: This section is for any additional costs not covered in the above categories.
+[p22.16] It could include costs for interface/integration tools or any other miscellaneous expenses.
+[p22.17] Use the 'Other (please specify)' slots as needed.
+[p22.18] Vendor Comments Column: This column is specifically for proponents to provide additional context or clarification regarding the costs.
+[p22.19] If there are assumptions made, discounts applied, or any specific conditions tied to a price, please detail them here.
+[p22.20] Document Attachments: Where indicated (like support service levels or training options), attach relevant documentation that provides further details or breakdowns.
+[p22.21] This ensures the City has all necessary information to understand the proposed pricing structure.
+[p22.22] Accuracy & Completeness: Ensure that all fields are filled out accurately.
+[p22.23] If a particular cost item is not applicable, please identify in the comment's column of the template.
+[p22.24] Support Charges: This section is optional and is not being utilized to evaluate the overall score.
+[p22.25] However, proponents are encouraged to provide their options for managed services.
+[p22.26] For 'Support Fees', mention the type of support (like Basic, Premium, etc.) and indicate the service level and attached documentation for more details.
+[p22.27] For 'Ongoing Training', specify the type of training (like User Training, Admin Training, etc.), and indicate available post-go-live training options with attached documentation.
+[p22.28] The prices should reflect all costs associated with the implementation.
+[p22.29] Pricing must be provided in $USD.
+[p22.30] It is proposed that if a contract is entered into because of this RFP, it shall be a fixed price contract, unless otherwise stated.
+[p22.31] The proponent must agree to keep these prices valid for 180 days of the due date of the RFP.
+[p22.32] The City, through the Info-Tech contact, may release a proponent from this obligation by a written letter that specifically refers to this section if he or she determines that the proponent or the proposal will not meet the City’s needs.
+[p22.33] Proponents are required to provide pricing information by using the RFP #24-0031 Proponent Pricing Response Template.
+[p22.h3] 7.2. Comparable Project Cost Reference
+[p22.34] The City requests the Proponent provide details for 3 previous similar projects already completed.
+[p22.35] For each project, include a description of the project, similarities of note, key milestone dates, discovered costs, (initial estimated costs) and the project’s total final cost.
+[p22.36] The City understands that every project is different, and that the provided cost references in no way guarantee a similar final cost for the City.
+[p23.h1] 7.3. Hourly Resource Rates
+[p23.1] For any tasks or resources billed on an hourly basis, Proponent will provide a complete list of all such rates.
+[p23.2] Include descriptions of each billing rate, examples of work tasks that fall within each billing rate, and an explanation of how work is differentiated between falling within one rate versus another, and any decision-making processes involved.
+[p23.3] If billing rates are based on the resource or resource type, for any resources provided in the Proponent’s proposal, identify what their applicable billing rate would be.
+[p23.4] Related to project management, describe how resource/task time is tracked for the purposes of billing.
+[p23.5] Include an example of any standard reports and/or invoice details provided as part of the time & materials billing process.
+[p23.h2] 7.4. Standard Costs
+[p23.6] If the Proponent has any applicable project components or services offered at a standard, fixed cost amount, provide descriptions and details, including what is considered in-scope for each and commonly misunderstood out-of-scope elements.
+[p23.h3] 7.5. Other Pricing Considerations
+[p23.7] The Proponent shall provide any other relevant costing information applicable to the City, such as other related pricing structures, fees, discounts, etc. so that the City has all necessary information to understand any pricing variables that should be considered for the completion of the project or beyond.
+[p23.8] 8. Terms of Contract
+[p23.h4] 8.1. Period of Contract
+[p23.9] The period of contract shall be for 3 years with two one-year options for renewal.
+[p23.10] The City retains the right to terminate any resulting contract upon thirty (30) days written notice.
+[p23.11] <end of document>

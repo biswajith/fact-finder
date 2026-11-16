@@ -1,0 +1,260 @@
+[
+ {
+  "gold": "RFP is the second phase of a two-step process; Oracle was selected as the enterprise software in the first phase",
+  "found": "The City selected Oracle as its enterprise software solution; this RFP seeks only the implementation partner",
+  "verdict": "partial",
+  "reason": "It does not explicitly state that this RFP is the second phase of a two-step process."
+ },
+ {
+  "gold": "Proponents involved in the software phase, including Oracle VARs/resellers, get no preference and are not excluded",
+  "found": "Prior involvement in the software selection phase, including as an Oracle license VAR or reseller, neither gives preference nor excludes a proponent",
+  "verdict": "full",
+  "reason": "It states that prior involvement gives no preference and does not exclude a proponent."
+ },
+ {
+  "gold": "Current workforce (time and attendance) solutions: Kronos and Tyler Munis",
+  "found": "City\u2019s existing workforce systems include Kronos and Tyler Munis",
+  "verdict": "full",
+  "reason": "It names both current workforce systems."
+ },
+ {
+  "gold": "Oracle HCM scope: HCM Base, HR Help Desk, Recruiting, Workforce Health and Safety Incidents, HCM Communicate, Talent Management, Workforce Compensation, Payroll (US), Time and Labor, Learning",
+  "found": "Include Oracle Fusion Workforce Health and Safety Incidents Cloud Service in the implementation",
+  "verdict": "partial",
+  "reason": "It names only one of the listed HCM scope components."
+ },
+ {
+  "gold": "Oracle scope includes an Additional Test Environment for Oracle Fusion Cloud Service",
+  "found": "Include Oracle Learning Cloud Service in the implementation",
+  "verdict": "no",
+  "reason": "It names Oracle Learning, not an Additional Test Environment."
+ },
+ {
+  "gold": "Oracle scope includes an Additional Test Environment for Oracle Fusion Cloud Service",
+  "found": "The implementation scope includes Oracle ERP, Human Capital Management, and Utility Billing",
+  "verdict": "no",
+  "reason": "It describes other implementation scope, not an Additional Test Environment."
+ },
+ {
+  "gold": "Oracle scope includes an Additional Test Environment for Oracle Fusion Cloud Service",
+  "found": "The City seeks implementation of Oracle Fusion HCM, ERP, Procurement, Supply Chain, Risk Management, EPM, Utility Customer Cloud, and related listed components",
+  "verdict": "no",
+  "reason": "It describes other implementation scope, not an Additional Test Environment."
+ },
+ {
+  "gold": "Oracle scope: HIPAA Advanced Security, Database Vault and Break Glass, WebCenter Forms Recognition",
+  "found": "Include Oracle Database Vault and Break Glass for Fusion Cloud Service in the implementation",
+  "verdict": "partial",
+  "reason": "It names Database Vault and Break Glass but omits HIPAA Advanced Security and WebCenter Forms Recognition."
+ },
+ {
+  "gold": "Proponent objecting to any contract term should state the objections in its proposal",
+  "found": "State objections to any contract terms in the proposal",
+  "verdict": "full",
+  "reason": "It states that objections to contract terms must be included in the proposal."
+ },
+ {
+  "gold": "Respondent should not use City logos, trademarks or trade names without prior written approval",
+  "found": "Avoid using City intellectual property without prior written approval",
+  "verdict": "full",
+  "reason": "It conveys the restriction on using City intellectual property without prior written approval."
+ },
+ {
+  "gold": "A contract between the City and a company on the Iran or Israel-boycott lists may be void",
+  "found": "A contract with a company named on either specified State Treasurer list may be void",
+  "verdict": "full",
+  "reason": "It states that a contract with a company on either specified list may be void."
+ },
+ {
+  "gold": "City desires contractors not discriminate and take affirmative action on protected characteristics in employment",
+  "found": "Firms doing City business are expected to take affirmative employment action and include the City EEO policy in relevant purchase orders and subcontracts",
+  "verdict": "partial",
+  "reason": "It omits the expectation not to discriminate and the protected characteristics."
+ },
+ {
+  "gold": "Pricing is indicative; short-listed proponents may refine pricing during the demonstration period",
+  "found": "Price is indicative and shortlisted proponents may submit refined pricing during demonstrations",
+  "verdict": "full",
+  "reason": "It states that pricing is indicative and shortlisted proponents may refine it during demonstrations."
+ },
+ {
+  "gold": "Proponent must comply with NC law on transacting business in NC; City verifies before contracting",
+  "found": "Comply with North Carolina law governing business transactions in the state before contracting",
+  "verdict": "partial",
+  "reason": "It does not state that the City verifies compliance before contracting."
+ },
+ {
+  "gold": "By bidding, proponent affirms it is not on NC Treasurer's Israel-boycott or Iran investment lists (contracts of $1,000 or more)",
+  "found": "For contracts valued at $1,000 or more, affirm the company is not on the specified Iran or Israel boycott lists and has no reason to expect listing, unless stated otherwise in the proposal",
+  "verdict": "partial",
+  "reason": "It adds an exception for stating otherwise in the proposal, which is not in the reference."
+ },
+ {
+  "gold": "City may disqualify a proponent showing less than full understanding of the RFP, including cancelling an award",
+  "found": "The City may determine at its sole discretion whether the proponent has demonstrated understanding of the RFP",
+  "verdict": "partial",
+  "reason": "It omits the possible disqualification or cancellation of an award."
+ },
+ {
+  "gold": "City may disqualify a proponent showing less than full understanding of the RFP, including cancelling an award",
+  "found": "Demonstrating insufficient understanding of the RFP may result in disqualification or cancellation of an award",
+  "verdict": "full",
+  "reason": "It states the possible disqualification or cancellation consequence."
+ },
+ {
+  "gold": "City may reject a proposal not complying with requested format or instructions, though it may waive non-compliance",
+  "found": "The City may reject proposals that do not comply with requested instructions, such as the stated proposal format",
+  "verdict": "partial",
+  "reason": "It omits that the City may waive non-compliance."
+ },
+ {
+  "gold": "Disclose reasoning for trade secret designations on request and notify City if belief ends",
+  "found": "Promptly provide the City your reasons for trade-secret designations when requested",
+  "verdict": "partial",
+  "reason": "It omits the duty to notify the City if the belief that a record is a trade secret ends."
+ },
+ {
+  "gold": "Disclose reasoning for trade secret designations on request and notify City if belief ends",
+  "found": "Promptly notify the City when a record is no longer believed in good faith to contain a trade secret",
+  "verdict": "partial",
+  "reason": "It omits the duty to provide the reasons for trade-secret designations when requested."
+ },
+ {
+  "gold": "Disclose all partners and subcontractors, the relationship nature, and partnership stability over the contract period",
+  "found": "Disclose all partnerships and subcontractors, naming the parties and describing their relationship, stability, and duration",
+  "verdict": "full",
+  "reason": "It covers the parties, relationship, stability, and duration of partnerships and subcontractors."
+ },
+ {
+  "gold": "Describe roles of primary proponent and each partner, including each partner's scope of work",
+  "found": "Provide a comprehensive overview of the roles and responsibilities of the proponent and each partner",
+  "verdict": "partial",
+  "reason": "It omits each partner\u2019s scope of work."
+ },
+ {
+  "gold": "Describe roles of primary proponent and each partner, including each partner's scope of work",
+  "found": "Describe each partner\u2019s specific contributions, services, or resources",
+  "verdict": "partial",
+  "reason": "It does not clearly require describing the roles of the proponent and each partner."
+ },
+ {
+  "gold": "Describe roles of primary proponent and each partner, including each partner's scope of work",
+  "found": "State the scope of work for which each partner will be responsible",
+  "verdict": "partial",
+  "reason": "It omits the roles of the primary proponent and each partner."
+ },
+ {
+  "gold": "Describe systems integration with REST API, Web Services and FBDI, plus error handling and troubleshooting",
+  "found": "Describe error handling and troubleshooting for integration issues",
+  "verdict": "partial",
+  "reason": "It omits the specified integration methods: REST API, Web Services, and FBDI."
+ },
+ {
+  "gold": "Describe the formal acceptance process, criteria, validation and sign-off",
+  "found": "Provide a detailed description of the solution acceptance process, criteria, and formal acceptance procedures",
+  "verdict": "partial",
+  "reason": "Validation and sign-off are not specified."
+ },
+ {
+  "gold": "For each support tier give nature of services and price and invoicing method",
+  "found": "Describe the nature of services for each support tier",
+  "verdict": "partial",
+  "reason": "Price and invoicing method are missing."
+ },
+ {
+  "gold": "For each support tier give support availability (e.g. 24/7, business hours)",
+  "found": "Provide an overview of each support tier\u2019s services, price and invoicing, time commitments, change penalties, availability, request process, response time, escalation, and prioritization",
+  "verdict": "full",
+  "reason": "It explicitly includes availability for each support tier."
+ },
+ {
+  "gold": "For each support tier give support availability (e.g. 24/7, business hours)",
+  "found": "Describe the nature of services for each support tier",
+  "verdict": "no",
+  "reason": "It describes services, not support availability."
+ },
+ {
+  "gold": "For each support tier give support availability (e.g. 24/7, business hours)",
+  "found": "Describe support personnel availability and accessibility",
+  "verdict": "partial",
+  "reason": "It mentions personnel availability and accessibility but not the support hours or coverage (such as 24/7 or business hours)."
+ },
+ {
+  "gold": "Provide a standard SLA with response times, escalation and severity levels and resolution targets",
+  "found": "Include escalation and severity levels, severity definitions, and resolution targets in the service level agreement",
+  "verdict": "partial",
+  "reason": "Response times are missing."
+ },
+ {
+  "gold": "List all one-time implementation costs with an estimate per sub-item, as precisely as possible",
+  "found": "List all one-time costs for initial setup and implementation",
+  "verdict": "partial",
+  "reason": "It does not require an estimate for each sub-item or specify that costs be as precise as possible."
+ },
+ {
+  "gold": "Fill all pricing fields accurately; mark non-applicable items in the comments column",
+  "found": "Complete all pricing fields accurately",
+  "verdict": "partial",
+  "reason": "It does not say to mark non-applicable items in the comments column."
+ },
+ {
+  "gold": "Provide managed services options, support fee types and post-go-live training options (optional)",
+  "found": "Provide optional support charge options for managed services",
+  "verdict": "partial",
+  "reason": "Post-go-live training options and support fee types are not specified."
+ },
+ {
+  "gold": "Confirm the proponent has supported all modules required by the RFP",
+  "found": "Cost is assessed on indicative implementation cost, support, training and maintenance costs, implementation cost breakdown, and confirmation that required modules are supported",
+  "verdict": "full",
+  "reason": "It includes confirmation that the required modules are supported."
+ },
+ {
+  "gold": "Criterion Experience & Qualifications: viability, similar public work, municipal Oracle ERP experience (NC preferred), implementations in last 3 years, references, team; no weight stated",
+  "found": "Experience and qualifications are assessed on viability, Oracle ERP and municipal experience, comparable projects, recent successful implementations, references, and team expertise",
+  "verdict": "partial",
+  "reason": "It omits the preference for North Carolina experience and the specific three-year timeframe."
+ },
+ {
+  "gold": "Selected and non-selected proponents are notified in writing by email",
+  "found": "Selected proponents proceed to negotiation; the City notifies proponents by email",
+  "verdict": "partial",
+  "reason": "It does not clearly say that both selected and non-selected proponents are notified in writing."
+ },
+ {
+  "gold": "Support charges are optional and not used to evaluate the overall score",
+  "found": "Post-implementation support options and prices are optional but requested",
+  "verdict": "partial",
+  "reason": "It does not say that support charges are excluded from the overall score."
+ },
+ {
+  "gold": "Support charges are optional and not used to evaluate the overall score",
+  "found": "Provide optional support charge options for managed services",
+  "verdict": "partial",
+  "reason": "It does not say that support charges are excluded from the overall score."
+ },
+ {
+  "gold": "Reference contacts will be requested from short-listed proponents only",
+  "found": "Provide actual customer reference contact details when requested during the shortlisting phase",
+  "verdict": "partial",
+  "reason": "It does not explicitly limit the request to proponents who are shortlisted."
+ },
+ {
+  "gold": "Support charges are optional and not scored, but the Cost criterion and award factors include support, training and maintenance costs",
+  "found": "Cost is assessed on indicative implementation cost, support, training and maintenance costs, implementation cost breakdown, and confirmation that required modules are supported",
+  "verdict": "partial",
+  "reason": "It does not state that support charges are optional and not scored."
+ },
+ {
+  "gold": "Support charges are optional and not scored, but the Cost criterion and award factors include support, training and maintenance costs",
+  "found": "Other selection factors include approach, methodology and success, ability to meet requirements, local-government experience, references, terms compliance, integration, and ongoing support quality and cost",
+  "verdict": "partial",
+  "reason": "It does not state that support charges are optional and not scored, or include support, training, and maintenance costs as cost-criterion items."
+ },
+ {
+  "gold": "Support charges are optional and not scored, but the Cost criterion and award factors include support, training and maintenance costs",
+  "found": "Post-implementation support options and prices are optional but requested",
+  "verdict": "partial",
+  "reason": "It does not say that support charges are not scored or that they are included in the Cost criterion and award factors."
+ }
+]

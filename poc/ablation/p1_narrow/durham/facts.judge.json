@@ -1,0 +1,236 @@
+[
+ {
+  "gold": "Buyer is the City of Durham, North Carolina",
+  "found": "City of Durham RFP #24-0031 is for an Oracle ERP implementation partner",
+  "verdict": "full",
+  "reason": "It identifies the City of Durham; North Carolina is not needed to convey the buyer."
+ },
+ {
+  "gold": "RFP is the second phase of a two-step process; Oracle was selected as the enterprise software in the first phase",
+  "found": "The City selected Oracle in phase one and seeks an implementation partner in phase two",
+  "verdict": "full",
+  "reason": "It states Oracle was selected in phase one and an implementation partner is sought in phase two."
+ },
+ {
+  "gold": "Proponents involved in the software phase, including Oracle VARs/resellers, get no preference and are not excluded",
+  "found": "Prior participation in Oracle software selection, including as a VAR or reseller, gives no preference and does not exclude a proponent",
+  "verdict": "full",
+  "reason": "It preserves both that prior participation gives no preference and that proponents are not excluded."
+ },
+ {
+  "gold": "City has largely unintegrated disparate systems, some unsupported, with heavy manual work and no single source of truth",
+  "found": "The City operates with disparate systems, manual processes, unsupported applications, and limited reporting",
+  "verdict": "partial",
+  "reason": "It omits that the systems are largely unintegrated and that there is no single source of truth."
+ },
+ {
+  "gold": "Respondent should not use City logos, trademarks or trade names without prior written approval",
+  "found": "Avoid using City intellectual property without prior written approval",
+  "verdict": "full",
+  "reason": "City logos, trademarks, and trade names are covered by the broader term \u201cCity intellectual property.\u201d"
+ },
+ {
+  "gold": "Contractor without owned autos must keep Hired and Non-Owned Auto Liability, by CGL endorsement or separate policy",
+  "found": "If the contractor owns no automobiles, maintain Hired and Non-Owned Auto Liability coverage",
+  "verdict": "partial",
+  "reason": "It omits that coverage may be provided by CGL endorsement or a separate policy."
+ },
+ {
+  "gold": "Must have implemented similar scope within last 5 years for a US municipality comparable in size to Durham; NC preferred, not mandatory",
+  "found": "Mandatory screening requires similar-scope implementation experience within the last 5 years, including a comparable US city and at least two municipalities with 100k\u2013500k population",
+  "verdict": "no",
+  "reason": "The reference requires experience for a comparable-size municipality and only prefers North Carolina; the extraction adds a mandatory two-municipality population requirement."
+ },
+ {
+  "gold": "Proponent must comply with NC law on transacting business in NC; City verifies before contracting",
+  "found": "Comply with North Carolina law governing business transactions in the state before contracting",
+  "verdict": "partial",
+  "reason": "It omits that the City verifies compliance before contracting."
+ },
+ {
+  "gold": "By bidding, proponent affirms it is not on NC Treasurer's Israel-boycott or Iran investment lists (contracts of $1,000 or more)",
+  "found": "If the contract value is $1,000 or more, affirm that the proponent is not on the specified Iran or Israel boycott lists and has no reason to expect listing, unless stated otherwise in the proposal",
+  "verdict": "partial",
+  "reason": "It adds a no-reason-to-expect-listing condition but omits the reference\u2019s framing that the affirmation is made by bidding."
+ },
+ {
+  "gold": "City may reject a proposal not complying with requested format or instructions, though it may waive non-compliance",
+  "found": "The City may reject proposals that do not follow the required format",
+  "verdict": "partial",
+  "reason": "It omits the City\u2019s discretion to waive non-compliance."
+ },
+ {
+  "gold": "Designate trade secret material with the words trade secrets at initial disclosure, kept separate and clearly marked",
+  "found": "Prominently mark qualifying confidential material \u201ctrade secrets\u201d at initial disclosure and separate it from other material",
+  "verdict": "full",
+  "reason": "It includes marking the material \u201ctrade secrets\u201d at initial disclosure and keeping it separate."
+ },
+ {
+  "gold": "Disclose reasoning for trade secret designations on request and notify City if belief ends",
+  "found": "Promptly explain the basis for trade-secret designations when the City requests it",
+  "verdict": "partial",
+  "reason": "It omits the duty to notify the City if the belief supporting the designation ends."
+ },
+ {
+  "gold": "Furnish information requested by City on competence, organization and financial resources",
+  "found": "The City may investigate the proposer\u2019s ability to perform and request information and data for that purpose",
+  "verdict": "partial",
+  "reason": "It omits the specific information requested about competence, organization, and financial resources."
+ },
+ {
+  "gold": "Disclose all partners and subcontractors, the relationship nature, and partnership stability over the contract period",
+  "found": "Disclose all partners and subcontractors, relationships, stability and duration, roles, responsibilities, contributions, and each partner's scope of work",
+  "verdict": "full",
+  "reason": "It includes all partners and subcontractors, their relationships, and stability; the added details do not detract."
+ },
+ {
+  "gold": "Disclose all partners and subcontractors, the relationship nature, and partnership stability over the contract period",
+  "found": "For each partnership, provide the primary proponent and partner names, business relationship, and partnership stability and duration",
+  "verdict": "full",
+  "reason": "It includes the partners and subcontractors\u2019 relationships and stability over the contract period."
+ },
+ {
+  "gold": "Disclose all partners and subcontractors, the relationship nature, and partnership stability over the contract period",
+  "found": "Disclose all partnerships and subcontractors included in performing the RFP obligations",
+  "verdict": "partial",
+  "reason": "It requires disclosure of partnerships and subcontractors but omits their relationship nature and stability over the contract period."
+ },
+ {
+  "gold": "Be responsible for final design, installation, implementation, commissioning, configuration, UAT, training, integration and connectivity to existing applications",
+  "found": "As the successful proponent, provide configuration, user acceptance testing, training, system integration, and connectivity to existing applications",
+  "verdict": "partial",
+  "reason": "It omits final design, installation, implementation, and commissioning."
+ },
+ {
+  "gold": "Describe discovery and business analysis approach, techniques and tools to document processes and gather requirements",
+  "found": "Detail the discovery and business analysis approach for identifying process inefficiency",
+  "verdict": "partial",
+  "reason": "It omits techniques and tools for documenting processes and gathering requirements."
+ },
+ {
+  "gold": "Describe the formal acceptance process, criteria, validation and sign-off",
+  "found": "Provide a detailed description of the solution acceptance process, criteria, and procedures",
+  "verdict": "partial",
+  "reason": "It omits validation and sign-off."
+ },
+ {
+  "gold": "Describe the formal acceptance process, criteria, validation and sign-off",
+  "found": "Include final validation, approval, and sign-off processes for operational deployment",
+  "verdict": "partial",
+  "reason": "It omits the acceptance criteria and formal acceptance process."
+ },
+ {
+  "gold": "For each support tier give support availability (e.g. 24/7, business hours)",
+  "found": "Describe each support tier\u2019s services, price and invoicing, commitments, penalties, staff availability, support request process, response time, escalation, and prioritization",
+  "verdict": "partial",
+  "reason": "It does not state support availability for each tier, such as 24/7 or business hours."
+ },
+ {
+  "gold": "Provide a standard SLA with response times, escalation and severity levels and resolution targets",
+  "found": "Define severity levels and corresponding resolution targets in the service level agreement",
+  "verdict": "partial",
+  "reason": "It omits response times and escalation levels."
+ },
+ {
+  "gold": "Describe how often updates, patches and upgrades are released and how they are communicated and implemented",
+  "found": "Describe maintenance and update support, including update, patch, and upgrade frequency and how these are communicated and implemented",
+  "verdict": "full",
+  "reason": "It covers update, patch, and upgrade frequency and how they are communicated and implemented."
+ },
+ {
+  "gold": "List all one-time implementation costs with an estimate per sub-item, as precisely as possible",
+  "found": "List all one-time costs for initial setup and implementation",
+  "verdict": "partial",
+  "reason": "It omits the requirement for an estimate for each sub-item and to be as precise as possible."
+ },
+ {
+  "gold": "Fill all pricing fields accurately; mark non-applicable items in the comments column",
+  "found": "Complete all pricing fields accurately",
+  "verdict": "partial",
+  "reason": "It omits marking non-applicable items in the comments column."
+ },
+ {
+  "gold": "Provide managed services options, support fee types and post-go-live training options (optional)",
+  "found": "For ongoing training, state the training type and post-go-live options and attach supporting documentation",
+  "verdict": "partial",
+  "reason": "It omits managed services options and support fee types."
+ },
+ {
+  "gold": "Provide managed services options, support fee types and post-go-live training options (optional)",
+  "found": "Provide post-implementation managed service options",
+  "verdict": "partial",
+  "reason": "It omits support fee types and post-go-live training options."
+ },
+ {
+  "gold": "Provide managed services options, support fee types and post-go-live training options (optional)",
+  "found": "Support charges are optional and excluded from the overall evaluation score",
+  "verdict": "no",
+  "reason": "It gives scoring treatment for support charges, not the requested support fee types or service options."
+ },
+ {
+  "gold": "Willingness to cooperate and to follow the selection process is viewed as an indicator of the future relationship",
+  "found": "Adhere to the selection process set forth in the RFP",
+  "verdict": "partial",
+  "reason": "It omits that willingness to cooperate is viewed as an indicator of the future relationship."
+ },
+ {
+  "gold": "Criteria inform a recommendation to the City Manager or City Council, who are not bound by it",
+  "found": "The City may change evaluation criteria and vary the evaluation procedure at its discretion",
+  "verdict": "no",
+  "reason": "It describes discretion to change criteria and procedure, not the recommendation or that decision-makers are not bound by it."
+ },
+ {
+  "gold": "Criterion Experience & Qualifications: viability, similar public work, municipal Oracle ERP experience (NC preferred), implementations in last 3 years, references, team; no weight stated",
+  "found": "Experience and Qualifications criterion assesses viability, Oracle and municipal experience, comparable projects, successful implementations, references, and team knowledge",
+  "verdict": "partial",
+  "reason": "It omits the NC preference and implementations in the last three years."
+ },
+ {
+  "gold": "Short-listed proponents present or interview with City subject matter experts; presentation is recorded",
+  "found": "Shortlisted proponents will present to City subject matter experts; the City\u2019s selection team evaluates participants after presentations",
+  "verdict": "partial",
+  "reason": "It omits that the presentation is recorded and the interview option."
+ },
+ {
+  "gold": "Evaluation completed after presentations; proposal most valuable to the City is selected and moved to negotiation",
+  "found": "After presentations, selected proponents enter negotiations; other proponents receive written notice",
+  "verdict": "partial",
+  "reason": "It omits that evaluation identifies the proposal most valuable to the City."
+ },
+ {
+  "gold": "Evaluation completed after presentations; proposal most valuable to the City is selected and moved to negotiation",
+  "found": "Shortlisted proponents will present to City subject matter experts; the City\u2019s selection team evaluates participants after presentations",
+  "verdict": "partial",
+  "reason": "It omits selecting the most valuable proposal and moving it to negotiation."
+ },
+ {
+  "gold": "Selected and non-selected proponents are notified in writing by email",
+  "found": "After presentations, selected proponents enter negotiations; other proponents receive written notice",
+  "verdict": "partial",
+  "reason": "It does not say selected proponents are notified in writing or that notices are sent by email."
+ },
+ {
+  "gold": "Reference contacts will be requested from short-listed proponents only",
+  "found": "Shortlisted proponents will be asked for actual customer reference contacts",
+  "verdict": "full",
+  "reason": "It states that short-listed proponents will be asked for customer reference contacts."
+ },
+ {
+  "gold": "Workforce Diversity Questionnaire listed as a required proposal item, but section 3.9 only recommends it with the proposal and requires it before contract",
+  "found": "Workforce Diversity Questionnaire is recommended with the proposal but later listed as a required proposal submission",
+  "verdict": "partial",
+  "reason": "It misses that the questionnaire is required before contract, rather than required with the proposal."
+ },
+ {
+  "gold": "Support charges are optional and not scored, but the Cost criterion and award factors include support, training and maintenance costs",
+  "found": "Support charges are optional and excluded from the overall evaluation score",
+  "verdict": "partial",
+  "reason": "It omits that support, training and maintenance costs are included in the Cost criterion and award factors."
+ },
+ {
+  "gold": "Must have implemented similar scope within last 5 years for a US municipality comparable in size to Durham; NC preferred, not mandatory",
+  "found": "Provide experience from the last 5 years implementing similar scope, including a comparable-size U.S. city or municipality and at least two municipalities with 100k\u2013500k population",
+  "verdict": "partial",
+  "reason": "It omits that North Carolina experience is preferred, though not required."
+ }
+]

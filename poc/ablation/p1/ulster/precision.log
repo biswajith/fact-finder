@@ -1,0 +1,14 @@
+619 facts; near-duplicate pairs 0 (0 facts)
+model grades: 520 facts sent, 0 without an answer
+graded by the model:
+  code     n supported partly unsup noise precision
+  B       25      0.96   0.04   0.0   0.0      0.96
+  C      133     0.842   0.12 0.038 0.023      0.82
+  D       21     0.905  0.095   0.0   0.0     0.905
+  E       13       1.0    0.0   0.0   0.0       1.0
+  G       15     0.933    0.0 0.067   0.0     0.933
+  Q        8       1.0    0.0   0.0   0.0       1.0
+  R      316     0.937  0.057 0.006   0.0     0.937
+  S       49     0.878  0.082 0.041   0.0     0.878
+  X       39     0.923  0.051 0.026   0.0     0.923
+  all    619     0.913  0.069 0.018 0.005     0.908

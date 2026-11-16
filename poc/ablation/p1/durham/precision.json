@@ -1,0 +1,95 @@
+{
+  "facts": 424,
+  "duplicates": {
+    "pairs": 1,
+    "facts_involved": 2,
+    "examples": [
+      [
+        "Submit a separate UBE Statement of Intent explaining the organization\u2019s commitment to equitable contracting and procurement opportunities for Underutilized Businesses",
+        "Submit a separate UBE Statement of Intent explaining efforts to provide Underutilized Businesses contracting opportunities with the company"
+      ]
+    ]
+  },
+  "model": {
+    "B": {
+      "n": 46,
+      "supported": 0.957,
+      "partly": 0.022,
+      "unsupported": 0.022,
+      "noise": 0.043,
+      "precision": 0.913
+    },
+    "C": {
+      "n": 62,
+      "supported": 0.903,
+      "partly": 0.097,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.903
+    },
+    "D": {
+      "n": 11,
+      "supported": 0.909,
+      "partly": 0.091,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.909
+    },
+    "E": {
+      "n": 21,
+      "supported": 0.905,
+      "partly": 0.095,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.905
+    },
+    "G": {
+      "n": 39,
+      "supported": 0.974,
+      "partly": 0.026,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.974
+    },
+    "Q": {
+      "n": 4,
+      "supported": 1.0,
+      "partly": 0.0,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 1.0
+    },
+    "R": {
+      "n": 200,
+      "supported": 0.92,
+      "partly": 0.07,
+      "unsupported": 0.01,
+      "noise": 0.005,
+      "precision": 0.915
+    },
+    "S": {
+      "n": 28,
+      "supported": 0.857,
+      "partly": 0.107,
+      "unsupported": 0.036,
+      "noise": 0.0,
+      "precision": 0.857
+    },
+    "X": {
+      "n": 13,
+      "supported": 0.846,
+      "partly": 0.077,
+      "unsupported": 0.077,
+      "noise": 0.0,
+      "precision": 0.846
+    },
+    "all": {
+      "n": 424,
+      "supported": 0.92,
+      "partly": 0.068,
+      "unsupported": 0.012,
+      "noise": 0.007,
+      "precision": 0.913
+    }
+  }
+}

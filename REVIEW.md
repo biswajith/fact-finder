@@ -114,7 +114,8 @@ taken in this codebase.
     rule for it. *Decision:* the sweep goes out in parallel chunks of 60 IDs, and
     a cut sweep chunk is halved like an R range.
 
-18. **Repair `DROP` vs "do not drop it".** Prompt 10.8 lets the model answer
+18. *(Repair removed 2026-11-16, see "Trimming tests"; failed lines are now kept
+    as `needs_review` without a repair call.)* **Repair `DROP` vs "do not drop it".** Prompt 10.8 lets the model answer
     `DROP`, but section 7 says a line that fails twice is kept as
     `needs_review`. *Decision:* a DROP keeps the original line as
     `needs_review` with the drop reason in `problems`. Nothing the model wrote
@@ -279,7 +280,7 @@ Scored against the 580-fact reference list (`fact-extractor compare`):
 | 2 passes merged, sweep of every uncited sentence | 721 | 98.6% | 8 |
 | Same, rerun at normal API speed (2026-11-02 23:07) | 701 | 99.3% | 4 |
 
-- **Two passes** (`passes=2`, default): every extraction call runs twice and the
+- **Two passes** (`passes=2`; default until 2026-11-16, now 1, see "Trimming tests"): every extraction call runs twice and the
   passes are merged one-to-one (`merge.union_passes`): a second-pass fact merges
   with at most one first-pass fact (same code, shared ID, similar wording);
   facts within a pass never merge, so split requirements survive. About 2% of
@@ -307,3 +308,45 @@ Scored against the 580-fact reference list (`fact-extractor compare`):
   31 s is hidden reasoning before the first token, over a 700-fact list). To get
   under 60 s, the check is the target (lower effort, or check by category on
   smaller lists), and tagging (14 s, mostly table detection) is the second.
+
+### Trimming tests (2026-11-16)
+
+`poc/ablation/run.sh` ran seven configurations on both RFPs; `score.sh` scores
+recall (`compare --judge`) and precision (`precision --grade`), and
+`summarize.py` writes `poc/ablation/summary.json`. Durham recall is against
+`poc/durham/gold/gold_draft.txt` (238 facts, written by a subagent that never
+saw any extractor output; **not yet checked by a person**).
+
+| Config | Ulster recall | Durham* recall | Ulster out tokens | Ulster s |
+| --- | --- | --- | --- | --- |
+| base (2 passes, wide sweep) | 0.910 / 0.946 (rerun) | 0.979 / 0.979 | 56-58k | 63-69 |
+| 1 pass | 0.916 | 0.950 | 36k | 48 |
+| 1 pass, narrow sweep | 0.869 | 0.912 | 26k | 44 |
+| 1 pass, no sweep | 0.829 | 0.853 | 24k | 55 |
+| 1 pass, no repair | 0.923 | 0.966 | 34k | 46 |
+| 1 pass, cap 8,000 | 0.919 | 0.971 | 34k | 46 |
+
+- **Run-to-run noise is about 3.5 points** on Ulster (base vs rerun, same config).
+- **The wide sweep earns its place**: without it recall drops 9-12 points;
+  the narrow sweep drops 4-5.
+- **The second pass adds 0-3 points**, within noise on Ulster, for ~60% more
+  output tokens and ~15-20 s.
+- **Repair adds nothing measurable**; without it 3-6 facts per run stay
+  `needs_review`.
+- **The output cap does not matter**: at most one cut call per run at 3,000.
+- **Precision (model-graded)**: 89-92% of facts fully supported, ~8% partly
+  (a dropped condition or overstatement), ~2% not supported, including a
+  reversed party ("Give County five days" where the source gives the
+  responder five days). The grader marks almost nothing as noise (0.4%), so
+  its usefulness verdict is not trustworthy until checked against labels in
+  `poc/ablation/labels/`. The near-duplicate count is rough: most pairs it
+  finds on Durham are sibling facts, not restatements.
+
+**Defaults changed after these tests (2026-11-16):** `passes` is now 1, and the
+repair call and its prompt are removed; lines that fail validation are kept as
+`needs_review`. The wide sweep stays on.
+Two Ulster runs with the new defaults: 0.882 and 0.908 found (47-48 s, 34k
+output tokens, 7-10 `needs_review`). Over the four one-pass Ulster runs the
+mean is ~0.907, against ~0.928 for the two two-pass runs: about 2 points, at
+the edge of run-to-run noise. Use `--passes 2` when those points matter more
+than the extra cost.

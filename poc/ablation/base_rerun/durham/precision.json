@@ -1,0 +1,111 @@
+{
+  "facts": 488,
+  "duplicates": {
+    "pairs": 5,
+    "facts_involved": 9,
+    "examples": [
+      [
+        "The implementation scope includes Oracle ERP, Human Capital Management, and Utility Billing",
+        "The implementation scope includes Oracle ERP, Human Capital Management, and Utility Billing"
+      ],
+      [
+        "Copy Ahmed Ebrahim, Info-Tech consulting partner, at aebrahim@infotech.com on communications and proposal submissions",
+        "Ahmed Ebrahim is the Info-Tech consulting partner contact after submission; email aebrahim@infotech.com"
+      ],
+      [
+        "City livable wage is stated as $17.60 per hour through 2023-06-30; the rate thereafter is unspecified",
+        "Pay workers on City contracts a livable wage; stated rate is $17.60 per hour through 2023-06-30, and the City will reset it afterward"
+      ],
+      [
+        "Maintain workers\u2019 compensation insurance under North Carolina General Statute Chapter 97 and employer liability of at least $1,000,000 per accident, employee, and policy limit",
+        "Maintain employers liability limits of at least $1,000,000 for each accident, each employee, and policy limit"
+      ],
+      [
+        "Use the Vendor Comments column to explain cost details or clarify costs",
+        "Use the vendor comments column to explain costs, assumptions, discounts, or price conditions"
+      ]
+    ]
+  },
+  "model": {
+    "B": {
+      "n": 48,
+      "supported": 0.896,
+      "partly": 0.083,
+      "unsupported": 0.021,
+      "noise": 0.0,
+      "precision": 0.896
+    },
+    "C": {
+      "n": 75,
+      "supported": 0.893,
+      "partly": 0.067,
+      "unsupported": 0.04,
+      "noise": 0.013,
+      "precision": 0.893
+    },
+    "D": {
+      "n": 16,
+      "supported": 0.938,
+      "partly": 0.062,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.938
+    },
+    "E": {
+      "n": 29,
+      "supported": 0.966,
+      "partly": 0.034,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.966
+    },
+    "G": {
+      "n": 36,
+      "supported": 0.889,
+      "partly": 0.083,
+      "unsupported": 0.028,
+      "noise": 0.028,
+      "precision": 0.861
+    },
+    "Q": {
+      "n": 4,
+      "supported": 1.0,
+      "partly": 0.0,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 1.0
+    },
+    "R": {
+      "n": 235,
+      "supported": 0.881,
+      "partly": 0.068,
+      "unsupported": 0.051,
+      "noise": 0.0,
+      "precision": 0.881
+    },
+    "S": {
+      "n": 36,
+      "supported": 0.833,
+      "partly": 0.111,
+      "unsupported": 0.056,
+      "noise": 0.0,
+      "precision": 0.833
+    },
+    "X": {
+      "n": 9,
+      "supported": 0.889,
+      "partly": 0.111,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.889
+    },
+    "all": {
+      "n": 488,
+      "supported": 0.889,
+      "partly": 0.072,
+      "unsupported": 0.039,
+      "noise": 0.004,
+      "precision": 0.887
+    }
+  }
+}

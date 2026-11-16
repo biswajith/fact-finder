@@ -96,7 +96,7 @@ class CallSpec:
     task: str  # the per-call task message
     effort: str = "low"
     page_range: tuple[int, int] | None = None  # R calls only
-    kind: Literal["extract", "sweep", "check", "repair"] = "extract"
+    kind: Literal["extract", "sweep", "check"] = "extract"
     sweep_ids: tuple[str, ...] = ()
 
 

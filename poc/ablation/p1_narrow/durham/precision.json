@@ -1,0 +1,90 @@
+{
+  "facts": 370,
+  "duplicates": {
+    "pairs": 0,
+    "facts_involved": 0,
+    "examples": []
+  },
+  "model": {
+    "B": {
+      "n": 36,
+      "supported": 0.889,
+      "partly": 0.111,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.889
+    },
+    "C": {
+      "n": 46,
+      "supported": 0.87,
+      "partly": 0.109,
+      "unsupported": 0.022,
+      "noise": 0.0,
+      "precision": 0.87
+    },
+    "D": {
+      "n": 15,
+      "supported": 0.867,
+      "partly": 0.133,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.867
+    },
+    "E": {
+      "n": 19,
+      "supported": 0.842,
+      "partly": 0.105,
+      "unsupported": 0.053,
+      "noise": 0.0,
+      "precision": 0.842
+    },
+    "G": {
+      "n": 16,
+      "supported": 1.0,
+      "partly": 0.0,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 1.0
+    },
+    "Q": {
+      "n": 2,
+      "supported": 1.0,
+      "partly": 0.0,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 1.0
+    },
+    "R": {
+      "n": 193,
+      "supported": 0.933,
+      "partly": 0.062,
+      "unsupported": 0.005,
+      "noise": 0.0,
+      "precision": 0.933
+    },
+    "S": {
+      "n": 27,
+      "supported": 0.889,
+      "partly": 0.111,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.889
+    },
+    "X": {
+      "n": 16,
+      "supported": 0.938,
+      "partly": 0.062,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.938
+    },
+    "all": {
+      "n": 370,
+      "supported": 0.914,
+      "partly": 0.078,
+      "unsupported": 0.008,
+      "noise": 0.0,
+      "precision": 0.914
+    }
+  }
+}

@@ -1,0 +1,216 @@
+judge: 131 pairs asked, 0 from cache poc/ablation/p1_cap8k/ulster/facts.judge.json, 0 unanswered; 32 matched below the cutoff, 0 wording matches rejected, 48 found but partial
+recall any code 0.919, without judge partials 0.816
+  + matched below the cutoff: Valuation years ending: 2026-12-31, 2027-12-31, 2028-12-31; optional 2029-12-31 and 2030-12-31
+      -> Optional actuarial years end in 2029 and 2030, while the initial contract runs through 2029 and extensions follow that term  (It omits the required valuation years 2026–2028 and gives no valuation date for those years.)
+  + matched below the cutoff: Insurance requirements form with agency details and current policy limits, signed
+      -> Submit insurance requirements documentation  (It does not specify the required agency details, current policy limits, or signature.)
+  + matched below the cutoff: Fee proposal must be separate from main proposal vs checklist electronic copy combining technical and fee proposal
+      -> Submit the fee proposal separately and unbound, in original, photocopy, and electronic formats, in a separate envelope marked COST PROPOSAL  (It states that the fee proposal must be separate from the main proposal.)
+  + matched below the cutoff: If state or federal funding is reduced, County may withhold the reduction from future payments or recover it from the Firm, including payments already made
+      -> The sample agreement ties payment amounts to state or federal funding allocations, which may change or be reduced  (It omits the County’s right to withhold reductions from future payments or recover them from the Firm, including amounts already paid.)
+  + matched below the cutoff: Contract amounts may change during the term based on state or federal funding changes and will be amended accordingly
+      -> County funding reductions may reduce or end payments, allow withholding or recovery, and change contract amounts  (It omits that contract amounts will be amended accordingly and does not cover funding changes generally.)
+  + matched below the cutoff: Acceptable WC proof forms are C-105.2, U-26.3, SI-12, GSI-105.2 or GSI-12; DB proof forms are DB-120.1 or DB-155
+      -> Provide proof of disability benefits coverage using Form DB-120.1 or DB-155, or Form CE-200 if exempt  (It covers disability-benefits proof but omits the acceptable workers’ compensation proof forms.)
+  + matched below the cutoff: Firm must immediately notify the County Attorney if it or its staff or subcontractors become debarred; failure results in immediate termination
+      -> If the successful responder becomes barred from public business during the contract, it must immediately notify the County Attorney  (It omits staff and subcontractors, and the immediate-termination consequence.)
+  + matched below the cutoff: If tax-exempt, Firm must furnish its latest IRS Form 990 before execution and stay current; County may withhold final payment for noncompliance
+      -> County may withhold the final payment until the Firm cures continued Form 990 filing noncompliance  (It omits the tax-exempt condition and the requirement to furnish the latest Form 990 before execution and stay current.)
+  + matched below the cutoff: Firm must comply with the County Compliance Plan and give each individual providing Services access; County may terminate for non-compliance
+      -> County may terminate the Agreement in whole or part for failure to comply with its Compliance Plan  (It omits the requirement to give each individual providing Services access to the Compliance Plan.)
+  + matched below the cutoff: Firm may not assign the Agreement or Services without prior written consent; unconsented assignment is void and uncompensated
+      -> Obtain County written consent before assigning contract rights, obligations, or services  (It omits that an unconsented assignment is void and uncompensated.)
+  ~ partial: Work is independent actuarial analysis of IBNR loss reserve, with total reserves on discounted and undiscounted basis
+      -> The actuarial study estimates incurred-but-not-reported loss reserves and total year-end reserves on discounted and undiscounted bases  (It omits that the analysis must be independent.)
+  ~ partial: Optional additional actuarial services on hourly fee basis at County or Plan Administrator request
+      -> The proposal must state hourly fee rates for optional actuarial services  (It omits that the services are provided at the County’s or Plan Administrator’s request.)
+  ~ partial: County applies GreenNY sustainability requirements in procurement per Executive Order #1 of 2023
+      -> Adhere to GreenNY sustainability requirements  (It omits the procurement context and Executive Order #1 of 2023.)
+  ~ partial: Contract executed only to the extent of monies available; notice of award not binding until fully executed
+      -> A notice of award does not bind the County until both parties fully execute the contract  (It omits that the contract is limited to available monies.)
+  ~ partial: Bidder must have no Northern Ireland operations or comply with MacBride Fair Employment Principles
+      -> Bidder and related entities with a 10% or greater ownership interest certify they have no business operations in Northern Ireland  (It omits the alternative of complying with the MacBride Fair Employment Principles.)
+  ~ partial: County of Ulster, PO Box 1800, Kingston NY 12402-1800 named additional insured on CGL, umbrella and auto, primary and non-contributory
+      -> Name the County as additional insured on commercial general liability coverage, primary and non-contributory  (It omits the umbrella and auto coverage and the required County address.)
+  ~ partial: Last day to submit written inquiries: 2026-08-18 (at least ten calendar days before submission date)
+      -> Written inquiries due: 2026-08-18  (It omits the requirement that the deadline be at least ten calendar days before proposals are due.)
+  ~ partial: Valuation years ending: 2026-12-31, 2027-12-31, 2028-12-31; optional 2029-12-31 and 2030-12-31
+      -> Optional actuarial years end in 2029 and 2030, while the initial contract runs through 2029 and extensions follow that term  (It omits the required valuation years 2026–2028 and gives no valuation date for those years.)
+  ~ partial: Insurance requirements form with agency details and current policy limits, signed
+      -> Submit insurance requirements documentation  (It does not specify the required agency details, current policy limits, or signature.)
+  ~ partial: Acknowledgement of Receipt of Addendums with number and date of each, signed
+      -> Complete and submit the Acknowledgement of Receipt of Addendums form, if addenda apply  (It omits the signature and the number and date of each addendum.)
+code  gold  extr  recall any code other comb merged extr~gold
+B       29    23    0.69    0.862     5    0      1      0.87
+C       82   160   0.744    0.915    14    0      4       0.5
+D       34    23   0.676    0.912     8    0      2     0.739
+E       18    15   0.667    0.944     5    2      0     0.733
+G       28    33   0.821    0.964     4    0      1     0.333
+Q       15     7     0.4    0.867     7    1      2     0.857
+R      201   334   0.846     0.93    17   16     11     0.677
+S       43    40   0.744    0.884     6    0      3     0.675
+X       17    13   0.647    0.941     5    0      0     0.923
+all    467   648 recall any code 0.919
+19 gold facts found inside an extracted fact that also states another gold fact (comb)
+24 missed gold facts matched only a fact already paired with another, and it does not state them fully (merged)
+
+code values wrong incompl recall, values ok
+B        13     1       3             0.724
+C        13     1       4             0.854
+D        24     0       3             0.824
+E         7     0       0             0.944
+G        14     0       1             0.929
+Q         5     0       2             0.733
+R        22     1       5               0.9
+S         1     0       0             0.884
+X         0     0       0             0.941
+all  recall with values ok 0.874
+
+value wrong (3):
+  ! Plan participants in Attachment A; Employers Liability Report 2026 in Attachment B; claims reports 2023-2026 in Attachments C-F
+    -> Plan participants are listed in Attachment A; the 2026 Employers’ Liability Report for year ending 2025 is Attachment B  (missing ['2023'], has ['2025'])
+  ! Acceptable WC proof forms are C-105.2, U-26.3, SI-12, GSI-105.2 or GSI-12; DB proof forms are DB-120.1 or DB-155
+    -> Provide proof of disability benefits coverage using Form DB-120.1 or DB-155, or Form CE-200 if exempt  (missing ['105.2', '12', '26.3'], has ['200'])
+  ! Conduct any Northern Ireland operations per MacBride principles and permit independent monitoring, if Statement 2 applies
+    -> Bidder and related entities with a 10% or greater ownership interest commit to follow MacBride principles and permit independent monitoring of Northern Ireland operations  (missing ['2'], has ['10'])
+
+value incomplete (18):
+  ! Department of General Services fax: 845-340-3434
+    -> Submit clarification requests to Brenden Boughton, Ulster County Department of General Services, by email or fax  (missing ['340', '3434', '845'])
+  ! Approximately 941 active volunteer firepersons and approximately 5,745 government/local education employees
+    -> The plan has approximately 5,745 government and local education employees  (missing ['941'])
+  ! County applies GreenNY sustainability requirements in procurement per Executive Order #1 of 2023
+    -> Adhere to GreenNY sustainability requirements  (missing ['1', '2023'])
+  ! County of Ulster, PO Box 1800, Kingston NY 12402-1800 named additional insured on CGL, umbrella and auto, primary and non-contributory
+    -> Name the County as additional insured on commercial general liability coverage, primary and non-contributory  (missing ['12402', '1800'])
+  ! Last day to submit written inquiries: 2026-08-18 (at least ten calendar days before submission date)
+    -> Written inquiries due: 2026-08-18  (missing ['10'])
+  ! Contract term: three years 2027-01-01 to 2029-12-31
+    -> Contract term is 2027-01-01 through 2029-12-31, with up to two additional one-year extensions by mutual agreement  (missing ['3'])
+  ! Valuation years ending: 2026-12-31, 2027-12-31, 2028-12-31; optional 2029-12-31 and 2030-12-31
+    -> Optional actuarial years end in 2029 and 2030, while the initial contract runs through 2029 and extensions follow that term  (missing ['date:2026-12-31', 'date:2027-12-31', 'date:2028-12-31', 'date:2029-12-31', 'date:2030-12-31'])
+  ! Valuation period years ending 2026-2028 with renewals 2029-2030 conflicts with contract term 2027-01-01 to 2029-12-31
+    -> Initial contract term ends: 2029-12-31  (missing ['2026', '2028', '2030', 'date:2027-01-01'])
+  ! Attachment F claims through June 30, 2026 vs as of July 1, 2026
+    -> Claims reports are through June 30, 2026, while Attachment F is titled as of 7.1.2026  (missing ['date:2026-07-01'])
+  ! Certificates of Insurance must be filed with Risk Management before commencing work, with County of Ulster PO Box 1800 as Certificate Holder
+    -> File required insurance certificates with Risk Management before starting work  (missing ['1800'])
+flag mandatory: {'gold': 297, 'extracted': 268, 'both': 236}
+flag risk: {'gold': 55, 'extracted': 48, 'both': 32}
+filed under another code (gold -> extracted): {('C', 'R'): 11, ('R', 'S'): 9, ('R', 'C'): 6, ('S', 'R'): 4, ('Q', 'C'): 4, ('E', 'R'): 3, ('D', 'R'): 3, ('B', 'R'): 2, ('B', 'G'): 2, ('E', 'G'): 2, ('G', 'R'): 2, ('X', 'C'): 2, ('D', 'C'): 2, ('C', 'S'): 2, ('B', 'C'): 1, ('G', 'B'): 1, ('G', 'C'): 1, ('X', 'E'): 1, ('X', 'R'): 1, ('X', 'G'): 1, ('D', 'E'): 1, ('D', 'Q'): 1, ('D', 'S'): 1, ('S', 'D'): 1, ('S', 'G'): 1, ('Q', 'D'): 1, ('Q', 'X'): 1, ('Q', 'R'): 1, ('C', 'G'): 1, ('R', 'G'): 1, ('R', 'D'): 1}
+
+missed B (4):
+  - Department of General Services main phone 845-340-3400 [p17.t1r1]
+  - County principal offices at 244 Fair Street, Kingston, NY 12401 [p16.3]
+  - County Attorney mailing address PO Box 1800 Kingston NY 12402; physical 244 Fair Street, 5th Floor, Kingston NY 12401 [p27.8]
+  - Report process: preliminary draft findings, discussion with County, final report; County may request meeting or call [p5.7,p5.8]
+extracted B, no gold match (3):
+  + Each annual report must contain a three-year forecast [p4.4]
+  + The plan has approximately 941 active volunteer firepersons [p4.5]
+  + Open and closed claims reports cover 2023, 2024, 2025, and 2026 through June 30, 2026, in Attachments C through F [p4.7,p15.10,p15.11,p15.12,p15.13]
+
+missed C (7):
+  - County has no liability beyond appropriated funds and may terminate if funds are not appropriated, available or reduced [p17.5,p17.4]
+  - County will pay within sixty days of receipt of invoice with supporting documentation and approval by the Department Head and County Comptroller [p13.8]
+  - Sample contract Schedule B: County remits payment within sixty days of invoice approval by the Department Head and Ulster County Comptroller [p30.10,p17.2]
+  - Breach of conflict-of-interest warranties lets County annul the Agreement and recover all monies paid [p17.20,p18.1,p17.16,p17.17,p18.2]
+  - Sample contract states the Firm shall not subcontract any of its obligations under the Agreement [p20.13]
+  - Firm must obtain confidentiality agreements from subcontractors before performance and from its staff on County request [p21.13,p21.14]
+  - Invoices and supporting records are subject to County, State and Federal audit; Firm must provide documentation justifying fees on request [p22.6,p22.7,p22.8,p22.9]
+extracted C, no gold match (80):
+  + Contract award is limited to funds available to Ulster County [p10.22]
+  + Additional services require prior written authorization through an executed Change Order, Amendment, or Addendum [p16.11]
+  + The fee schedule must include labor, materials, travel, equipment, and all other costs needed to provide the service [p9.13]
+  + Maintain commercial general liability coverage of at least $1,000,000.00 per occurrence and $2,000,000.00 general aggregate [p32.13,p32.14,p32.15,p12.3,p33.12,p33.13,p33.11]
+  + Provide umbrella or excess liability coverage of at least $2,000,000.00 [p32.20,p12.3]
+  + Automobile liability coverage must have a minimum combined single limit of $1,000,000.00 [p12.3,p33.5]
+  + All confidential information and copies belong exclusively to the County and must be delivered upon request [p21.15,p21.16,p21.17]
+  + Maintain separate, accurate records of contract costs and retain relevant records for six (6) years after final payment or termination, whichever is later [p22.3,p22.4]
+  + County and authorized auditors may examine contract records during the retention period [p22.5]
+  + The County may terminate the agreement for convenience, breach, or insolvency; for convenience, payment covers services rendered through termination [p25.9,p25.10]
+
+missed D (3):
+  - Proposal validity: until execution of a contract unless rejected [p7.5]
+  - IRS Form 990 copy for tax-exempt firms: prior to execution of the agreement [p18.11]
+  - Payment: within 60 days of approval of invoice by Department Head and Comptroller [p30.10]
+extracted D, no gold match (6):
+  + Provide requested qualification information within five days of the County’s request [p10.16]
+  + File evidence of required insurance within ten days of notice of award [p12.4]
+  + Submit a written force majeure delay claim within 30 days after the event first occurs [p28.9,p28.10]
+  + Return unearned or unexpended funds within ten days after contract termination [p25.11,p25.12]
+  + Provide equipment and property inventory within ten days after contract termination [p25.11,p25.13]
+  + Retain authorized copies of confidential information for six years after service completion or contract termination, whichever is later [p21.18]
+
+missed E (1):
+  - County may waive informalities [p7.7]
+extracted E, no gold match (4):
+  + Understanding of County goals and objectives is worth 10 points; evaluators assess whether the proposal addresses County needs and meets or exceeds objectives [p10.10]
+  + Overall plan to provide required services is worth 35 points [p9.h4]
+  + Fee and pricing proposal is worth 30 points [p10.h1]
+  + Qualifications and experience are worth 20 points [p10.h2]
+
+missed G (1):
+  - Certificate holder on all insurance certificates must be County of Ulster, PO Box 1800, Kingston NY 12402-1800 [p31.12,p31.13,p31.8]
+extracted G, no gold match (22):
+  + Disclose required ownership information using the Disclosure of Ownership Interest Certification Form [p12.5,p12.6,p12.7,p12.8,p12.9,p13.1]
+  + Submit the required Affidavit of Non-Collusion with the proposal [p14.1]
+  + Maintain required insurance coverage during contract performance and provide proof within ten (10) days of notice of award [p12.3,p12.4]
+  + Provide certificates of insurance before starting work; required professional liability coverage is at least ONE MILLION AND 00/100 ($1,000,000.00) per occurrence and TWO MILLION AND 00/100 ($2,000,000.00) aggregate [p31.7,p33.11,p33.12]
+  + Provide cyber liability coverage of at least FIVE MILLION AND 00/100 ($5,000,000.00) per occurrence and aggregate [p33.13]
+  + Provide commercial general liability coverage of at least ONE MILLION AND 00/100 ($1,000,000.00) per occurrence and TWO MILLION AND 00/100 ($2,000,000.00) aggregate [p32.13,p32.14,p32.15]
+  + Provide umbrella or excess liability coverage of at least TWO MILLION AND 00/100 ($2,000,000.00) [p32.20]
+  + Provide automobile liability coverage with a minimum Combined Single Limit of ONE MILLION AND 00/100 ($1,000,000.00) [p33.5]
+  + Provide required workers’ compensation and disability insurance or submit applicable exemption forms [p31.17,p31.19,p31.21,p32.5,p32.7,p32.11]
+  + Submit the required Disclosure of Ownership Interest Certification Form, Living Wage Acknowledgement and Acceptance Declaration, Affidavit of Non-Collusion, notarized Iranian Divestment Certificate, and MacBride Fair Employment Principles form [p36.4]
+
+missed Q (2):
+  - Payment within 60 days of invoice receipt vs within 60 days of invoice approval [p13.8,p30.10]
+  - RFP purpose requires valuations for years ending 2026 to 2028 with renewals to 2030, but contract period is January 2027 to December 2029 [p4.3,p11.2,p15.t1r6]
+extracted Q, no gold match (1):
+  + The Response Return Form is required with the proposal but is omitted from the required-documents checklist [p35.h1,p35.h2,p35.h3,p35.h4,p36.4]
+
+missed R (14):
+  - Return the confirmation sheet with a short explanation of the reasons if not submitting a proposal [p6.11,p2.5]
+  - Include sufficient detail for effective evaluation and to substantiate stated claims [p7.15]
+  - Assume the County has no prior knowledge of the responder facilities and experience [p7.17]
+  - Identify the contact person responsible for inquiries regarding the RFP submission [p8.10]
+  - Describe management structure and ability to support projects of this scope [p8.16,p8.13]
+  - Describe ability to recruit and retain staff [p8.17,p8.13]
+  - Detail methods to be employed that will result in cost savings for the County [p9.7]
+  - Provide a realistic estimate of cost savings where possible [p9.8]
+  - Submit an unconditional proposal [p10.18,p7.7]
+  - Clearly identify and explain in detail where any alternatives deviate from or qualify the RFP terms and specifications [p11.12]
+extracted R, no gold match (108):
+  + Provide annual actuarial valuations of the County’s self-insured workers compensation program [p4.2]
+  + Affirm the firm has been licensed or otherwise permitted to provide actuarial services in New York State for at least four (4) years [p5.10]
+  + Provide satisfactory proof of capacity and ability to complete the solicitation requirements [p6.5]
+  + Clearly identify all proposal copies and the original document [p6.13]
+  + Deliver proposals by 2026-08-28 4:00 P.M. to Ulster County Department of General Services, Edward Jordan, Director of General Services, 100 Development Court, Kingston, NY 12401 [p6.16,p6.17,p6.18]
+  + Clearly and specifically identify any exceptions to the RFP conditions in the proposal [p7.4]
+  + Submit proposals in writing, not orally, by fax, or by telephone [p7.6]
+  + Include a table of contents listing proposal material by section and page number [p8.12]
+  + Provide at least three references for similar completed projects, excluding Ulster County [p8.21]
+  + Emphasize similar work performed during the previous five years [p8.23]
+
+missed S (5):
+  - Respond to the ten Vendor Qualifications items [p5.9,p5.10,p5.11,p5.12,p5.14,p5.15,p5.17,p5.21,p5.23,p6.3,p6.4]
+  - Receipt Confirmation Form: complete, sign and email or fax to General Services; failure may end further communication [p2.h1,p6.9,p2.3,p6.10,p2.6]
+  - Insurance Statement: mark certificate attached or certify ability to supply, with authorized signature [p37.h3,p37.8,p37.9,p37.10]
+  - Written authorization enclosed if non-collusion signer is not the price decision-maker [p41.3]
+  - Questions submitted in writing to Brenden Boughton by email or fax; question form provided [p7.23,p8.1,p8.3,p34.2,p34.3]
+extracted S, no gold match (13):
+  + Submit the fee or cost proposal separately, unbound, in an envelope marked COST PROPOSAL with RFP name and number; include it in the same package as the main proposal [p9.10,p9.11]
+  + Attach samples of all reports to be used [p9.5]
+  + Sign the proposal according to entity type; corporations must attach board authorization and partnerships must submit written authorization [p37.3,p37.4]
+  + Complete and submit the Disclosure of Ownership Interest Certification Form [p12.5,p13.1,p36.4,p39.1]
+  + Complete and submit the Living Wage Acknowledgment and Acceptance Declaration [p36.4,p40.2,p40.4,p40.5,p40.6]
+  + Complete, sign, and submit the Affidavit of Non-Collusion [p14.1,p36.4,p41.h2,p41.14]
+  + Submit the notarized Iran Divestment Certificate [p36.4,p42.h2,p42.6,p42.7,p42.8,p42.9]
+  + Provide proof of workers’ compensation coverage using an accepted New York form, or Form CE-200 if exempt [p31.21,p31.23,p32.1,p32.2,p32.3,p32.4,p32.5]
+  + Provide commercial general liability coverage of at least $1,000,000.00 per occurrence and $2,000,000.00 general aggregate [p32.13,p32.14,p32.15]
+  + Provide umbrella or excess liability coverage of at least $2,000,000.00 [p32.20]
+
+missed X (1):
+  - Oral, faxed or telephoned submittals or modifications will not be accepted [p7.6]
+extracted X, no gold match (1):
+  + Failure to provide requested qualification information and data within five (5) days of request may result in rejection if the County finds the responder unqualified [p10.16,p10.17]

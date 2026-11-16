@@ -1,0 +1,111 @@
+{
+  "facts": 737,
+  "duplicates": {
+    "pairs": 15,
+    "facts_involved": 28,
+    "examples": [
+      [
+        "Buyer contact Brenden Boughton, Principal Buyer, phone (845) 340-3999, email bbou@ulstercountyny.gov",
+        "Contact Brenden Boughton, Principal Buyer, at (845) 340-3999, bbou@ulstercountyny.gov; fax (845) 340-3434"
+      ],
+      [
+        "Submit Fee/Cost Proposal separately and unbound, in original, photocopy, and electronic formats; put hardcopy in a separate envelope marked \u201cCOST PROPOSAL\u201d with RFP name and number, in the same package",
+        "Place hardcopy Fee/Cost Proposal in a separate envelope marked COST PROPOSAL with RFP name and number; include it in the same package as the proposal"
+      ],
+      [
+        "Costs above the contract amount require prior written authorization; the County is not responsible for unauthorized excess costs",
+        "Costs above the agreed amount require prior written authorization; County will not pay unauthorized excess costs"
+      ],
+      [
+        "The County has no liability beyond funds appropriated and available and may terminate if funding is unavailable or reduced",
+        "County liability is limited to funds appropriated and available; County may terminate if funds are unavailable or reduced"
+      ],
+      [
+        "Schedule C requires commercial general liability of at least ONE MILLION AND 00/100 ($1,000,000.00) DOLLARS per occurrence and TWO MILLION AND 00/100 ($2,000,000.00) DOLLARS aggregate",
+        "Schedule C requires umbrella or excess liability of at least TWO MILLION AND 00/100 ($2,000,000.00) DOLLARS"
+      ]
+    ]
+  },
+  "model": {
+    "B": {
+      "n": 35,
+      "supported": 0.971,
+      "partly": 0.029,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.971
+    },
+    "C": {
+      "n": 175,
+      "supported": 0.909,
+      "partly": 0.069,
+      "unsupported": 0.023,
+      "noise": 0.0,
+      "precision": 0.909
+    },
+    "D": {
+      "n": 28,
+      "supported": 0.893,
+      "partly": 0.071,
+      "unsupported": 0.036,
+      "noise": 0.0,
+      "precision": 0.893
+    },
+    "E": {
+      "n": 16,
+      "supported": 0.938,
+      "partly": 0.062,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.938
+    },
+    "G": {
+      "n": 37,
+      "supported": 0.865,
+      "partly": 0.081,
+      "unsupported": 0.054,
+      "noise": 0.027,
+      "precision": 0.865
+    },
+    "Q": {
+      "n": 8,
+      "supported": 0.625,
+      "partly": 0.25,
+      "unsupported": 0.125,
+      "noise": 0.0,
+      "precision": 0.625
+    },
+    "R": {
+      "n": 352,
+      "supported": 0.92,
+      "partly": 0.074,
+      "unsupported": 0.006,
+      "noise": 0.003,
+      "precision": 0.92
+    },
+    "S": {
+      "n": 51,
+      "supported": 0.902,
+      "partly": 0.098,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.902
+    },
+    "X": {
+      "n": 35,
+      "supported": 0.943,
+      "partly": 0.057,
+      "unsupported": 0.0,
+      "noise": 0.0,
+      "precision": 0.943
+    },
+    "all": {
+      "n": 737,
+      "supported": 0.913,
+      "partly": 0.073,
+      "unsupported": 0.014,
+      "noise": 0.003,
+      "precision": 0.913
+    }
+  }
+}

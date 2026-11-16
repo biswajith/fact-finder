@@ -168,17 +168,3 @@ Q|side 1 vs side 2, in under 30 words|ID of side 1,ID of side 2|
 If a later section clearly replaces an earlier one, add the flag replaced.
 Do not report differences in wording that mean the same thing.
 Write END with the number of Q lines."""
-
-
-def repair_task(codes: tuple[str, ...], failed: list[tuple[str, str]]) -> str:
-    """Prompt 10.8. `failed` is (line, reason) pairs."""
-    lines = "\n".join(f"{line}  -- reason: {reason}" for line, reason in failed)
-    return f"""TASK REPAIR
-Allowed codes: {", ".join(codes)}
-
-These lines failed a check. The reason is after each line.
-{lines}
-
-Rewrite each line so it passes. Follow the RULES. Use only IDs from the RFP text, and make sure every number in the fact appears in the cited text.
-If a line cannot be fixed, write: DROP|reason|IDs|
-Write END with the number of lines."""

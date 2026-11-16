@@ -81,7 +81,6 @@ class CallOutput:
     checked: list[Checked]
     end_count: int | None  # None = no END line: output was cut
     none_ids: list[str]  # sweep: IDs answered with NONE
-    dropped: list[OutputLine]  # repair: DROP lines
     body_lines: int = 0  # every line before END
 
     @property
@@ -126,7 +125,6 @@ def check_line(line: OutputLine, call: CallSpec, doc: TaggedDocument) -> Checked
 def check_output(lines: list[str], call: CallSpec, doc: TaggedDocument) -> CallOutput:
     checked: list[Checked] = []
     none_ids: list[str] = []
-    dropped: list[OutputLine] = []
     end_count: int | None = None
     body = 0
     for raw in lines:
@@ -143,8 +141,5 @@ def check_output(lines: list[str], call: CallSpec, doc: TaggedDocument) -> CallO
         if line.code == "NONE" and call.kind == "sweep":
             none_ids.extend(i for i in line.ids if i in doc.anchors)
             continue
-        if line.code == "DROP" and call.kind == "repair":
-            dropped.append(line)
-            continue
         checked.append(check_line(line, call, doc))
-    return CallOutput(checked, end_count, none_ids, dropped, body)
+    return CallOutput(checked, end_count, none_ids, body)

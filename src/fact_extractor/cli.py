@@ -51,8 +51,11 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--deal-id", required=True)
             p.add_argument("--model", default=None, help="defaults to $FACT_EXTRACTOR_MODEL or gpt-6-luna")
             p.add_argument("--parallel", type=int, default=32)
-            p.add_argument("--passes", type=int, default=2, help="extraction passes to merge; 1 is faster, 2 finds more")
+            p.add_argument("--passes", type=int, default=1, help="extraction passes to merge; 2 finds a little more, costs ~60%% more")
             p.add_argument("--narrow-sweep", action="store_true", help="sweep only shall/must sentences (faster)")
+            p.add_argument("--max-output-tokens", type=int, default=3000, help="output cap per extraction call")
+            p.add_argument("--no-sweep", action="store_true", help="skip the coverage sweep (trimming tests)")
+            p.add_argument("--no-check", action="store_true", help="skip the model contradiction check (xref still runs)")
             p.add_argument(
                 "--sequential-check", action="store_true",
                 help="run the contradiction check after the sweep, so it also sees sweep facts (slower)",
@@ -70,10 +73,22 @@ def main(argv: list[str] | None = None) -> int:
         help="verdict cache JSON; defaults to the facts file with .judge.json. Cached pairs are not asked again",
     )
     c.add_argument("--model", default=None, help="judge model; defaults to $FACT_EXTRACTOR_MODEL or gpt-6-luna")
+    pr = sub.add_parser("precision", help="how many extracted facts are supported and useful")
+    pr.add_argument("facts", help="facts JSON written by extract")
+    pr.add_argument("--sample", type=int, default=0, help="write this many random facts to --sample-out for labelling")
+    pr.add_argument("--sample-out", default=None, help="CSV to write the sample to (defaults to <facts>.sample.csv)")
+    pr.add_argument("--seed", type=int, default=1)
+    pr.add_argument("--labels", default=None, help="labelled sample CSV: score it, and compare with model grades")
+    pr.add_argument("--grade", action="store_true", help="have the model grade every fact (needs OPENAI_API_KEY)")
+    pr.add_argument("--grade-cache", default=None, help="grade cache JSON (defaults to poc/precision.grades.json)")
+    pr.add_argument("--model", default=None)
+    pr.add_argument("--json", default=None, help="write the scores here")
     args = ap.parse_args(argv)
 
     if args.cmd == "compare":
         return _compare(args)
+    if args.cmd == "precision":
+        return _precision(args)
 
     doc_id = args.doc_id or args.pdf.rsplit("/", 1)[-1].rsplit(".", 1)[0]
     doc = tag_pages(doc_id, read_pdf(args.pdf))
@@ -98,6 +113,8 @@ def main(argv: list[str] | None = None) -> int:
                 cfg=Config(
                     max_parallel=args.parallel, parallel_check=not args.sequential_check,
                     passes=args.passes, sweep_all=not args.narrow_sweep,
+                    max_output_tokens=args.max_output_tokens, sweep=not args.no_sweep,
+                    check=not args.no_check,
                 ),
             )
         )
@@ -236,4 +253,47 @@ def _compare(args) -> int:
                 },
                 f, indent=2,
             )
+    return 0
+
+
+def _print_rates(title: str, rates: dict) -> None:
+    print(title)
+    print(f"  {'code':4} {'n':>5} {'supported':>9} {'partly':>6} {'unsup':>5} {'noise':>5} {'precision':>9}")
+    for c, r in rates.items():
+        print(
+            f"  {c:4} {r['n']:5} {r['supported']:9} {r['partly']:6} {r['unsupported']:5} {r['noise']:5} {r['precision']:9}"
+        )
+
+
+def _precision(args) -> int:
+    from . import precision as pc
+
+    with open(args.facts) as f:
+        records = json.load(f)
+    out: dict = {"facts": len(records), "duplicates": pc.duplicates(records)}
+    d = out["duplicates"]
+    print(f"{len(records)} facts; near-duplicate pairs {d['pairs']} ({d['facts_involved']} facts)")
+    if args.sample:
+        path = args.sample_out or os.path.splitext(args.facts)[0] + ".sample.csv"
+        pc.write_sample(pc.sample(records, args.sample, args.seed), path)
+        print(f"wrote {args.sample} facts to label: {path} (supported: y/p/n, useful: u/x)")
+    rows = pc.read_labels(args.labels) if args.labels else []
+    if rows:
+        out["labels"] = pc.score_labels(rows)
+        _print_rates(f"labelled by a person ({len(rows)} facts):", out["labels"])
+    cache = pc.GradeCache(args.grade_cache or "poc/precision.grades.json")
+    if args.grade:
+        from .llm import OpenAIClient
+
+        grades, asked = asyncio.run(pc.grade(records, OpenAIClient(model=args.model), cache))
+        got = [(r["category"], g) for r, g in zip(records, grades) if g is not None]
+        print(f"model grades: {asked} facts sent, {len(records) - len(got)} without an answer")
+        out["model"] = pc.score(got)
+        _print_rates("graded by the model:", out["model"])
+    if rows:
+        out["agreement"] = pc.agreement(rows, records, cache)
+        print(f"model vs person: {out['agreement']}")
+    if args.json:
+        with open(args.json, "w") as f:
+            json.dump(out, f, indent=2)
     return 0
