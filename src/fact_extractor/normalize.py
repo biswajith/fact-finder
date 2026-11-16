@@ -131,9 +131,29 @@ def values(text: str, *, generous: bool = False) -> set[str]:
     return out
 
 
+# PDF text often loses the spaces between words ("afterMay 24", "May24 2024 at2pmET",
+# "Anestimated30daysafter", form blanks like "___2."), so the word boundaries the
+# patterns need are missing. Re-insert a space where a letter or underscore runs into
+# a digit, or a lowercase letter into an uppercase one. A digit running into a letter
+# is left alone so "10k" and "1st" keep their meaning.
+_GLUED = re.compile(r"(?<=[A-Za-z_])(?=\d)|(?<=[a-z])(?=[A-Z])")
+
+
+def unglue(text: str) -> str:
+    return _GLUED.sub(" ", text)
+
+
 def missing_values(fact: str, sources: list[str]) -> set[str]:
-    """Tokens in `fact` not supported by any of the cited `sources`."""
+    """Tokens in `fact` not supported by any of the cited `sources`.
+
+    Sources are read both as written and with glued words split apart; the fact is
+    parsed as written. Splitting can only add source values, so it never makes a
+    fact fail that passed before.
+    """
     have: set[str] = set()
     for s in sources:
         have |= values(s, generous=True)
+        split = unglue(s)
+        if split != s:
+            have |= values(split, generous=True)
     return values(fact) - have
