@@ -15,6 +15,9 @@ for dir in $OUT/*/*/; do
   ok=1; for g in $gold; do [ -f "$g" ] || ok=0; done
   [ $ok = 1 ] || { echo "skip recall for $dir: no reference list yet"; continue; }
   # shellcheck disable=SC2086
-  uv run fact-extractor compare $gold --facts "$dir/facts.json" --judge --json "$dir/compare.json" > "$dir/compare.log" 2>&1
+  # One judge cache per document: the same pair of texts gets the same verdict in every run,
+  # so judge noise does not add to the difference between two runs.
+  uv run fact-extractor compare $gold --facts "$dir/facts.json" --judge --judge-cache "$OUT/judge.$tag.json" \
+    --json "$dir/compare.json" > "$dir/compare.log" 2>&1
 done
 uv run python poc/ablation/summarize.py

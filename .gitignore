@@ -1,6 +1,39 @@
+# --- secrets and local environment ---
 .env
+.env.*
+!.env.example
 .venv/
+.claude/
+
+# --- Python and tool caches ---
 __pycache__/
 *.pyc
 .pytest_cache/
-.claude/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+
+# --- run data: never committed ---
+# Results stored by `extract` and the review app (fact-extractor ui).
+runs/
+# Anything a run writes, wherever it lands.
+facts*.json
+report*.json
+compare*.json
+labels*.json
+*.judge.json
+*.grades.json
+*.log
+tagged.txt
+
+# poc/ holds experiments. Only the scripts that run them, the hand-written
+# reference lists and the hand labels are kept; every output is ignored.
+/poc/**
+!/poc/**/
+!/poc/**/*.sh
+!/poc/**/*.py
+!/poc/gold/*.txt
+!/poc/durham/gold/*.txt
+!/poc/ablation/labels/*.csv

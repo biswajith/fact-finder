@@ -105,6 +105,52 @@ def _lines(page: pymupdf.Page, table_rects: list) -> list[_Line]:
     return out
 
 
+def _cells(page: pymupdf.Page, table) -> list[list[str]]:
+    """The text of every cell, row by row, built from the words on the page.
+
+    The table finder's own `extract()` joins a cell's characters with no regard for the
+    gaps between words, so many PDFs come out as "TheproponentmustbeanOracleapproved".
+    `get_text("words")` splits on those gaps. A word belongs to the cell that holds its
+    centre. Falls back to `extract()` when the table has no cell boxes.
+    """
+    words = page.get_text("words", clip=pymupdf.Rect(table.bbox))
+    if not table.rows:
+        return []
+    # Columns are the first row's cells. A later row may be cut differently (merged or
+    # shifted cells), so each of its cells goes to the column it overlaps most.
+    columns = [(c[0], c[2]) if c else None for c in table.rows[0].cells]
+
+    def column_of(box) -> int:
+        overlap = [min(box[2], c[1]) - max(box[0], c[0]) if c else -1.0 for c in columns]
+        return max(range(len(columns)), key=lambda i: overlap[i])
+
+    def gap(lo: float, hi: float, v: float) -> float:
+        return 0.0 if lo <= v < hi else min(abs(v - lo), abs(v - hi))
+
+    # Every word inside the table goes to the nearest row, then to that row's nearest
+    # cell: a word whose centre sits just outside its cell's box is not lost.
+    placed: dict[tuple[int, int], list] = {}
+    for w in words:
+        cx, cy = (w[0] + w[2]) / 2, (w[1] + w[3]) / 2
+        r = min(range(len(table.rows)), key=lambda i: gap(table.rows[i].bbox[1], table.rows[i].bbox[3], cy))
+        boxes = [c for c in table.rows[r].cells if c is not None]
+        if not boxes:
+            continue
+        box = min(boxes, key=lambda c: gap(c[0], c[2], cx))
+        placed.setdefault((r, column_of(box)), []).append(w)
+
+    out: list[list[str]] = []
+    for r in range(len(table.rows)):
+        cells = [""] * len(columns)
+        for k in range(len(columns)):
+            inside = sorted(placed.get((r, k), []), key=lambda w: (w[5], w[6], w[7]))  # block, line, word
+            cells[k] = " ".join(w[4] for w in inside)
+        out.append(cells)
+    if not any(c for r in out for c in r):
+        return [[c or "" for c in r] for r in (table.extract() or [])]
+    return out
+
+
 def _read_page(
     page: pymupdf.Page, number: int, tables: list, lines: list[_Line], running: set[str]
 ) -> Page:
@@ -165,15 +211,26 @@ def _read_page(
     flush()
 
     for t in tables:
-        data = t.extract()
+        data = _cells(page, t)
         if not data:
             continue
-        header = [c or "" for c in (t.header.names if t.header and not t.header.external else data[0])]
-        rows = data if (t.header and t.header.external) else data[1:]
+        external = bool(t.header and t.header.external)
+        # The first row names the columns. With an external header (text above the table,
+        # which the table finder often takes from the paragraph before) the first row is
+        # also kept as data, as before.
+        header = data[0]
+        rows = data if external else data[1:]
         row_boxes = [tuple(round(v, 1) for v in r.bbox) for r in t.rows]
-        if not (t.header and t.header.external):
+        if not external:
             row_boxes = row_boxes[1:]
-        items.append((t.bbox[1], Table(header, [[c or "" for c in r] for r in rows], row_boxes)))  # type: ignore[arg-type]
+        # Spacer columns: a few points wide and empty in every row. They only add
+        # "Column 3: " noise to each row's text.
+        keep = [i for i in range(len(header)) if header[i].strip() or any(i < len(r) and r[i].strip() for r in rows)]
+        header = [header[i] for i in keep]
+        rows = [[r[i] if i < len(r) else "" for i in keep] for r in rows]
+        if not header or not rows:
+            continue
+        items.append((t.bbox[1], Table(header, rows, row_boxes)))  # type: ignore[arg-type]
 
     items.sort(key=lambda it: it[0])
     return Page(number, str(label or number), [blk for _, blk in items])  # type: ignore[misc]

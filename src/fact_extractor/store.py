@@ -10,10 +10,29 @@ from .merge import words
 from .models import FLAGS, Fact, TaggedDocument
 
 
-def fact_id(doc_id: str, fact: Fact) -> str:
-    """Stable across reruns of the same document (REVIEW.md item 14)."""
-    key = "|".join([doc_id, fact.category, ",".join(sorted(fact.ids)), " ".join(words(fact.text))])
-    return "f_" + hashlib.sha1(key.encode()).hexdigest()[:10]
+def fact_ids(doc_id: str, facts: list[Fact]) -> list[str]:
+    """One ID per fact, the same on a rerun however the model words the fact.
+
+    The ID is a hash of the document, the code and the main (first) cited ID, plus a
+    counter when several facts share those, in list order. The wording is left out: the
+    model never words a fact the same way twice, so an ID that hashed the text changed on
+    about nine facts in ten between two runs (REVIEW.md, "Run-to-run stability").
+    A Q fact is keyed on all its IDs, sorted: the two sides have no order. A fact with
+    no IDs (kept as needs_review) falls back to its words.
+    """
+    out: list[str] = []
+    seen: dict[tuple[str, str], int] = {}
+    for f in facts:
+        if not f.ids:
+            anchor = "text:" + " ".join(words(f.text))
+        elif f.category == "Q":
+            anchor = ",".join(sorted(f.ids))
+        else:
+            anchor = f.ids[0]
+        n = seen[(f.category, anchor)] = seen.get((f.category, anchor), 0) + 1
+        key = "|".join([doc_id, f.category, anchor] + ([str(n)] if n > 1 else []))
+        out.append("f_" + hashlib.sha1(key.encode()).hexdigest()[:10])
+    return out
 
 
 def split_note(note: str) -> tuple[list[str], str]:
@@ -29,10 +48,10 @@ def split_note(note: str) -> tuple[list[str], str]:
     return flags, ", ".join(rest)
 
 
-def to_record(fact: Fact, doc: TaggedDocument, deal_id: str, run_id: str) -> dict:
+def to_record(fact: Fact, doc: TaggedDocument, deal_id: str, run_id: str, fid: str) -> dict:
     flags, note = split_note(fact.note)
     return {
-        "fact_id": fact_id(doc.doc_id, fact),
+        "fact_id": fid,
         "deal_id": deal_id,
         "doc_id": doc.doc_id,
         "run_id": run_id,

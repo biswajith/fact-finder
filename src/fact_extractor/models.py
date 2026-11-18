@@ -9,7 +9,8 @@ Kind = Literal["sentence", "heading", "table_row", "list_item"]
 Status = Literal["valid", "needs_review", "conflict"]
 
 # Flags the model may write in the note field (prompt 10.1).
-FLAGS = ("mandatory", "desirable", "risk", "unclear", "replaced")
+# post-award: the fact applies only to the bidder who wins (REVIEW.md, "Before the bid and after award").
+FLAGS = ("mandatory", "desirable", "risk", "unclear", "replaced", "post-award")
 
 # Fact categories (spec section 5).
 CATEGORIES: dict[str, str] = {
@@ -113,7 +114,8 @@ class CallRecord:
 
     name: str
     kind: str
-    status: Literal["ok", "partial", "failed", "split"] = "ok"
+    # incomplete: the model answered, but not for every unit it was given (units.py)
+    status: Literal["ok", "partial", "failed", "split", "incomplete"] = "ok"
     seconds: float = 0.0  # wall time for the call, queueing and retries included
     queue_seconds: float = 0.0  # waiting for a free slot under the concurrency limit
     ttft_seconds: float | None = None  # last attempt: request sent to first text

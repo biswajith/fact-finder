@@ -1,7 +1,0 @@
-648 facts, {'valid': 603, 'conflict': 45}, 46.06 s, cache hit 0.491, failed calls []
-  call_seconds       n=29 p50=10.013 p95=19.91 max=21.177
-  model_seconds      n=29 p50=9.943 p95=19.838 max=21.137
-  ttft_seconds       n=29 p50=4.909 p95=8.484 max=20.058
-  queue_seconds      n=29 p50=0.0 p95=0.0 max=0.0
-  tokens_per_second  n=28 p50=107.6 p95=124.08 max=130.3 p5=76.65
-  extract stage throughput: 925.7 tok/s

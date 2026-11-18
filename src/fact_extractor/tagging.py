@@ -141,8 +141,11 @@ def table_row_text(header: list[str], row: list[str]) -> str:
     """Header names next to each cell (spec 4.1). Original text for the anchor map."""
     cells = []
     for i, cell in enumerate(row):
-        name = header[i].strip() if i < len(header) and header[i] else f"Column {i + 1}"
-        cells.append(f"{name}: {' '.join((cell or '').split())}")
+        value = " ".join((cell or "").split())
+        if not value:
+            continue  # an empty cell says nothing; "Name: " would only be noise
+        name = " ".join(header[i].split()) if i < len(header) and header[i].strip() else f"Column {i + 1}"
+        cells.append(f"{name}: {value}")
     return " | ".join(cells)
 
 

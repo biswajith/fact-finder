@@ -15,7 +15,7 @@ from . import planner, prompts, xref
 from .llm import CallFailed, LLMClient, RateLimited, Request, Response
 from .merge import dedupe, uncited, union_passes
 from .models import CallRecord, CallSpec, Fact, TaggedDocument
-from .store import InMemoryFactStore, fact_id, to_record
+from .store import InMemoryFactStore, fact_ids, to_record
 from .validate import Checked, LineBuffer, check_output
 
 ALL_CODES = ("B", "C", "G", "X", "D", "S", "E", "R", "Q")
@@ -240,13 +240,13 @@ def _fact(c: Checked, source: str, extra: list[str] | None = None) -> Fact:
 
 
 
-def _mark_conflicts(facts: list[Fact], doc_id: str) -> None:
-    """Facts that share an ID with a Q line get status conflict (REVIEW.md item 15)."""
-    qs = [f for f in facts if f.category == "Q"]
+def _mark_conflicts(facts: list[Fact], ids: list[str]) -> None:
+    """Facts that share an ID with a Q line get status conflict (REVIEW.md item 15).
+    `ids` are the facts' fact IDs, in the same order."""
+    qs = [(f, i) for f, i in zip(facts, ids) if f.category == "Q"]
     for f in facts:
         f.conflicts = []
-    for q in qs:
-        qid = fact_id(doc_id, q)
+    for q, qid in qs:
         for f in facts:
             if f.category != "Q" and set(f.ids) & set(q.ids):
                 f.conflicts.append(qid)
@@ -325,8 +325,9 @@ async def extract(
     facts = dedupe(facts + xref_facts)
 
     # 6. Store.
-    _mark_conflicts(facts, doc.doc_id)
-    records = [to_record(f, doc, deal_id, run_id) for f in facts]
+    ids = fact_ids(doc.doc_id, facts)
+    _mark_conflicts(facts, ids)
+    records = [to_record(f, doc, deal_id, run_id, i) for f, i in zip(facts, ids)]
     decision_errors: list[str] = []
     if decisions is not None:
         for r in records:

@@ -1,3 +1,4 @@
+from fact_extractor import prompts
 from fact_extractor import planner
 from fact_extractor.planner import PlanConfig
 from fact_extractor.tagging import Heading, Page, Paragraph, tag_pages
@@ -35,12 +36,13 @@ def test_big_section_is_split_by_page():
 
 def test_plan_and_splits(doc):
     calls = planner.plan_calls(doc)
-    assert [c.name for c in calls] == ["A", "B", "C", "K1", "K2", "R1"]
-    assert calls[5].page_range == (1, 3)
-    assert [c.page_range for c in planner.split_call(calls[5])] == [(1, 2), (3, 3)]
+    assert [c.name for c in calls] == ["A", "B", "C", "K1", "K2", "K3", "R1"]
+    assert calls[6].page_range == (1, 3)
+    assert [c.page_range for c in planner.split_call(calls[6])] == [(1, 2), (3, 3)]
+    assert [c.page_range for c in calls[3:6]] == [(1, 1), (2, 2), (3, 3)]
     k1, k2 = calls[3], calls[4]
     assert k1.codes == ("C", "Q") and "C = contract" in k1.task
-    assert k1.page_range[0] == 1 and k2.page_range[1] == 3 and k1.page_range[1] + 1 == k2.page_range[0]
+    assert k1.page_range[0] == 1 and k1.page_range[1] + 1 == k2.page_range[0]
     assert f"main source text is on pages {k1.page_range[0]} to {k1.page_range[1]}" in k1.task
     # A cut one-category call over the whole document splits by pages.
     b_only = planner.split_call(planner.plan_calls(doc)[1])[0]
@@ -55,4 +57,4 @@ def test_plan_and_splits(doc):
 def test_task_prompts_match_spec(doc):
     a = planner.plan_calls(doc)[0].task
     assert a.startswith("TASK A\nAllowed codes: B, E, Q\n\nB = buyer information")
-    assert a.endswith("If the evaluation points or weights do not add up, write a Q line.")
+    assert a.endswith("write a Q line.\n" + prompts.CLOSING)

@@ -1,0 +1,743 @@
+"""Everything the review app does that is not layout: find and load runs, filter,
+summarise, export CSV, render a PDF page with highlights, compare runs, start a run.
+
+No Streamlit import here (UI_SPEC.md section 8), so all of it is tested with plain pytest.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import csv
+import io
+import json
+import re
+import shutil
+import uuid
+from collections import Counter, defaultdict
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+
+from ..models import CATEGORIES
+
+STATUSES = ("valid", "needs_review", "conflict")
+CSV_COLUMNS = (
+    "category", "category_name", "text", "flags", "status", "page_labels", "sections",
+    "citation_ids", "source_text", "note", "problems", "fact_id",
+)
+_FACTS_NAME = re.compile(r"^facts(?:_[^.]+)?\.json$")  # facts.json, facts_run1.json; not facts.judge.json
+_UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
+
+
+@dataclass(frozen=True)
+class RunRef:
+    path: Path
+    label: str  # path relative to the runs folder
+    facts: int
+    mtime: float
+    doc_id: str
+    run_id: str
+    seconds: dict = field(default_factory=dict)  # per stage and "total", from the report; empty without one
+    output_tokens: int | None = None
+    stored: bool = False  # a result the unit-label pipeline stored (it has a meta.json)
+
+
+@dataclass
+class Run:
+    path: Path
+    records: list[dict]
+    report: dict | None
+    pdf: Path | None  # source.pdf beside the facts file, if any
+    doc_id: str
+    run_id: str
+    pages: int
+
+
+def safe_name(name: str) -> str:
+    """A doc or run ID as a folder name: anything outside A-Z a-z 0-9 . _ - becomes _."""
+    out = _UNSAFE.sub("_", name)
+    return out if out.strip(".") else "_"
+
+
+# --- finding and loading runs ---------------------------------------------------------
+
+
+def _is_facts(data: object, name: str) -> bool:
+    if not isinstance(data, list):
+        return False
+    if not data:
+        # An empty run is still a run, but only under a facts file name proper.
+        return bool(_FACTS_NAME.match(name))
+    first = data[0]
+    return isinstance(first, dict) and all(k in first for k in ("category", "text", "citations"))
+
+
+def _read_facts(path: Path) -> list | None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return data if _is_facts(data, path.name) else None
+
+
+def find_runs(folder: str | Path) -> list[RunRef]:
+    """Every facts file under `folder`, recursively, newest first. Non-fact JSON is skipped."""
+    root = Path(folder)
+    if not root.is_dir():
+        return []
+    out = []
+    for p in root.rglob("facts*.json"):
+        data = _read_facts(p)
+        if data is None:
+            continue
+        first = data[0] if data else {}
+        seconds, tokens = _timing(report_path(p))
+        out.append(RunRef(
+            path=p, label=str(p.relative_to(root)), facts=len(data), mtime=p.stat().st_mtime,
+            doc_id=str(first.get("doc_id", "")), run_id=str(first.get("run_id", "")),
+            seconds=seconds, output_tokens=tokens, stored=(p.parent / "meta.json").is_file(),
+        ))
+    out.sort(key=lambda r: (-r.mtime, r.label))
+    return out
+
+
+def _timing(report: Path) -> tuple[dict, int | None]:
+    """Stage seconds and output tokens of a run, from its report; ({}, None) without one."""
+    try:
+        with open(report, encoding="utf-8") as f:
+            rep = json.load(f)
+    except (OSError, ValueError):
+        return {}, None
+    if not isinstance(rep, dict):
+        return {}, None
+    secs = rep.get("seconds") if isinstance(rep.get("seconds"), dict) else {}
+    secs = {k: v for k, v in secs.items() if isinstance(v, (int, float))}
+    tokens = rep.get("output_tokens")
+    return secs, tokens if isinstance(tokens, int) else None
+
+
+def took(seconds: dict) -> str:
+    """"37 s", or "1 min 12 s"; empty when the run has no report."""
+    total = seconds.get("total")
+    if total is None:
+        return ""
+    return f"{total:.0f} s" if total < 90 else f"{int(total // 60)} min {int(total % 60)} s"
+
+
+def runs_table(runs: list[RunRef]) -> list[dict]:
+    """One row per run with how long it took, newest first (the order of `find_runs`)."""
+    rows = []
+    for r in runs:
+        s = r.seconds
+        other = {k: v for k, v in s.items() if k not in ("total", "extract")}
+        rows.append({
+            "run": r.label.removesuffix("/facts.json"), "document": r.doc_id, "facts": r.facts,
+            "total s": s.get("total"), "extract s": s.get("extract"),
+            "sweep and check s": round(sum(other.values()), 2) if other else None,
+            "output tokens": r.output_tokens,
+            "finished": datetime.fromtimestamp(r.mtime).strftime("%Y-%m-%d %H:%M"),
+        })
+    return rows
+
+
+def report_path(facts_path: Path) -> Path:
+    """facts.json -> report.json; facts_<name>.json -> report_<name>.json."""
+    name = facts_path.name
+    if name.startswith("facts"):
+        name = "report" + name[len("facts"):]
+    return facts_path.with_name(name)
+
+
+def normalize(records: list[dict]) -> list[dict]:
+    """Fill fields older runs lack, so the rest of the app can index them directly."""
+    out = []
+    for i, r in enumerate(records):
+        cites = []
+        for c in r.get("citations") or []:
+            page = c.get("page")
+            cites.append({
+                "id": str(c.get("id", "")),
+                "page": page if isinstance(page, int) else None,
+                "page_label": str(c.get("page_label") or (page if page is not None else "")),
+                "section": c.get("section") or "",
+                "text": c.get("text") or "",
+                "bbox": c.get("bbox") or None,
+            })
+        out.append({
+            **r,
+            "fact_id": r.get("fact_id") or str(i + 1),
+            "category": r["category"],
+            "text": r["text"],
+            "citations": cites,
+            "flags": list(r.get("flags") or []),
+            "status": r.get("status") or "valid",
+            "note": r.get("note") or "",
+            "source_call": r.get("source_call") or "",
+            "problems": list(r.get("problems") or []),
+            "conflicts": list(r.get("conflicts") or []),
+            "unresolved_ids": list(r.get("unresolved_ids") or []),
+            "doc_id": r.get("doc_id") or "",
+            "run_id": r.get("run_id") or "",
+            # unit-label pipeline: the votes behind the code, and where the text came from
+            "votes": list(r.get("votes") or []),
+            "agreement": r.get("agreement") or "",
+            "also": r.get("also") or "",
+            "text_from": r.get("text_from") or "",
+            # groups: the same point restated ("same"), or items of one list ("list")
+            "group_id": r.get("group_id") or "",
+            "group_kind": r.get("group_kind") or "",
+            "group_title": r.get("group_title") or "",
+        })
+    return out
+
+
+def load_run(path: str | Path) -> Run:
+    path = Path(path)
+    with open(path, encoding="utf-8") as f:
+        records = normalize(json.load(f))
+    report = None
+    rp = report_path(path)
+    if rp != path and rp.is_file():
+        try:
+            with open(rp, encoding="utf-8") as f:
+                report = json.load(f)
+        except (OSError, ValueError):
+            report = None
+        if not isinstance(report, dict):
+            report = None
+    # The PDF sits beside the run, or one level up when a document's runs share it.
+    pdf = next((p for p in (path.parent / "source.pdf", path.parent.parent / "source.pdf") if p.is_file()), None)
+    first = records[0] if records else {}
+    doc_id = first.get("doc_id") or (report or {}).get("doc_id") or path.parent.name
+    run_id = first.get("run_id") or (report or {}).get("run_id") or path.stem
+    pages = (report or {}).get("pages") or max(
+        (c["page"] for r in records for c in r["citations"] if c["page"]), default=1
+    )
+    return Run(path, records, report, pdf, doc_id, run_id, int(pages))
+
+
+# --- filtering and ordering -----------------------------------------------------------
+
+
+# --- before the bid, after award -----------------------------------------------------
+
+POST_AWARD = "post-award"
+VIEWS = ("All", "Bid", "After award")
+_MONEY = re.compile(r"[$€£]\s?\d|\b\d[\d,.]*\s*(?:million|thousand|percent|%)", re.I)
+
+
+def is_split(r: dict) -> bool:
+    """The labelling votes did not all give this fact the same code: worth a look."""
+    return len(set(r["votes"])) > 1
+
+
+def is_post_award(r: dict) -> bool:
+    return POST_AWARD in r["flags"]
+
+
+def affects_bid(r: dict) -> bool:
+    """An after-award obligation the bid team still has to weigh now: it is flagged as a
+    risk, or it states an amount that belongs in the price."""
+    return is_post_award(r) and ("risk" in r["flags"] or bool(_MONEY.search(r["text"])))
+
+
+def in_view(r: dict, view: str) -> bool:
+    """Bid: everything to know, decide or submit before the deadline, plus the after-award
+    obligations that change the price or the risk. After award: every obligation of the winner."""
+    if view == "Bid":
+        return not is_post_award(r) or affects_bid(r)
+    if view == "After award":
+        return is_post_award(r)
+    return True
+
+
+def filter_facts(
+    records: list[dict],
+    categories: list[str] | None = None,
+    statuses: list[str] | None = None,
+    flags: list[str] | None = None,
+    query: str = "",
+    pages: tuple[int, int] | None = None,
+    view: str = "All",
+    split_only: bool = False,
+) -> list[dict]:
+    """Empty or None arguments do not filter. Flags match on any; pages on any citation."""
+    q = query.strip().lower()
+    out = []
+    for r in records:
+        if not in_view(r, view):
+            continue
+        if split_only and not is_split(r):
+            continue
+        if categories and r["category"] not in categories:
+            continue
+        if statuses and r["status"] not in statuses:
+            continue
+        if flags and not set(flags) & set(r["flags"]):
+            continue
+        if q and q not in r["text"].lower() and not any(q in c["text"].lower() for c in r["citations"]):
+            continue
+        if pages and not any(c["page"] and pages[0] <= c["page"] <= pages[1] for c in r["citations"]):
+            continue
+        out.append(r)
+    return out
+
+
+_ID = re.compile(r"^p(\d+)\.(?:(\d+)|h(\d+)|t(\d+)r(\d+))$")
+
+
+def id_position(cid: str) -> tuple:
+    """Sort key of a source ID: page, number, then plain sentences before headings and
+    table rows of the same number. Unknown shapes sort last on their page."""
+    m = _ID.match(cid)
+    if not m:
+        return (10**9, 10**9, 9, 0, cid)
+    page = int(m.group(1))
+    if m.group(2):
+        return (page, int(m.group(2)), 0, 0, "")
+    if m.group(3):
+        return (page, int(m.group(3)), 1, 0, "")
+    return (page, int(m.group(4)), 2, int(m.group(5)), "")
+
+
+def document_order(records: list[dict]) -> list[dict]:
+    """By first citation: page, then position in the ID. Facts without citations go last."""
+
+    def key(r: dict) -> tuple:
+        if not r["citations"]:
+            return (10**9, (10**9, 10**9, 9, 0, ""))
+        c = r["citations"][0]
+        return (c["page"] or 10**9, id_position(c["id"]))
+
+    return sorted(records, key=key)
+
+
+def page_label(r: dict) -> str:
+    return r["citations"][0]["page_label"] if r["citations"] else ""
+
+
+def page_labels(r: dict) -> str:
+    return "; ".join(dict.fromkeys(c["page_label"] for c in r["citations"] if c["page_label"]))
+
+
+def category_label(code: str) -> str:
+    return f"{code} - {CATEGORIES.get(code, 'unknown')}"
+
+
+# --- summary --------------------------------------------------------------------------
+
+
+# --- groups ---------------------------------------------------------------------------
+
+
+@dataclass
+class Item:
+    """What the lists show: one fact, one point stated in several places ("same"), or
+    the items of one list ("list"). `facts` is in document order."""
+
+    kind: str  # "fact", "same" or "list"
+    title: str
+    facts: list[dict]
+
+    @property
+    def first(self) -> dict:
+        return self.facts[0]
+
+    def pages(self) -> str:
+        return "; ".join(dict.fromkeys(c["page_label"] for f in self.facts for c in f["citations"] if c["page_label"]))
+
+
+def items(records: list[dict]) -> list[Item]:
+    """Collapse grouped facts, keeping the order of `records`: a group sits where its first
+    member is. A group with only one member in `records` (the others filtered out) is
+    shown as the plain fact it is."""
+    members: dict[str, list[dict]] = {}
+    for r in records:
+        if r["group_id"]:
+            members.setdefault(r["group_id"], []).append(r)
+    out: list[Item] = []
+    done: set[str] = set()
+    for r in records:
+        gid = r["group_id"]
+        if not gid or len(members[gid]) < 2:
+            out.append(Item("fact", r["text"], [r]))
+        elif gid not in done:
+            done.add(gid)
+            out.append(Item(r["group_kind"] or "list", r["group_title"] or r["text"], members[gid]))
+    return out
+
+
+def merged(item: Item) -> dict:
+    """One record standing for a "same" group: the first fact, citing every place."""
+    first = item.first
+    cites, seen = [], set()
+    for f in item.facts:
+        for c in f["citations"]:
+            if c["id"] not in seen:
+                seen.add(c["id"])
+                cites.append(c)
+    flags = list(dict.fromkeys(x for f in item.facts for x in f["flags"]))
+    return {**first, "citations": cites, "flags": flags}
+
+
+# --- Summary screen: buyer, gates, clarifications, scoring, calendar ------------------
+
+
+def _entries(records: list[dict]) -> list[dict]:
+    """Lines for a Summary card: a fact, a repeated point once, or a list with its items."""
+    out = []
+    for it in items(document_order(records)):
+        if it.kind == "list":
+            out.append({
+                "text": it.title, "page": it.pages(),
+                "children": [{"text": f["text"], "page": page_labels(f)} for f in it.facts],
+            })
+        else:
+            out.append({"text": it.first["text"], "page": it.pages(), "children": []})
+    return out
+
+
+def buyer_rows(records: list[dict], brief: list[dict] | None) -> list[dict]:
+    """A section summary's rows: a row's text when it was checked against the facts it
+    cites, otherwise those facts themselves. Empty when the run has no summary."""
+    by_id = {r["fact_id"]: r for r in records}
+    rows = []
+    for b in brief or []:
+        cited = [by_id[i] for i in b.get("fact_ids", []) if i in by_id]
+        if b.get("text") and b.get("checked"):
+            text = b["text"]
+        elif cited:
+            text = " ".join(dict.fromkeys(f["text"] for f in cited))  # the model's wording failed the check
+        else:
+            text = ""
+        rows.append({
+            "row": b["row"], "text": text,
+            "page": "; ".join(dict.fromkeys(p for f in cited for p in page_labels(f).split("; ") if p)),
+        })
+    return rows
+
+
+def calendar(records: list[dict]) -> dict:
+    """Date facts in time order. A fact goes under the first calendar date it names; one
+    with no date of its own ("30 days after award") is kept apart, in document order."""
+    from ..normalize import values
+
+    dated, undated = [], []
+    seen: set[str] = set()
+    for it in items(document_order([r for r in records if r["category"] == "D"])):
+        for f in ([it.first] if it.kind == "same" else it.facts):
+            tokens = values(f["text"])
+            days = sorted(t.split(":", 1)[1] for t in tokens if t.startswith("date:"))
+            times = sorted(t.split(":", 1)[1] for t in tokens if t.startswith("time:"))
+            page = it.pages() if it.kind == "same" else page_labels(f)
+            if not days:
+                undated.append({"text": f["text"], "page": page})
+                continue
+            if f["text"] in seen:
+                continue
+            seen.add(f["text"])
+            when = datetime.strptime(days[0], "%Y-%m-%d")
+            dated.append({
+                "date": days[0], "label": f"{when:%a} {when.day} {when:%b %Y}",
+                "time": times[0] if times and len(days) == 1 else "", "text": f["text"], "page": page,
+            })
+    dated.sort(key=lambda d: (d["date"], d["time"] or "99:99"))
+    return {"dated": dated, "undated": undated}
+
+
+def overview(records: list[dict], summaries: dict[str, list[dict]] | None = None) -> dict:
+    """Everything the Summary screen shows, from the stored facts and the stored section
+    summaries (`report["summaries"]`: buyer, submission, gates, scoring, questions). Each
+    section has its summary rows, empty for a run without one, and the facts behind it."""
+    summaries = summaries or {}
+    def of(code: str) -> list[dict]:
+        return [r for r in records if r["category"] == code]
+
+    contradictions = [
+        {"text": r["text"], "page": " vs ".join(c["page_label"] or "?" for c in r["citations"]), "children": []}
+        for r in document_order(of("Q"))
+    ]
+    return {
+        "summary": {key: buyer_rows(records, summaries.get(key)) for key in ("submission", "gates", "scoring", "questions")},
+        "buyer": buyer_rows(records, summaries.get("buyer")),
+        "buyer_facts": _entries(of("B")),  # shown when the run has no brief
+        "gates": _entries(of("G")),
+        "disqualifiers": _entries(of("X")),
+        "submission": _entries(of("S")),  # how to package and deliver the proposal
+        "contradictions": contradictions,
+        "unclear": _entries([r for r in records if "unclear" in r["flags"] and r["category"] != "Q"]),
+        # The lists of criteria first, then the single statements about how scoring works.
+        "scoring": sorted(_entries(of("E")), key=lambda e: not e["children"]),
+        "calendar": calendar(records),
+    }
+
+
+def _obligation(r: dict) -> dict:
+    return {
+        "category": r["category"], "text": r["text"],
+        "flags": ", ".join(f for f in r["flags"] if f != POST_AWARD), "page": page_labels(r),
+    }
+
+
+def summary(records: list[dict]) -> dict:
+    """Counts and lists for the Summary tab (UI_SPEC.md 6.1), in document order."""
+    ordered = document_order(records)
+
+    def rows(pick) -> list[dict]:
+        """One line per item: a repeated point once, a list as its title and size."""
+        out = []
+        for it in items([r for r in ordered if pick(r)]):
+            text = it.title + (f" ({len(it.facts)} items)" if it.kind == "list" else "")
+            out.append({"text": text if it.kind == "list" else it.first["text"], "page": it.pages()})
+        return out
+
+    by_cat = Counter(r["category"] for r in records)
+    return {
+        "facts": len(records),
+        "counts": {
+            "needs review": sum(r["status"] == "needs_review" for r in records),
+            "conflicts": sum(r["status"] == "conflict" for r in records),
+            "risk flags": sum("risk" in r["flags"] for r in records),
+            "mandatory": sum("mandatory" in r["flags"] for r in records),
+            "unclear": sum("unclear" in r["flags"] for r in records),
+            "after award": sum(is_post_award(r) for r in records),
+            "split votes": sum(is_split(r) for r in records),
+        },
+        # After-award obligations that still matter for the bid: a risk, or an amount to price.
+        "price_or_risk": [_obligation(r) for r in ordered if affects_bid(r)],
+        "obligations": [_obligation(r) for r in ordered if is_post_award(r)],
+        "dates": rows(lambda r: r["category"] == "D"),
+        "gates": rows(lambda r: r["category"] == "G"),
+        "disqualifiers": rows(lambda r: r["category"] == "X"),
+        "contract_risks": rows(lambda r: r["category"] == "C" and "risk" in r["flags"]),
+        "contradictions": [
+            {
+                "text": r["text"],
+                "pages": " vs ".join(c["page_label"] or "?" for c in r["citations"]),
+            }
+            for r in ordered if r["category"] == "Q"
+        ],
+        "by_category": {
+            category_label(c): by_cat[c] for c in CATEGORIES if by_cat[c]
+        } | {category_label(c): n for c, n in by_cat.items() if c not in CATEGORIES},
+    }
+
+
+# --- CSV ------------------------------------------------------------------------------
+
+
+def csv_row(r: dict) -> dict:
+    cites = r["citations"]
+    return {
+        "category": r["category"],
+        "category_name": CATEGORIES.get(r["category"], ""),
+        "text": r["text"],
+        "flags": "; ".join(r["flags"]),
+        "status": r["status"],
+        "page_labels": page_labels(r),
+        "sections": "; ".join(dict.fromkeys(c["section"] for c in cites if c["section"])),
+        "citation_ids": "; ".join(c["id"] for c in cites),
+        "source_text": " / ".join(c["text"] for c in cites),
+        "note": r["note"],
+        "problems": "; ".join(r["problems"]),
+        "fact_id": r["fact_id"],
+    }
+
+
+def to_csv(records: list[dict]) -> bytes:
+    """UTF-8 with a byte order mark, so Excel reads it as UTF-8."""
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=CSV_COLUMNS)
+    w.writeheader()
+    for r in records:
+        w.writerow(csv_row(r))
+    return buf.getvalue().encode("utf-8-sig")
+
+
+def csv_name(doc_id: str, run_id: str) -> str:
+    return f"{safe_name(doc_id)}_{safe_name(run_id)}_facts.csv"
+
+
+# --- page image -----------------------------------------------------------------------
+
+
+def render_page(pdf: str | Path | bytes, page: int, boxes: list, zoom: float = 1.5) -> bytes:
+    """PNG of 1-based `page` with each box ([x0, y0, x1, y1], PDF points, top-left
+    origin) drawn as a translucent highlight. Boxes that are None are skipped. The
+    document is changed in memory only; the file on disk is never written."""
+    import pymupdf
+
+    doc = pymupdf.open(stream=pdf) if isinstance(pdf, bytes) else pymupdf.open(str(pdf))
+    try:
+        p = doc[page - 1]
+        for b in boxes:
+            if not b:
+                continue
+            r = pymupdf.Rect(*b)
+            r = pymupdf.Rect(r.x0 - 1.5, r.y0 - 1.5, r.x1 + 1.5, r.y1 + 1.5)
+            p.draw_rect(r, color=(0.85, 0.45, 0.0), fill=(1.0, 0.85, 0.0), fill_opacity=0.35, width=0.8)
+        return p.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom)).tobytes("png")
+    finally:
+        doc.close()
+
+
+# --- comparing runs -------------------------------------------------------------------
+
+
+def code_differences(a: list[dict], b: list[dict]) -> list[dict]:
+    """Source IDs both runs cite but file under different codes, in document order."""
+
+    def index(records: list[dict]) -> tuple[dict[str, set[str]], dict[str, list[str]]]:
+        codes: dict[str, set[str]] = defaultdict(set)
+        texts: dict[str, list[str]] = defaultdict(list)
+        for r in records:
+            for c in r["citations"]:
+                codes[c["id"]].add(r["category"])
+                if r["text"] not in texts[c["id"]]:
+                    texts[c["id"]].append(r["text"])
+        return codes, texts
+
+    ca, ta = index(a)
+    cb, tb = index(b)
+    out = []
+    for i in sorted(set(ca) & set(cb), key=id_position):
+        if ca[i] != cb[i]:
+            out.append({
+                "id": i,
+                "codes_a": "".join(sorted(ca[i])),
+                "codes_b": "".join(sorted(cb[i])),
+                "facts_a": " / ".join(ta[i]),
+                "facts_b": " / ".join(tb[i]),
+            })
+    return out
+
+
+# --- new run --------------------------------------------------------------------------
+
+
+def result_line(report: dict) -> str:
+    """The one-line result `fact-extractor extract` prints."""
+    r = report
+    if "facts_votes_agreed" in r:  # unit-label pipeline
+        return (
+            f"{r['facts']} facts from {r['ids']} units in {r['seconds']['total']} s: "
+            f"{r['facts_votes_agreed']} with all {r['votes']} votes agreed, {r['facts_votes_split']} split; "
+            f"failed calls {r['failed_calls']}"
+        )
+    return (
+        f"{r['facts']} facts, {r['by_status']}, {r['seconds']['total']} s, "
+        f"cache hit {r['cache_hit_calls_2_to_n']}, failed calls {r['failed_calls']}"
+    )
+
+
+def new_run_id() -> str:
+    """Same shape as pipeline.extract's default run ID."""
+    return f"run_{datetime.now(timezone.utc):%Y_%m_%d}_{uuid.uuid4().hex[:6]}"
+
+
+@contextmanager
+def staged_pdf(pdf_bytes: bytes, runs_root: str | Path = "runs"):
+    """A path to `pdf_bytes` for read_pdf, which needs a file: written under
+    `runs/.staging/` (the app writes nowhere else) and removed afterwards."""
+    root = Path(runs_root)
+    staging = root / ".staging"
+    made_root = not root.exists()
+    staging.mkdir(parents=True, exist_ok=True)
+    path = staging / f"{uuid.uuid4().hex}.pdf"
+    try:
+        path.write_bytes(pdf_bytes)
+        yield path
+    finally:
+        path.unlink(missing_ok=True)
+        for d in (staging, root) if made_root else (staging,):
+            try:
+                d.rmdir()  # only when empty
+            except OSError:
+                pass
+
+
+def tag_pdf(pdf_bytes: bytes, doc_id: str, runs_root: str | Path = "runs"):
+    from ..pdf import read_pdf
+    from ..tagging import tag_pages
+
+    with staged_pdf(pdf_bytes, runs_root) as path:
+        return tag_pages(doc_id, read_pdf(str(path)))
+
+
+def plan_rows(doc, votes: int = 3) -> list[dict]:
+    """The calls of one extraction: every unit labelled `votes` times, stated once,
+    and one contradiction check. All are sent together."""
+    from .. import units
+
+    cfg = units.Config()
+
+    def pages(ids: list[str]) -> str:
+        first, last = doc.anchors[ids[0]].page, doc.anchors[ids[-1]].page
+        return f"{first}-{last}"
+
+    rows = [
+        {"call": f"LABEL{k}", "times": votes, "units": len(ids), "pages": pages(ids)}
+        for k, ids in enumerate(units.chunks(doc, cfg.units_per_label_call), start=1)
+    ]
+    rows += [
+        {"call": f"STATE{k}", "times": 1, "units": len(ids), "pages": pages(ids)}
+        for k, ids in enumerate(units.chunks(doc, cfg.units_per_state_call), start=1)
+    ]
+    return rows + [{"call": "CHECK", "times": 1, "units": len(doc.anchors), "pages": f"1-{doc.page_count}"}]
+
+
+def stored_result(pdf_bytes: bytes, doc_id: str, runs_root: str | Path = "runs"):
+    """The stored result for this PDF and doc ID under the current pipeline, or None."""
+    from .. import results, units
+
+    return results.ResultStore(runs_root).find(results.pdf_hash(pdf_bytes), units.VERSION, doc_id)
+
+
+def run_extraction(
+    pdf_bytes: bytes,
+    *,
+    deal_id: str,
+    doc_id: str,
+    model: str | None,
+    votes: int = 3,
+    refresh: bool = False,
+    runs_root: str | Path = "runs",
+    client=None,
+    cfg=None,
+) -> tuple[Path, dict, bool]:
+    """What `fact-extractor extract` does: return the stored result for this PDF, or
+    extract and store it under `runs/<doc_id>/<run_id>/`.
+
+    Returns the facts path, the report, and whether the result came from the store
+    (then no model was called). On an exception nothing is left on disk.
+    """
+    from .. import results, units
+
+    root = Path(runs_root)
+    store = results.ResultStore(root)
+    sha = results.pdf_hash(pdf_bytes)
+    stored = store.find(sha, units.VERSION, doc_id)
+    if stored and not refresh:
+        return stored.facts_path, stored.report(), True
+    made_root = not root.exists()
+    try:
+        doc = tag_pdf(pdf_bytes, doc_id, root)
+        if client is None:
+            from ..llm import OpenAIClient
+
+            client = OpenAIClient(model or None)
+        result = asyncio.run(units.extract(
+            doc, client, deal_id=deal_id, cfg=cfg or units.Config(votes=votes), run_id=new_run_id(),
+        ))
+    except BaseException:
+        if made_root:
+            shutil.rmtree(root, ignore_errors=True)
+        raise
+    saved = store.save(pdf_bytes, sha, units.VERSION, result, result.labels)
+    return saved.facts_path, result.report, False
+
+
+def pdfs_in(folder: str | Path = ".") -> list[Path]:
+    return sorted(Path(folder).glob("*.pdf"))

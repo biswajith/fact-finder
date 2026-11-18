@@ -14,11 +14,13 @@ _CANDIDATE = re.compile(
 )
 _COMPLIANCE_HEADER = re.compile(r"\b(requirement|compliance|comply|complies|mandatory|required|must|shall)\b", re.I)
 
-# Contract terms get their own calls (K1, K2: one per half of the document) and buyer facts
-# pair with evaluation (E); see REVIEW.md, "Bid manager tailoring". Contract output for a
-# whole RFP fills a call's token budget on its own.
+# Contract terms get their own calls (K1 to K3: one per third of the document's text) and
+# buyer facts pair with evaluation (E); see REVIEW.md, "Bid manager tailoring". Contract
+# output for a whole RFP fills a call's token budget on its own; with two calls, K2 used
+# 2,300-3,000 of its 3,000 tokens on Ulster, so whether it was cut and split changed from
+# run to run (REVIEW.md, "Run-to-run stability").
 CATEGORY_CALLS = (("A", ("B", "E", "Q")), ("B", ("G", "X", "Q")), ("C", ("D", "S", "Q")))
-PAGED_CATEGORY_CALLS = (("K", ("C", "Q"), 2),)
+PAGED_CATEGORY_CALLS = (("K", ("C", "Q"), 3),)
 
 
 @dataclass(frozen=True)

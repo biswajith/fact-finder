@@ -42,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
         ("tag", "print the tagged text sent to the model"),
         ("anchors", "print the anchor map as JSON lines"),
         ("plan", "print the planned calls"),
-        ("extract", "run the extraction (needs OPENAI_API_KEY)"),
+        ("extract", "extract the facts, or show the stored result for this PDF (needs OPENAI_API_KEY to extract)"),
     ):
         p = sub.add_parser(name, help=help_)
         p.add_argument("pdf")
@@ -50,7 +50,19 @@ def main(argv: list[str] | None = None) -> int:
         if name == "extract":
             p.add_argument("--deal-id", required=True)
             p.add_argument("--model", default=None, help="defaults to $FACT_EXTRACTOR_MODEL or gpt-6-luna")
-            p.add_argument("--parallel", type=int, default=32)
+            p.add_argument("--votes", type=int, default=3, help="labelling passes per unit; the majority wins")
+            p.add_argument("--store", default="runs", help="folder results are kept in and looked up from")
+            p.add_argument(
+                "--refresh", action="store_true",
+                help="extract again even when this PDF already has a stored result, and say what changed",
+            )
+            p.add_argument("--no-statements", action="store_true", help="show every fact in the RFP's own words")
+            p.add_argument("--no-grouping", action="store_true", help="skip the round that groups repeated points and list items")
+            p.add_argument(
+                "--legacy", action="store_true",
+                help="the earlier pipeline, where the model writes the facts; the options below apply to it only",
+            )
+            p.add_argument("--parallel", type=int, default=None, help="calls at once (default 48, legacy 32)")
             p.add_argument("--passes", type=int, default=1, help="extraction passes to merge; 2 finds a little more, costs ~60%% more")
             p.add_argument("--narrow-sweep", action="store_true", help="sweep only shall/must sentences (faster)")
             p.add_argument("--max-output-tokens", type=int, default=3000, help="output cap per extraction call")
@@ -83,14 +95,34 @@ def main(argv: list[str] | None = None) -> int:
     pr.add_argument("--grade-cache", default=None, help="grade cache JSON (defaults to poc/precision.grades.json)")
     pr.add_argument("--model", default=None)
     pr.add_argument("--json", default=None, help="write the scores here")
+    sc = sub.add_parser("score", help="score a run against a reference list by source ID (no model call)")
+    sc.add_argument("gold", nargs="+", help="reference files, one CODE|fact|IDs|flags line per fact")
+    sc.add_argument("--facts", required=True, help="facts JSON written by extract")
+    sc.add_argument("--show", type=int, default=10, help="misses to list")
+    sc.add_argument("--json", default=None, help="write the full score here")
+    st = sub.add_parser("stability", help="how far two runs on the same document agree")
+    st.add_argument("a", help="facts JSON of one run")
+    st.add_argument("b", help="facts JSON of another run")
+    st.add_argument("--show", type=int, default=10, help="code differences to list")
+    st.add_argument("--json", default=None, help="write the numbers here")
+    ui = sub.add_parser("ui", help="open the fact review app in a browser (needs the ui extra)")
+    ui.add_argument("--port", type=int, default=None)
     args = ap.parse_args(argv)
 
+    if args.cmd == "ui":
+        return _ui(args)
     if args.cmd == "compare":
         return _compare(args)
+    if args.cmd == "score":
+        return _score(args)
+    if args.cmd == "stability":
+        return _stability(args)
     if args.cmd == "precision":
         return _precision(args)
 
     doc_id = args.doc_id or args.pdf.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    if args.cmd == "extract" and not args.legacy and not args.refresh and _show_stored(args, doc_id):
+        return 0  # found by the PDF's content: no need to read the PDF again, or to call the model
     doc = tag_pages(doc_id, read_pdf(args.pdf))
 
     if args.cmd == "tag":
@@ -102,48 +134,153 @@ def main(argv: list[str] | None = None) -> int:
         for c in planner.plan_calls(doc):
             print(f"{c.name:5} codes={','.join(c.codes):8} pages={c.page_range or 'all'}")
         print(f"candidates: {len(planner.candidates(doc))}, ids: {len(doc.anchors)}")
+    elif args.legacy:
+        _extract_legacy(args, doc)
     else:
-        from .llm import OpenAIClient
-
-        store = InMemoryFactStore()
-        result = asyncio.run(
-            extract(
-                doc, OpenAIClient(args.model), deal_id=args.deal_id, store=store,
-                decisions=RecordingDecisions(),
-                cfg=Config(
-                    max_parallel=args.parallel, parallel_check=not args.sequential_check,
-                    passes=args.passes, sweep_all=not args.narrow_sweep,
-                    max_output_tokens=args.max_output_tokens, sweep=not args.no_sweep,
-                    check=not args.no_check,
-                ),
-            )
-        )
-        text = json.dumps(result.facts, indent=2)
-        if args.out == "-":
-            print(text)
-        else:
-            with open(args.out, "w") as f:
-                f.write(text)
-        if args.report:
-            with open(args.report, "w") as f:
-                json.dump(result.report, f, indent=2)
-        r = result.report
-        perf = r["performance"]
-        print(
-            f"{r['facts']} facts, {r['by_status']}, {r['seconds']['total']} s, "
-            f"cache hit {r['cache_hit_calls_2_to_n']}, failed calls {r['failed_calls']}",
-            file=sys.stderr,
-        )
-        for name in ("call_seconds", "model_seconds", "ttft_seconds", "queue_seconds", "tokens_per_second"):
-            st = perf[name]
-            extra = f" p5={st['p5']}" if "p5" in st else ""
-            print(f"  {name:18} n={st['n']} p50={st['p50']} p95={st['p95']} max={st['max']}{extra}", file=sys.stderr)
-        print(f"  extract stage throughput: {perf['extract_stage_tokens_per_second']} tok/s", file=sys.stderr)
+        _extract(args, doc)
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+
+def _write_out(args, facts: list[dict], report: dict) -> None:
+    text = json.dumps(facts, indent=2)
+    if args.out == "-":
+        print(text)
+    else:
+        with open(args.out, "w") as f:
+            f.write(text)
+    if args.report:
+        with open(args.report, "w") as f:
+            json.dump(report, f, indent=2)
+
+
+def _show_stored(args, doc_id: str) -> bool:
+    """Write out the stored result for this PDF, if there is one."""
+    from . import results, units
+
+    stored = results.ResultStore(args.store).find(results.pdf_hash(args.pdf), units.VERSION, doc_id)
+    if stored is None:
+        return False
+    _write_out(args, stored.facts(), stored.report())
+    print(
+        f"stored result {stored.folder} from {stored.meta.get('created')}: {stored.meta.get('facts')} facts. "
+        "No model call. Use --refresh to extract again.",
+        file=sys.stderr,
+    )
+    return True
+
+
+def _extract(args, doc) -> None:
+    """Extract and store (units.py, results.py); `_show_stored` has already looked for a stored result."""
+    from . import results, units
+
+    from .llm import OpenAIClient
+
+    store = results.ResultStore(args.store)
+    sha = results.pdf_hash(args.pdf)
+    previous = store.latest(sha, doc.doc_id)
+    cfg = units.Config(
+        votes=args.votes, statements=not args.no_statements, check=not args.no_check, grouping=not args.no_grouping,
+    )
+    if args.parallel:
+        cfg.max_parallel = args.parallel
+    result = asyncio.run(units.extract(doc, OpenAIClient(args.model), deal_id=args.deal_id, cfg=cfg))
+    saved = store.save(args.pdf, sha, units.VERSION, result, result.labels)
+    _write_out(args, result.facts, result.report)
+    r = result.report
+    print(
+        f"{r['facts']} facts from {r['ids']} units in {r['seconds']['total']} s: "
+        f"{r['facts_votes_agreed']} with all {r['votes']} votes agreed, {r['facts_votes_split']} split; "
+        f"{r['facts_in_groups']} facts in {sum(r['groups'].values())} groups; "
+        f"{r['output_tokens']} output tokens, cache hit {r['cache_hit_calls_2_to_n']}, "
+        f"failed calls {r['failed_calls']}, cut calls {r['cut_calls']}, incomplete calls {r['incomplete_calls']}, "
+        f"{len(r['retried_calls'])} retried",
+        file=sys.stderr,
+    )
+    print(f"stored in {saved.folder}", file=sys.stderr)
+    if previous:
+        d = results.diff(previous.facts(), result.facts)
+        print(
+            f"against {previous.folder}: {d['same']} facts the same, {len(d['recoded'])} with another code, "
+            f"{d['added']} new, {d['removed']} gone, {d['flags_changed']} with other flags",
+            file=sys.stderr,
+        )
+
+
+def _score(args) -> int:
+    from . import compare as cm
+    from . import score as sc
+
+    gold = [item for path in args.gold for item in cm.read_lines(path)]
+    with open(args.facts) as f:
+        result = sc.score(gold, json.load(f))
+    print(f"{'code':4} {'gold':>5} {'found':>5} {'recall':>7} {'same code':>9}")
+    for c, r in result["by_category"].items():
+        print(f"{c:4} {r['gold']:5} {r['found']:5} {r['recall']:7} {r['recall_same_code']:9}")
+    print(f"all  {result['gold']:5} recall {result['recall']}, under the reference code {result['recall_same_code']}; "
+          f"{result['units_used']} units used")
+    for m in result["missed"][: args.show]:
+        print(f"  - missed {m['category']} {m['text']} [{m['id']}]")
+    if args.json:
+        with open(args.json, "w") as f:
+            json.dump(result, f, indent=2)
+    return 0
+
+
+def _extract_legacy(args, doc) -> None:
+    from .llm import OpenAIClient
+
+    store = InMemoryFactStore()
+    result = asyncio.run(
+        extract(
+            doc, OpenAIClient(args.model), deal_id=args.deal_id, store=store,
+            decisions=RecordingDecisions(),
+            cfg=Config(
+                max_parallel=args.parallel or 32, parallel_check=not args.sequential_check,
+                passes=args.passes, sweep_all=not args.narrow_sweep,
+                max_output_tokens=args.max_output_tokens, sweep=not args.no_sweep,
+                check=not args.no_check,
+            ),
+        )
+    )
+    text = json.dumps(result.facts, indent=2)
+    if args.out == "-":
+        print(text)
+    else:
+        with open(args.out, "w") as f:
+            f.write(text)
+    if args.report:
+        with open(args.report, "w") as f:
+            json.dump(result.report, f, indent=2)
+    r = result.report
+    perf = r["performance"]
+    print(
+        f"{r['facts']} facts, {r['by_status']}, {r['seconds']['total']} s, "
+        f"cache hit {r['cache_hit_calls_2_to_n']}, failed calls {r['failed_calls']}",
+        file=sys.stderr,
+    )
+    for name in ("call_seconds", "model_seconds", "ttft_seconds", "queue_seconds", "tokens_per_second"):
+        st = perf[name]
+        extra = f" p5={st['p5']}" if "p5" in st else ""
+        print(f"  {name:18} n={st['n']} p50={st['p50']} p95={st['p95']} max={st['max']}{extra}", file=sys.stderr)
+    print(f"  extract stage throughput: {perf['extract_stage_tokens_per_second']} tok/s", file=sys.stderr)
+
+
+def _ui(args) -> int:
+    import importlib.util
+    import subprocess
+
+    if importlib.util.find_spec("streamlit") is None:
+        print("Streamlit is not installed. Install the UI extra: uv sync --extra ui", file=sys.stderr)
+        return 1
+    app = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui", "app.py")
+    cmd = [sys.executable, "-m", "streamlit", "run", app]
+    if args.port:
+        cmd += ["--server.port", str(args.port)]
+    try:
+        return subprocess.call(cmd)
+    except KeyboardInterrupt:
+        return 0
 
 
 def hit_rate(result) -> float:
@@ -297,3 +434,30 @@ def _precision(args) -> int:
         with open(args.json, "w") as f:
             json.dump(out, f, indent=2)
     return 0
+
+
+def _stability(args) -> int:
+    from . import stability as sb
+
+    with open(args.a) as f:
+        a = json.load(f)
+    with open(args.b) as f:
+        b = json.load(f)
+    r = sb.compare_runs(a, b)
+    print(f"facts               {r['facts'][0]:5} {r['facts'][1]:5}")
+    print(f"cited IDs           {r['cited_ids'][0]:5} {r['cited_ids'][1]:5}  in both {r['cited_both']}  agreement {r['id_agreement']}")
+    print(f"same codes per ID   {r['same_codes']} of {r['cited_both']}  agreement {r['code_agreement']}")
+    print(f"same fact_id        {r['same_fact_id']}  agreement {r['fact_id_agreement']}")
+    print(f"{'code':4} {'A':>5} {'B':>5} {'IDs in both':>11}")
+    for c, row in r["by_category"].items():
+        print(f"{c:4} {row['a']:5} {row['b']:5} {row['ids_both']:11}")
+    for (x, y), n in r["code_flips"][: args.show]:
+        print(f"  {n:3} IDs filed {x or '-'} in one run, {y or '-'} in the other")
+    if args.json:
+        with open(args.json, "w") as f:
+            json.dump(r, f, indent=2)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

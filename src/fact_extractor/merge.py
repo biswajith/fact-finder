@@ -7,9 +7,17 @@ from collections import defaultdict
 from difflib import SequenceMatcher
 
 from .models import Fact
+from .normalize import values
+from .prompts import PRECEDENCE
 
 SAME_IDS_SIMILARITY = 0.6  # same code + same IDs (REVIEW.md item 1)
 OVERLAP_SIMILARITY = 0.8  # same code + overlapping IDs
+# Different codes + same main ID: two calls filed one statement under two codes. Only a
+# plain restatement merges: each fact holds this share of the other's content words, and
+# the kept one has all the numbers and dates of the dropped one. A looser rule (0.6, one
+# way) also merged second views a bid manager wants, such as the due date as a D fact next
+# to "late proposals are not opened" as X, and cost about 2 points of recall on both RFPs.
+CROSS_CODE_COVERAGE = 0.8
 
 
 def words(text: str) -> list[str]:
@@ -44,24 +52,41 @@ def paraphrase_similarity(a: str, b: str) -> float:
 _RANK = {"valid": 0, "conflict": 0, "needs_review": 1}
 
 
+def _same_fact(other: Fact, f: Fact) -> bool:
+    if other.category == f.category:
+        same_ids = set(other.ids) == set(f.ids)
+        sim = similarity(other.text, f.text)
+        # Two Q lines on the same IDs report the same contradiction, however worded.
+        same_q = same_ids and f.category == "Q"
+        return same_q or (same_ids and sim >= SAME_IDS_SIMILARITY) or sim >= OVERLAP_SIMILARITY
+    # One statement filed under two codes by two calls (REVIEW.md, "Run-to-run stability").
+    # A Q line is about a disagreement, never the same fact as the statement it cites.
+    if "Q" in (other.category, f.category):
+        return False
+    if other.ids[0] != f.ids[0]:
+        return False
+    keep, drop = sorted((other, f), key=lambda x: (_RANK[x.status], _precedence(x.category)))
+    wk = {w for w in words(keep.text) if w not in _STOP}
+    wd = {w for w in words(drop.text) if w not in _STOP}
+    if not wd or not wk or len(wd & wk) / max(len(wd), len(wk)) < CROSS_CODE_COVERAGE:
+        return False
+    return values(drop.text) <= values(keep.text, generous=True)
+
+
 def dedupe(facts: list[Fact]) -> list[Fact]:
-    """Merge duplicates. Only facts with the same code that share an ID are compared."""
+    """Merge duplicates. Only facts that share an ID are compared: with the same code on
+    wording, with different codes when they also have the same main (first) ID."""
     kept: list[Fact] = []
-    by_id: dict[tuple[str, str], list[int]] = defaultdict(list)
+    by_id: dict[str, list[int]] = defaultdict(list)
     for f in facts:
         match: int | None = None
         seen: set[int] = set()
         for id_ in f.ids:
-            for k in by_id[(f.category, id_)]:
+            for k in by_id[id_]:
                 if k in seen:
                     continue
                 seen.add(k)
-                other = kept[k]
-                same_ids = set(other.ids) == set(f.ids)
-                sim = similarity(other.text, f.text)
-                # Two Q lines on the same IDs report the same contradiction, however worded.
-                same_q = same_ids and f.category == "Q"
-                if same_q or (same_ids and sim >= SAME_IDS_SIMILARITY) or sim >= OVERLAP_SIMILARITY:
+                if _same_fact(kept[k], f):
                     match = k
                     break
             if match is not None:
@@ -69,20 +94,25 @@ def dedupe(facts: list[Fact]) -> list[Fact]:
         if match is None:
             kept.append(f)
             for id_ in f.ids:
-                by_id[(f.category, id_)].append(len(kept) - 1)
+                by_id[id_].append(len(kept) - 1)
             continue
-        other = kept[match]
-        merged = _merge(other, f)
+        merged = _merge(kept[match], f)
         kept[match] = merged
         for id_ in merged.ids:
-            if match not in by_id[(f.category, id_)]:
-                by_id[(f.category, id_)].append(match)
+            if match not in by_id[id_]:
+                by_id[id_].append(match)
     return kept
 
 
+def _precedence(code: str) -> int:
+    return PRECEDENCE.index(code) if code in PRECEDENCE else len(PRECEDENCE)
+
+
 def _merge(a: Fact, b: Fact) -> Fact:
-    # A valid fact wins over a needs_review one; then the longer text.
-    first, second = sorted((a, b), key=lambda f: (_RANK[f.status], -len(f.text)))
+    # A valid fact wins over a needs_review one; then the code that comes first in
+    # PRECEDENCE (two codes for one statement); then the longer text.
+    # (Stable sort: with the same status and code, the longer text; else the earlier fact.)
+    first, second = sorted((a, b), key=lambda f: (_RANK[f.status], _precedence(f.category), -len(f.text)))
     ids = list(dict.fromkeys(first.ids + second.ids))
     notes = [n.strip() for f in (first, second) for n in f.note.split(",") if n.strip()]
     note = ", ".join(dict.fromkeys(notes))  # keep the flags of both

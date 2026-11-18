@@ -251,7 +251,7 @@ async def test_sweep_all_includes_sentences_without_candidate_words(doc):
 
     assert "p1.1" not in planner.candidates(doc) and "p1.1" in planner.sweepable(doc)
     # Calls A and K find nothing, so the buyer sentence p1.1 (no shall/must) is uncited.
-    client = ScriptedClient(lambda req: "END|0\n" if task_name(req) in ("A", "K1", "K2") else handler(req))
+    client = ScriptedClient(lambda req: "END|0\n" if task_name(req) in ("A", "K1", "K2", "K3") else handler(req))
     cfg = Config(backoff_base=0, warmup_timeout=1, passes=1, sweep_all=True)
     res = await extract(doc, client, deal_id="d", cfg=cfg)
     sweep = next(r for r in client.requests if task_name(r).startswith("SWEEP"))
