@@ -1,0 +1,48 @@
+# Golden dataset builder settings (goldset.yaml). Every key is optional; these are the defaults.
+models:
+  planner:     {name: gpt-6-luna, effort: high}    # writes and reconciles the todo list (try gpt-6.1-sol)
+  worker:      {name: gpt-6-luna, effort: medium}  # builds one candidate per todo item
+  solver:      {name: gpt-6-luna, effort: medium}  # answers each case blind, for the agreement check
+  adjudicator: {name: gpt-6-luna, effort: high}    # settles cases the Decisions gate is unsure about
+  decisions: gpt-6-luna                            # the only model the Decisions API serves
+  max_output_tokens: 8000
+  max_parallel: 8
+
+dataset:
+  cases_per_task: 6        # minimum accepted cases per (prompt, source) in "cases" mode; front matter can override
+  max_items_per_task: 14   # cap on todo items per task (source that fits in one chunk)
+  max_items_large: 80      # cap for a source cut into several chunks; coverage decides how many are used
+
+loop:
+  max_rounds: 4            # work -> verify -> reconcile passes
+  max_attempts: 3          # candidates per item before it goes to needs_human.jsonl
+
+gate:                      # Decisions API probabilities
+  accept: 0.85             # all predicates at or above, and answers agree: accepted
+  reject: 0.25             # any predicate below: failed, back to the planner with reasons
+  agree_confidence: 0.6    # in between, or conflict with the blind answer: the adjudicator decides
+
+chunking:                  # cut along the structure, never mid-record or mid-paragraph
+  json_max_leaves: 300     # JSON: a subtree that fits stays whole; runs of small siblings are packed together
+  text_max_chars: 6000     # text: packed paragraph by paragraph, preferring to cut at # and ## headings
+
+coverage:                  # measured by code from each accepted case's evidence
+  target: 0.9              # share of units (chunks, fields, enum/boundary values, nulls, missing keys) to cover
+  enum_max_distinct: 12    # a non-numeric field with at most this many values is an enum: one unit per value
+  max_listed: 40           # uncovered units shown to the planner per call, rarest first
+  max_new_per_round: 10    # coverage items the reconciler may add per task per round
+
+tools:                     # JSON sources: workers, solver and adjudicator get a read-only query_json tool (JMESPath)
+  query: true              # aggregates (counts, sums, filters) are computed by it; code re-runs every cited query
+  max_calls: 8             # tool calls per model run
+  max_result_chars: 4000   # longer results are cut and the model is told to narrow the query
+
+sweep:                     # large sources: check each case against every other chunk (Decisions API)
+  enabled: true
+  flag: 0.5                # a chunk at or above this probability sends the case to the adjudicator
+  max_passages: 3          # flagged chunks the adjudicator reads
+
+render:
+  context_lines: 3
+  planner_max_chars: 60000
+  max_json_leaves: 1500

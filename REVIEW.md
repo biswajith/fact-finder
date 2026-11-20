@@ -744,3 +744,68 @@ a table sorted in code: dates are not paraphrased. The facts behind each
 section are folded under it. Stored in `report["summaries"]`; five calls, 5.5 s
 on Durham when run alone, and part of the second round in a new extraction.
 
+
+### Reference lists from goldset, and a DeepEval suite (2026-11-20)
+
+Nothing here changes extraction. It changes how the yardstick is made and
+how it is read. Not run against the live API (see "Open").
+
+**Why reference lists are built by goldset.** Every score in this file rests on
+a reference list, and each list was drafted by hand or by a subagent
+(`poc/gold/`, `poc/durham/gold/`). Hand-drafting was the cost: a new RFP got no
+number until someone had written about 200 to 500 lines. `src/goldset/` builds
+checked cases for a prompt over a source, and `golden.py` points it at a tagged
+RFP, one prompt per category, one unit per case. A worker writes the line with
+verbatim quotes as evidence; code and a gate check it; what fails is corrected
+or handed to a human (`needs_human.jsonl`). The extractor's own category
+definitions, fact rules and flag tests are read into the prompts and not
+changed, and `mandatory` / `desirable` are set by code from the unit's wording,
+as in the extractor.
+
+**Why goldset was copied in, not kept as a dependency.** The owner wants one
+reference project. The copy is `src/goldset/` at commit `c172c6c` of the sibling
+repo `golden-data-set-builder`, with its tests in `tests/goldset_builder/`, its
+examples in `examples/goldset/` and its settings in `goldset.yaml`. Its
+dependencies sit in an optional `evals` extra, so the core stays `pymupdf` and
+`openai`. `golden.py` imports goldset inside its functions, so it loads without
+the extra.
+
+**Why the list is a sample, and what that does to recall.** goldset writes a
+budgeted number of cases per category (default 30, `--cases`) and its planner
+chooses which units to cover. The list is a checked sample, not every fact in
+the RFP. `score` against it is recall on that sample: a valid yardstick for
+comparing two runs, but 0.95 on it does not mean 95% of the RFP's facts were
+found. The hand-written lists were written to cover the whole RFP, so figures
+from the two kinds of list must not be set side by side. goldset's coverage figure is the share of the document's page and
+section chunks that a checked case touches, not a fact count.
+
+**Why Q is left out.** A contradiction cites two places. Its case needs two
+unit IDs in and one line out, and the prompts and `to_gold` are built for one
+unit in and a line whose main ID is that unit. `--codes` takes `BCGXDSER`.
+Contradiction recall is still scored against hand-written lines.
+
+**Why DeepEval sits on top of `score.py`.** `evalsuite.py` turns the existing
+questions into DeepEval cases and metrics (a per-fact pass or fail with a
+reason). `ReferenceFound` calls `score.score` for each reference fact, so it
+cannot disagree with `fact-extractor score`; a second implementation of
+matching would be a second thing to keep in step. Measured on the Ulster
+contract list (`poc/gold/gold_c.txt`, 88 facts) against the stored `stable`
+run: `deepeval test run` passed 80, `score` reports 80 under the same code (83
+found). The model-judged metrics (`same_fact`, `supported`, `useful`) restate
+the `judge.py` and `precision.py` questions; they replace neither. Telemetry is
+opted out in `evals/conftest.py` and `.env.example`; `evals/` is not collected
+by `uv run pytest`.
+
+**Open.**
+
+- **No live run.** `fact-extractor golden` has not been run, goldset has only
+  run on a scripted model, and the judged DeepEval metrics have not called the
+  API. Cost (about 160 to 200 calls per category on a 30-page RFP, roughly
+  1,300 to 1,600 for eight) comes from reading the code, not from a run.
+- **Thresholds are untested defaults:** 0.5 for `same_fact` and `useful`, 1.0
+  for `supported`, `--cases 30`, and goldset's gate (0.85 accept, 0.25 reject).
+- **The judged metrics are not checked against the hand labels**
+  (`poc/ablation/labels/*.csv`). The model grades a model's output, the same
+  risk as `precision --grade`; check agreement before trusting them.
+- **Two copies of goldset will drift** unless the sibling repo is retired. Until
+  then, a fix made in one is not in the other.

@@ -1,0 +1,16 @@
+{
+  "order_id": "SO-1001",
+  "status": "SHP",
+  "placed_at": "2026-09-14T10:22:00Z",
+  "customer": {"id": "C-77", "tier": "gold", "email_opt_in": false},
+  "lines": [
+    {"sku": "KB-210", "qty": 2, "unit_price_minor": 4950},
+    {"sku": "MS-044", "qty": 1, "unit_price_minor": 2900},
+    {"sku": "CB-001", "qty": 3, "unit_price_minor": 0}
+  ],
+  "currency": "EUR",
+  "discount_pct": 10,
+  "shipping_minor": 495,
+  "promised_by": "2026-09-18",
+  "delivered_at": null
+}

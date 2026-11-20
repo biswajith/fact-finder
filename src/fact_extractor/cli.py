@@ -105,12 +105,21 @@ def main(argv: list[str] | None = None) -> int:
     st.add_argument("b", help="facts JSON of another run")
     st.add_argument("--show", type=int, default=10, help="code differences to list")
     st.add_argument("--json", default=None, help="write the numbers here")
+    g = sub.add_parser("golden", help="build a reference (gold) fact list from a PDF with the golden-dataset builder (needs the evals extra and OPENAI_API_KEY)")
+    g.add_argument("pdf")
+    g.add_argument("--doc-id", default=None, help="defaults to the file name")
+    g.add_argument("--out", default=None, help="folder for the run; defaults to runs/<doc id>/golden")
+    g.add_argument("--codes", default="BCGXDSER", help="categories to build, a subset of BCGXDSER (Q is not supported)")
+    g.add_argument("--cases", type=int, default=30, help="checked cases to aim for per category")
+    g.add_argument("--config", default="goldset.yaml", help="goldset settings; case budgets are raised to fit --cases")
     ui = sub.add_parser("ui", help="open the fact review app in a browser (needs the ui extra)")
     ui.add_argument("--port", type=int, default=None)
     args = ap.parse_args(argv)
 
     if args.cmd == "ui":
         return _ui(args)
+    if args.cmd == "golden":
+        return _golden(args)
     if args.cmd == "compare":
         return _compare(args)
     if args.cmd == "score":
@@ -264,6 +273,32 @@ def _extract_legacy(args, doc) -> None:
         extra = f" p5={st['p5']}" if "p5" in st else ""
         print(f"  {name:18} n={st['n']} p50={st['p50']} p95={st['p95']} max={st['max']}{extra}", file=sys.stderr)
     print(f"  extract stage throughput: {perf['extract_stage_tokens_per_second']} tok/s", file=sys.stderr)
+
+
+def _golden(args) -> int:
+    from . import golden
+    from .results import safe_name
+
+    if (missing := golden.missing_dependency()) is not None:
+        print(f"The golden-dataset builder needs the evals extra ({missing} is missing): uv sync --extra evals", file=sys.stderr)
+        return 1
+    if not os.environ.get("OPENAI_API_KEY"):
+        print("OPENAI_API_KEY is not set (put it in .env or the environment)", file=sys.stderr)
+        return 1
+    codes = args.codes.upper()
+    if not codes or any(c not in golden.CODES for c in codes):
+        print(f"--codes takes letters from {golden.CODES}; Q (contradictions) is not supported", file=sys.stderr)
+        return 2
+    doc_id = args.doc_id or args.pdf.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    out = args.out or os.path.join("runs", safe_name(doc_id), "golden")
+    r = golden.build(args.pdf, out, codes, args.cases, args.config, log=lambda m: print(m, file=sys.stderr), doc_id=doc_id)
+    print(f"{r['accepted']} reference facts in {r['gold']}: " + ", ".join(f"{c} {n}" for c, n in r["by_code"].items()))
+    print("This is a checked sample of the RFP's facts, not every fact: a score against it is recall on the sample.")
+    print("goldset coverage (share of the document's sections a checked case touches): "
+          + ", ".join(f"{c} {v:.0%}" for c, v in r["coverage"].items()))
+    print(f"{r['rejected']} lines refused ({r['rejected_file']}), {r['needs_human']} cases need a human; report: {r['report']}")
+    print(f"Next: fact-extractor score {r['gold']} --facts <facts.json>")
+    return 0
 
 
 def _ui(args) -> int:

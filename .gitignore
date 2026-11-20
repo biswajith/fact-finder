@@ -37,3 +37,16 @@ tagged.txt
 !/poc/gold/*.txt
 !/poc/durham/gold/*.txt
 !/poc/ablation/labels/*.csv
+
+# --- goldset and DeepEval local state ---
+.streamlit/secrets.toml
+.pyright/
+# DeepEval writes these into the working directory.
+.deepeval/
+.deepeval-cache.json
+.deepeval-prompt-cache.json
+.deepeval-voice-simulations/
+.deepeval_telemetry.txt
+.deepeval_temp/
+.temp_test_run_data.json
+.latest_test_run.json

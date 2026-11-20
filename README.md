@@ -5,6 +5,9 @@ buyer is, what the contract says, whether you may bid, what disqualifies you,
 the deadlines, how to submit, how proposals are scored, every requirement, and
 where the document contradicts itself.
 
+Where the project is heading is in [GOAL.md](GOAL.md): goldset generates the
+reference data for an RFP, and DeepEval evaluates the extractor against it.
+
 It is built from the spec in `rfp-fact-extraction-spec.html` (v1, 2 Nov 2026).
 That file is **not in this repo**. [REVIEW.md](REVIEW.md) lists every place the
 code departs from the spec and why. Read it before changing behaviour.
@@ -57,13 +60,22 @@ unit", for why it was replaced.
 ## Setup
 
 Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/), and an OpenAI API
-key (only for `extract`; every other command works offline).
+key (for `extract`, `golden`, `compare --judge`, `precision --grade` and the
+judged DeepEval metrics; every other command works offline).
 
 ```bash
 uv sync                      # installs deps into .venv
 cp .env.example .env         # then edit it
 uv run pytest                # sanity check
 ```
+
+The core dependencies are still `pymupdf` and `openai`. Two optional extras
+hold the rest: `ui` (Streamlit, for the review app) and `evals` (the
+golden-dataset builder's dependencies, LangGraph and LangChain among them, plus
+`deepeval`). The dev group installs both, so a plain `uv sync` gives everything.
+Without the dev group, ask for what you need: `uv sync --extra evals`,
+`uv sync --extra ui`. `uv run pyright` type-checks `src/goldset` and
+`tests/goldset_builder` only.
 
 `.env` (real environment variables win over it):
 
@@ -72,6 +84,8 @@ uv run pytest                # sanity check
 | `OPENAI_API_KEY` | Required for `extract`. |
 | `FACT_EXTRACTOR_MODEL` | Model ID for all calls. Default `gpt-6-luna`. `--model` overrides it. |
 | `OPENAI_BASE_URL` | Optional proxy or compatible endpoint (read by the `openai` SDK). |
+| `LANGSMITH_API_KEY`, `LANGSMITH_TRACING` | Optional. Trace every LangChain call that the golden-dataset builder makes. |
+| `DEEPEVAL_TELEMETRY_OPT_OUT` | `1` in `.env.example`: turns off DeepEval's usage telemetry (see "DeepEval suite"). |
 
 ## Using it
 
@@ -91,8 +105,13 @@ uv run fact-extractor plan rfp.pdf
 uv run fact-extractor extract rfp.pdf --deal-id deal_442 \
     --out facts.json --report run.json
 
+# 4a. Build a reference list instead of writing one (about 1,300 to 1,600 model
+#     calls for all eight categories; see "Reference lists from goldset")
+uv run fact-extractor golden rfp.pdf --doc-id rfp-001
+
 # 4b. Score against a reference list by source ID (exact, no model call)
 uv run fact-extractor score poc/durham/gold/gold_draft.txt --facts facts.json
+uv run fact-extractor score runs/rfp-001/golden/gold.txt --facts facts.json
 
 # 5. Score a run against a hand-written reference list
 uv run fact-extractor compare poc/gold/gold_*.txt --facts facts.json --show 10
@@ -120,6 +139,11 @@ a labelled sample (`supported` y/p/n, `useful` u/x), and with `--grade` asks the
 model the same two questions for every fact (cached in
 `poc/precision.grades.json`). The model grades its own extractor's output, so
 check its agreement with a labelled sample before trusting it.
+
+The order of work is: extract; build a reference list with `golden` or write
+one by hand; then `score`, `compare` and `precision`. The DeepEval suite (see
+"DeepEval suite") is another view of the same checks, run on the same facts and
+the same reference list; it replaces none of them.
 
 `tag` and `anchors` should be your first stop when results look wrong: if the
 text or IDs are off here, no prompt change will fix it.
@@ -217,6 +241,169 @@ No other tab calls the model. The layout is in `src/fact_extractor/ui/app.py`;
 loading, filtering, CSV and page rendering are in `ui/data.py` (no Streamlit
 import), and the screens are specified in `UI_SPEC.md`.
 
+## Reference lists from goldset
+
+`score` and `compare` need a reference list, one `CODE|fact|IDs|flags` line per
+fact. Writing one by hand was the slow part: the Ulster and Durham lists took
+subagents and reading time. `src/goldset/` is a golden-dataset builder that
+produces checked cases for a prompt over a source, and
+`src/fact_extractor/golden.py` points it at a tagged RFP and turns what it
+accepts back into a reference list. It was copied from the sibling repo
+`golden-data-set-builder` at commit `c172c6c` (LangGraph and LangChain). The
+copy is tracked in [REVIEW.md](REVIEW.md), 2026-11-20.
+
+**How its loop corrects itself.** For each prompt and source, goldset plans a
+todo list, has a worker write one case per item with verbatim quotes as
+evidence, and checks every case before it accepts it.
+
+```
+plan -> work -> verify -> reconcile --(open items, rounds left)--> work
+                                   \--(otherwise)--> finalize
+```
+
+- **plan**: the planner picks spans of the source and writes a todo list, each
+  item with acceptance criteria.
+- **work**: a worker writes the case and its evidence. A second model answers
+  the same case blind, for an agreement check.
+- **verify**: first code (quotes must appear in the source, no duplicates), then
+  the Decisions API (grounded, correct, clear, novel, agrees with the blind
+  answer), then, only for the unsure band, an adjudicator that may revise a case.
+  A revision is checked again.
+- **reconcile**: items out of attempts go to `needs_human.jsonl`. The planner
+  reads each failure reason and retries, rewrites, splits or drops the item, and
+  adds items for gaps in coverage.
+
+Code owns ids, quote checks, budgets and when the run stops. The planner
+proposes; code disposes. Settings (models, gate thresholds, rounds, chunk size,
+sweep) are in `goldset.yaml`, every key commented. The full design is in the
+source's docstrings and in the original repo's README.
+
+**Two ways in.**
+
+1. **`fact-extractor golden`** builds a reference list for an RFP:
+
+   ```bash
+   uv sync --extra evals        # not needed after a plain `uv sync`
+   uv run fact-extractor golden rfp.pdf --doc-id rfp-001 \
+       [--out DIR] [--codes BCGXDSER] [--cases 30] [--config goldset.yaml]
+   ```
+
+   It tags the PDF, writes the tagged text as a goldset source (a page marker
+   and block breaks so chunks cut only at page and section boundaries), and
+   writes one prompt per category. The case input is one unit ID; the expected
+   output is that unit's `CODE|fact|IDs|flags` line, or NONE. The prompts reuse
+   the extractor's category definitions, fact rules and flag tests
+   (`prompts.py`) and change none of them. `mandatory` and `desirable` are set
+   by code from the unit's wording, as in the extractor. Every accepted line is
+   parsed and checked again; one unit accepted under two categories becomes one
+   line with alternates (`C/R`).
+
+2. **`goldset run` / `goldset ui`** build a golden dataset for any sources and
+   prompts, not only RFPs:
+
+   ```bash
+   uv run goldset run examples/goldset/sources examples/goldset/prompts --out runs/my-run
+   uv run goldset report runs/my-run
+   uv run goldset ui [--port 8501]
+   ```
+
+   `examples/goldset/` holds a small order export, a travel policy and two
+   prompts; `examples/goldset/large/` holds a generator for a 400-order JSON
+   export. Run again with the same `--out` to resume: every model call is cached
+   in the run folder.
+
+**Outputs** of `golden`, in `runs/<doc id>/golden/` unless `--out` is given:
+
+| File | Contents |
+| --- | --- |
+| `gold.txt` | The reference list, in document order. Feed it to `score`, `compare` or `EVAL_GOLD`. |
+| `rejected.jsonl` | Accepted cases that could not become a gold line, each with the reason (wrong code, unknown ID, `\|` in the fact). |
+| `build/report.md` | goldset's report: accepted first time or after correction, problems, model usage. |
+| `build/needs_human.jsonl` | Cases the loop could not settle, with the attempt history. |
+| `build/coverage.json` | Per category, the share of the document's chunks that a checked case touches. |
+
+**Cost.** Not measured. From reading the code: about 160 to 200 model calls per
+category on a 30-page RFP, so roughly 1,300 to 1,600 for all eight. goldset's
+whole-document sweep is part of that; `sweep.enabled: false` in `goldset.yaml`
+cuts it, and `--codes` and `--cases` cut the rest.
+
+**Limits.**
+
+- **The list is a checked sample, not every fact.** goldset writes a budgeted
+  number of cases per category (default 30, `--cases`), and its planner picks
+  which units to cover. `score` against it is recall on that sample. A high
+  figure does not mean the extractor found every fact in the RFP.
+- **Coverage is not fact coverage.** For a text source, goldset's figure is the
+  share of the document's page and section chunks that a checked case touches.
+- **Contradictions (`Q`) are not built.** A contradiction cites two places, so
+  its case needs two unit IDs in and one line out, which the prompts do not
+  have. `--codes` takes `B C G X D S E R`.
+- **Never run against the live API.** `fact-extractor golden` has not been run,
+  and goldset has only run on a scripted model (the tests). Its thresholds
+  (`gate.accept` 0.85, `gate.reject` 0.25), efforts and `--cases 30` are
+  untested starting values. Read `gold.txt` and `build/needs_human.jsonl` for
+  one RFP, and score a run you know against it, before trusting it as a yardstick.
+- The copy in `src/goldset/` and the sibling repo will drift apart.
+
+## DeepEval suite
+
+`src/fact_extractor/evalsuite.py` and `evals/` run the project's own checks
+through [DeepEval](https://deepeval.com), so one `deepeval test run` gives a
+pass or fail per fact with a reason. `score.py`, `judge.py` and `precision.py`
+stay the source of truth. `uv run pytest` does not collect `evals/`.
+
+| Check | DeepEval metric | Model call |
+| --- | --- | --- |
+| Reference fact found, under its code (`fact-extractor score`) | `ReferenceFound`, which asks `score.score` itself, so it cannot disagree with `score` | No |
+| Found fact says what the reference says (`compare --judge`) | `same_fact`, a GEval metric, threshold 0.5 | Yes, 2 calls per found reference fact |
+| Extracted fact is backed by its cited text (`precision`, `supported`) | `supported`, DeepEval's FaithfulnessMetric, threshold 1.0 | Yes |
+| Extracted fact is worth a bid manager's time (`precision`, `useful`) | `useful`, a GEval metric with the `precision.py` labels, threshold 0.5 | Yes |
+
+```bash
+# Was each reference fact found? No model call.
+EVAL_FACTS=facts.json EVAL_GOLD=runs/rfp-001/golden/gold.txt \
+    uv run deepeval test run evals/test_reference.py
+
+# The same, plus the same_fact judge on found facts (needs OPENAI_API_KEY)
+EVAL_JUDGE=1 EVAL_FACTS=facts.json EVAL_GOLD=runs/rfp-001/golden/gold.txt \
+    uv run deepeval test run evals/test_reference.py
+
+# Supported and useful, on a seeded sample of the run's facts (needs OPENAI_API_KEY)
+EVAL_FACTS=facts.json EVAL_SAMPLE=30 uv run deepeval test run evals/test_facts.py
+```
+
+| Variable | Meaning |
+| --- | --- |
+| `EVAL_FACTS` | `facts.json` of the run to evaluate. |
+| `EVAL_GOLD` | One or more reference files, separated by commas. |
+| `EVAL_SAMPLE` | Facts judged by `test_facts.py`. Default 30. The sample is the one `precision --sample` draws, so a model grade and a hand label cover the same facts. |
+| `EVAL_JUDGE` | `1` adds `same_fact` to `test_reference.py`. |
+| `FACT_EXTRACTOR_MODEL` | The judge model. Default `gpt-6-luna`. |
+
+An unset input skips the test with a message.
+
+**Cost.** `test_reference.py` alone: none. With `EVAL_JUDGE=1`: 2 judge calls per
+found reference fact. `test_facts.py`: 6 judge calls per fact, so 180 at the
+default sample of 30.
+
+**Telemetry.** `evals/conftest.py` and `.env.example` set
+`DEEPEVAL_TELEMETRY_OPT_OUT=1`. With no Confident AI login nothing is uploaded;
+a run with networking disabled gave the same result. DeepEval writes `.deepeval/`
+in the working directory (git-ignored).
+
+**Judge model.** DeepEval 4.3.4 lists `gpt-6-luna` in its OpenAI table. A model
+name it does not list would be sent `temperature=0`, which reasoning models
+reject; give such a model a `DeepEvalBaseLLM` of its own.
+
+**Measured.** On the Ulster reference list (`poc/gold/gold_c.txt`, 88 facts)
+against the stored `stable` run, `deepeval test run` passed 80 and
+`fact-extractor score` reports 80 under the same code (83 found). That is one
+run on one list, and only the metric that makes no model call.
+
+**Not checked.** The three judged metrics have not been run against the live API.
+Their thresholds are untested defaults. Compare them with the hand labels in
+`poc/ablation/labels/*.csv` before anyone trusts them, as with `precision --grade`.
+
 ## Layout
 
 | Module | Spec section |
@@ -236,6 +423,12 @@ import), and the screens are specified in `UI_SPEC.md`.
 | `results.py` | Stored results on disk, found by PDF content; what a re-extraction changed |
 | `score.py` | Recall against a reference list by source ID |
 | `store.py` | 9. Store (in memory, not MongoDB) |
+| `golden.py` | Builds a reference list for an RFP with goldset (needs the `evals` extra) |
+| `evalsuite.py` | DeepEval test cases and metrics over `score.py` and `precision.py` |
+| `src/goldset/` | The golden-dataset builder, copied from another repo; its own CLI is `goldset` |
+
+`evals/` holds the DeepEval tests, `examples/goldset/` goldset's examples,
+`goldset.yaml` its settings and `tests/goldset_builder/` its tests.
 
 `poc/` holds output from proof-of-concept runs on the Ulster County RFP
 (`facts_run*.json`, `report_run*.json`) and the reference list in `poc/gold/`
@@ -319,7 +512,9 @@ counts as the same code.
 
 **Development**
 
-- `uv run pytest` makes no network calls.
+- `uv run pytest` makes no network calls. It runs 174 tests (113 for the
+  extractor, 19 for goldset, 31 for `golden.py`, 11 for `evalsuite.py`), all
+  offline; goldset's pass on Python 3.11, 3.12 and 3.13.
 - `.env` holds a real key. `.gitignore` excludes it; confirm `git status` never
   lists `.env`.
 - `load_env` is a minimal parser: `KEY=value` lines, optional quotes and
