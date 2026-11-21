@@ -306,7 +306,7 @@ reads them with tools.
 
 | Tool | Does |
 | --- | --- |
-| `search(query?, queries?, label?, category?, flag?, status?, edited?, limit=20)` | Word-overlap search over the labelled text of the whole document (`labels.json`): every source unit with its label and votes, plus the fact line written from it (`fact_id`, status, flags). Facts with no unit follow. `queries` runs up to 10 searches in one call under the same filters, at most 10 hits each; a row already listed for an earlier query comes back as its IDs only |
+| `search(query?, queries?, label?, category?, flag?, status?, edited?, limit=10)` | Word search over the labelled text of the whole document (`labels.json`) and the facts. A hit is a fact row (`fact_id`, category, fact line, page; flags, status and `edited` only when set) or, for source text with no fact, a unit row (`unit_id`, label, `unit_text` cut at 400 characters); `votes` only when they disagreed. Ranked by the sum of the squared rarity (inverse frequency) of the query terms a row matches, so rare words outweigh common ones; rows under 25% of the best score are left out. `queries` runs up to 10 searches in one call under the same filters, at most 6 hits each. A row already returned in full earlier in the turn comes back as its ID with `sent_before` |
 | `get_fact(fact_id)` | Full effective fact with cited source text and its original values |
 | `edit_fact(fact_id, text?, category?, flags?, note?, reason)` | Correction |
 | `delete_fact(fact_id, reason)` | Correction |

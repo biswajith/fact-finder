@@ -16,7 +16,7 @@ import re
 import time
 import unicodedata
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Awaitable, Callable, Protocol
 
 from ..models import CATEGORIES, FLAGS
@@ -179,6 +179,7 @@ class Ctx:
     summaries: SummaryService
     conflict_ids: list[str]
     plan: list[dict] | None = None  # heavy mode only: [{"step": str, "done": bool}]
+    sent: set[str] = field(default_factory=set)  # fact and unit IDs search already returned in full this turn
     tools_run: int = 0  # successful tool calls this turn, other than update_plan
 
 
@@ -228,32 +229,69 @@ def _limit(args: dict, default: int, top: int = 50) -> int:
     return max(1, min(top, n)) if isinstance(n, int) and not isinstance(n, bool) else default
 
 
-MULTI_QUERY_LIMIT = 10  # hits per query when one search call carries several queries
+SEARCH_LIMIT = 10  # hits for one query, unless the model asks for more (up to 50)
+MULTI_QUERY_LIMIT = 6  # hits per query when one search call carries several queries
+MIN_RELATIVE_SCORE = 0.25  # with a query, rows scoring under this share of the best row are left out
+UNIT_TEXT_CHARS = 400
+
+
+def _row(u: dict | None, f: dict | None) -> dict:
+    """One search hit, as small as it can be: a fact row gives the fact line (get_fact has its source
+    text); a unit row (no fact) gives the source text. Fields at their usual value are left out."""
+    if f is not None:
+        row: dict = {"fact_id": f["fact_id"], "category": f["category"], "text": f["text"],
+                     "page": f["citations"][0]["page_label"] if f["citations"] else (u or {}).get("page")}
+        if f["flags"]:
+            row["flags"] = f["flags"]
+        if f["status"] != "valid":
+            row["status"] = f["status"]
+        if f["edited"]:
+            row["edited"] = True
+    else:
+        assert u is not None
+        text = u.get("text", "")
+        row = {"unit_id": u["id"], "label": u.get("label"), "page": u.get("page"),
+               "unit_text": text if len(text) <= UNIT_TEXT_CHARS else text[:UNIT_TEXT_CHARS] + "..."}
+    votes = (u or {}).get("votes")
+    if votes and len(set(votes)) > 1:  # only when the extraction's votes disagreed
+        row["votes"] = votes
+    return row
+
+
+def _row_key(h: dict) -> str:
+    return h.get("fact_id") or h.get("unit_id") or ""
+
+
+def _dedupe(ctx: Ctx, hits: list[dict]) -> list[dict]:
+    """A row search already returned in full this turn comes back as its ID only."""
+    out = []
+    for h in hits:
+        key = _row_key(h)
+        if key and key in ctx.sent:
+            out.append({("fact_id" if h.get("fact_id") else "unit_id"): key, "sent_before": True})
+        else:
+            ctx.sent.add(key)
+            out.append(h)
+    return out
 
 
 async def t_search(ctx: Ctx, a: dict) -> dict:
     """One query (`query`), or several in one call (`queries`), so independent lookups cost one model
-    round, not one each. With several, each query gets its own hits under the same filters, and a row
-    already listed for an earlier query is shown again only by its IDs."""
+    round, not one each. With several, each query gets its own hits under the same filters. A row
+    already returned in full earlier in this turn, by this call or an earlier one, comes back as its ID."""
     queries = a.get("queries")
     if queries is None:
-        return await _search_one(ctx, a)
+        r = await _search_one(ctx, a)
+        return {**r, "hits": _dedupe(ctx, r["hits"])}
     if not isinstance(queries, list) or not queries or not all(isinstance(q, str) for q in queries):
         raise WorkspaceError("queries must be a non-empty list of strings")
     base = {k: v for k, v in a.items() if k not in ("queries", "query")}
     # Each query's hits are capped, so several queries cannot fill the context: _limit allows 50 for one.
     base["limit"] = min(_limit(a, MULTI_QUERY_LIMIT), MULTI_QUERY_LIMIT)
-    seen: set[tuple] = set()
     results = []
     for q in queries[:10]:
         r = await _search_one(ctx, {**base, "query": q})
-        hits = []
-        for h in r["hits"]:
-            key = (h.get("fact_id"), h.get("unit_id"))
-            hits.append({k: h[k] for k in ("fact_id", "unit_id") if h.get(k)} | {"listed_above": True}
-                        if key in seen else h)
-            seen.add(key)
-        results.append({"query": q, "count": r["count"], "hits": hits})
+        results.append({"query": q, "count": r["count"], "hits": _dedupe(ctx, r["hits"])})
     out: dict = {"results": results}
     if len(queries) > 10:
         out["note"] = "Only the first 10 queries were run."
@@ -303,17 +341,16 @@ async def _search_one(ctx: Ctx, a: dict) -> dict:
             hit = q & (ut | ft | ct)
             if not hit:
                 continue
-            s = sum(w[t] * ((t in ut) + 2 * (t in ft) + (t in ct)) for t in hit)
-            scored.append((-len(hit), -s, i, u, f))  # more distinct terms first, then weight
+            # Each matched term counts once, by the square of how rare it is, so a row with the rare words
+            # of the query beats one with several common ones (the buyer's name, "requirements"); a term in
+            # the fact line itself counts a little more.
+            s = sum(w[t] ** 2 * (1.0 + 0.25 * (t in ft)) for t in hit)
+            scored.append((-s, -len(hit), i, u, f))
     scored.sort(key=lambda t: t[:3])
-    out = []
-    for _, _, _, u, f in scored[: _limit(a, 20)]:
-        row = _brief(f) if f else {}
-        if u:
-            row.update(unit_id=u["id"], unit_text=u.get("text", ""), label=u.get("label"), votes=u.get("votes"))
-            row["page"] = row.get("page") or u.get("page")
-        out.append(row)
-    res = {"count": len(scored), "hits": out}
+    if q and scored:  # leave out the weak tail: rows far below the best match add tokens, not answers
+        floor = -scored[0][0] * MIN_RELATIVE_SCORE
+        scored = [t for t in scored if -t[0] >= floor]
+    res = {"count": len(scored), "hits": [_row(u, f) for _, _, _, u, f in scored[: _limit(a, SEARCH_LIMIT)]]}
     if not labels:
         res["note"] = "This run has no labelled text, so only facts were searched."
     return res
@@ -429,7 +466,7 @@ class Tool:
 
 _FACTS = ("facts", "conflicts", "summaries")
 TOOLS: tuple[Tool, ...] = (
-    Tool("search", "Search the labelled text of the whole document: every source unit with the label the extraction gave it (a category code, '=' continues the unit above, '-' is not a fact) and its votes, plus the fact line written from it and that fact's ID, status and flags. Use it to find a fact, or a unit the extraction left out. Give one query, or several in queries (up to 10) to look up different things in one call; the filters apply to every query. Optional filters: label (unit label), category, flag, status, edited (these four apply to facts).",
+    Tool("search", "Search the labelled text of the whole document. Each hit is either a fact row (fact_id, category, the fact line, page, and flags or status when set; get_fact gives its source text) or a unit row: source text the extraction made no fact from (unit_id, its label: a category code, '=' continues the unit above, '-' is not a fact). votes appear only when the extraction's votes disagreed. Hits are ranked by the rare words of the query, and weak matches are left out, so put the distinctive words first and leave out words found everywhere (the buyer's name, 'requirements'). Give one query, or several in queries (up to 10, 6 hits each) to look up different things in one call; the filters apply to every query. A row already returned this turn comes back as its ID with sent_before. Optional filters: label (unit label), category, flag, status, edited (these four apply to facts).",
          _schema({"query": _S, "queries": {"type": "array", "items": _S, "description": "several searches in one call"},
                   "label": _S, "category": _CATEGORY, "flag": {"type": "string", "enum": list(FLAGS)},
                   "status": {"type": "string", "enum": ["valid", "needs_review", "conflict"]},

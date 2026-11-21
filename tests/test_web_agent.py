@@ -414,16 +414,16 @@ async def test_search_covers_the_labelled_text_of_the_document(ws, svc):
 
 
 async def test_one_search_call_can_carry_several_queries(ws, svc):
+    one = await A.t_search(A.Ctx(ws, svc, []), {"query": "March 5 bids"})
     ctx = A.Ctx(ws, svc, [])
-    one = await A.t_search(ctx, {"query": "March 5 bids"})
     many = await A.t_search(ctx, {"queries": ["March 5 bids", "bids March", "zzz nothing"]})
     first, second, none = many["results"]
     assert first["query"] == "March 5 bids" and first["hits"] == one["hits"][: A.MULTI_QUERY_LIMIT]
     shown = {h["fact_id"] for h in first["hits"]}
     repeats = [h for h in second["hits"] if h.get("fact_id") in shown]
-    assert repeats and all(h == {"fact_id": h["fact_id"], "listed_above": True} for h in repeats)  # in full only once
+    assert repeats and all(h == {"fact_id": h["fact_id"], "sent_before": True} for h in repeats)  # in full only once
     assert none == {"query": "zzz nothing", "count": 0, "hits": []}
-    filtered = await A.t_search(ctx, {"queries": ["bids", "questions"], "category": "D"})
+    filtered = await A.t_search(A.Ctx(ws, svc, []), {"queries": ["bids", "questions"], "category": "D"})
     assert all(h.get("fact_id", "").startswith("f_d") for r in filtered["results"] for h in r["hits"])
     for bad in ([], "bids", [1]):
         with pytest.raises(A.WorkspaceError):
@@ -472,3 +472,51 @@ async def test_several_queries_cap_hits_per_query(ws, svc, monkeypatch):
     r = await A.t_search(ctx, {"queries": ["bids", "March"], "limit": 100})
     assert all(len(x["hits"]) <= 2 for x in r["results"])
     assert len((await A.t_search(ctx, {"query": "bids March questions", "limit": 100}))["hits"]) > 2  # one query: as before
+
+
+async def test_search_rows_are_slim(ws, svc):
+    (ws.facts_path.parent / "labels.json").write_text(json.dumps([
+        {"id": "p2.1", "page": "2", "text": "Bids are due March 3.", "label": "D", "flags": [], "votes": ["D", "D", "D"]},
+        {"id": "p9.1", "page": "9", "text": "Living wage " + "x " * 400, "label": "-", "flags": [], "votes": ["-", "-", "S"]}]),
+        encoding="utf-8")
+    ctx = A.Ctx(ws, svc, [])
+    fact_row = next(h for h in (await A.t_search(ctx, {"query": "bids due March"}))["hits"] if h.get("fact_id") == "f_d1")
+    # the fact line only: no source text, no default status, no unanimous votes, no edited/deleted
+    assert set(fact_row) <= {"fact_id", "category", "text", "page", "flags", "status"}
+    assert "unit_text" not in fact_row and "votes" not in fact_row and "edited" not in fact_row
+    unit_row = (await A.t_search(A.Ctx(ws, svc, []), {"query": "living wage"}))["hits"][0]
+    assert unit_row["votes"] == ["-", "-", "S"]  # split votes are kept
+    assert len(unit_row["unit_text"]) == A.UNIT_TEXT_CHARS + 3 and unit_row["unit_text"].endswith("...")
+    ws.edit("f_d1", {"note": "n"})
+    edited = next(h for h in (await A.t_search(A.Ctx(ws, svc, []), {"query": "bids due"}))["hits"] if h.get("fact_id") == "f_d1")
+    assert edited["edited"] is True
+
+
+async def test_rows_sent_earlier_in_a_turn_come_back_as_ids(ws, svc):
+    ctx = A.Ctx(ws, svc, [])
+    first = (await A.t_search(ctx, {"query": "bids due"}))["hits"]
+    again = (await A.t_search(ctx, {"queries": ["bids due"], "category": "D"}))["results"][0]["hits"]
+    assert first and all(h == {"fact_id": h["fact_id"], "sent_before": True} for h in again if h.get("fact_id") in {x.get("fact_id") for x in first})
+    fresh = (await A.t_search(A.Ctx(ws, svc, []), {"query": "bids due"}))["hits"]  # a new turn starts clean
+    assert fresh == first
+
+
+async def test_rare_words_outrank_common_ones_and_the_weak_tail_is_cut(ws, svc):
+    for i in range(12):
+        ws.add({"category": "B", "text": f"The City of Springfield will review item {i}."}, source="chat")
+    target = ws.add({"category": "C", "text": "The contractor must carry insurance."}, source="chat")["fact_id"]
+    ctx = A.Ctx(ws, svc, [])
+    hits = (await A.t_search(ctx, {"query": "City of Springfield insurance", "limit": 50}))["hits"]
+    assert hits[0]["fact_id"] == target  # one rare word beats several common ones
+    r = await A.t_search(A.Ctx(ws, svc, []), {"query": "contractor insurance review", "limit": 50})
+    assert r["hits"][0]["fact_id"] == target
+    # the 12 rows that share only the common word "review" score far below the best match: left out
+    assert [h["fact_id"] for h in r["hits"]] == [target] and r["count"] == 1
+
+
+async def test_search_defaults(ws, svc):
+    assert (A.SEARCH_LIMIT, A.MULTI_QUERY_LIMIT) == (10, 6)
+    for i in range(30):
+        ws.add({"category": "B", "text": f"Bids note {i}"}, source="chat")
+    assert len((await A.t_search(A.Ctx(ws, svc, []), {"query": "bids note"}))["hits"]) == A.SEARCH_LIMIT
+    assert len((await A.t_search(A.Ctx(ws, svc, []), {"query": "bids note", "limit": 25}))["hits"]) == 25
