@@ -63,6 +63,15 @@ Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/), and an OpenAI API
 key (for `extract`, `golden`, `compare --judge`, `precision --grade` and the
 judged DeepEval metrics; every other command works offline).
 
+The quickest start is `./start.sh`. It installs the Python and web dependencies,
+creates `.env` from `.env.example` if there isn't one, builds the web UI, and
+starts the chat workspace at http://127.0.0.1:8765. Steps that are already done
+are skipped, so it is also the everyday way to start it. Extra arguments go to
+`fact-extractor web`, e.g. `./start.sh --port 9000`. Node.js/npm is needed
+on top of the requirements above.
+
+By hand:
+
 ```bash
 uv sync                      # installs deps into .venv
 cp .env.example .env         # then edit it
@@ -237,6 +246,8 @@ The UI, in React with React Spectrum, where a bid manager corrects facts by
 chatting or clicking, reads summaries built from the facts, sees what is in the
 facts but not in a summary, and chooses between conflicts. The plan and the API are
 in [WEB_UI_SPEC.md](WEB_UI_SPEC.md).
+
+`./start.sh` does all of the following. By hand:
 
 ```bash
 uv sync --extra web
