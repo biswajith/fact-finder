@@ -77,13 +77,13 @@ export function PdfControl() {
   const pages = facts.data?.pages;
   const hasPdf = !!runInfo?.has_pdf;
   return (
-    <span className="pdf-line">
-      {pages ? <span className="muted">{pages} pages</span> : null}
-      <span className="muted">{hasPdf ? (runInfo?.pdf_name || 'PDF attached') : 'No PDF'}</span>
+    <div className="pdf-box">
+      <div className="muted">PDF{pages ? ` · ${pages} pages` : ''}</div>
+      <div className="pdf-name">{hasPdf ? (runInfo?.pdf_name || 'PDF attached') : <span className="muted">No PDF attached</span>}</div>
       <DialogTrigger>
-        <Button variant="secondary" aria-label={hasPdf ? 'Change or remove the PDF' : 'Attach a PDF to this run'}>{hasPdf ? 'PDF' : 'Attach PDF'}</Button>
+        <Button variant="secondary" aria-label={hasPdf ? 'Change or remove the PDF' : 'Attach a PDF to this run'}>{hasPdf ? 'Change' : 'Attach PDF'}</Button>
         {(close) => <PdfDialog close={close} />}
       </DialogTrigger>
-    </span>
+    </div>
   );
 }

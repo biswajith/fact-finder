@@ -57,7 +57,7 @@ export function FlagBadges({ flags }: { flags: Flag[] }) {
 
 export function CategoryChip({ code }: { code: Fact['category'] }) {
   return (
-    <span className="cat" title={CATEGORY_NAMES[code]} aria-label={CATEGORY_NAMES[code]}>
+    <span className="cat" style={{ color: CATEGORY_COLORS[code], background: categorySoft(code) }} title={CATEGORY_NAMES[code]} aria-label={CATEGORY_NAMES[code]}>
       {code}
     </span>
   );
@@ -87,9 +87,11 @@ export function formatTime(at: string | number | null | undefined): string {
 }
 
 /** Colour of a category on the cards and in the list (the old review app's palette). */
-export const CATEGORY_COLORS: Record<string, string> = {
-  B: '#64748b', C: '#7c3aed', G: '#15803d', X: '#dc2626', D: '#2563eb', S: '#0d9488', E: '#b45309', R: '#4f46e5', Q: '#be185d',
-};
+export const CATEGORY_COLORS: Record<string, string> = Object.fromEntries(
+  ['B', 'C', 'G', 'X', 'D', 'S', 'E', 'R', 'Q'].map((c) => [c, `var(--cat-${c})`]),
+);
+/** Soft tint of a category colour, for chips. */
+export const categorySoft = (code: string): string => `var(--cat-${code}-soft)`;
 
 export function PageChip({ page }: { page: string }) {
   return page ? <span className="pg">p. {page}</span> : null;
@@ -103,21 +105,19 @@ export const VIEW_HELP =
 /** The All / Bid / After award switch, with the help text and the note for runs that mark nothing post-award. */
 export function ViewSwitch({ view, onChange, hasPostAward }: { view: ViewName; onChange: (v: ViewName) => void; hasPostAward: boolean }) {
   return (
-    <div className="view-switch">
-      <div className="row">
-        <ActionGroup
-          aria-label="View"
-          selectionMode="single"
-          disallowEmptySelection
-          selectedKeys={[view]}
-          onSelectionChange={(k) => onChange((([...k][0] as ViewName) ?? 'All'))}
-        >
-          {VIEWS.map((v) => <Item key={v}>{v}</Item>)}
-        </ActionGroup>
-      </div>
-      <div className="muted">{VIEW_HELP}</div>
-      {!hasPostAward && (
-        <div className="muted">This run marks no fact as post-award (runs made before 2026-11-18 do not), so Bid shows everything.</div>
+    <div className="view-switch" title={VIEW_HELP}>
+      <ActionGroup
+        aria-label="View"
+        density="compact"
+        selectionMode="single"
+        disallowEmptySelection
+        selectedKeys={[view]}
+        onSelectionChange={(k) => onChange((([...k][0] as ViewName) ?? 'All'))}
+      >
+        {VIEWS.map((v) => <Item key={v}>{v}</Item>)}
+      </ActionGroup>
+      {!hasPostAward && view !== 'All' && (
+        <span className="muted">This run marks nothing as post-award, so every view shows everything.</span>
       )}
     </div>
   );

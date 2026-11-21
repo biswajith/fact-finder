@@ -1,11 +1,11 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, InlineAlert, Heading, Content, TextArea } from '@adobe/react-spectrum';
 import * as api from '../api';
-import { splitFactTokens } from '../factTokens';
 import { errorText, useRun } from '../store';
 import type { ChatEvent, ChatMessage, ToolStep } from '../types';
 import { ConflictCard } from './ConflictCard';
-import { ErrorBox, FactLink, Loading } from './common';
+import { ErrorBox, Loading } from './common';
+import { ChatMarkdown } from './chat/Markdown';
 
 const STARTERS = [
   'What are the key dates?',
@@ -14,21 +14,15 @@ const STARTERS = [
   'List the facts I have changed.',
 ];
 
-function ChatText({ text }: { text: string }) {
-  return (
-    <>
-      {splitFactTokens(text).map((s, i) =>
-        s.kind === 'text' ? <Fragment key={i}>{s.text}</Fragment> : <FactLink key={i} id={s.factId} label={s.factId} />,
-      )}
-    </>
-  );
+function ChatText({ text, role }: { text: string; role: 'user' | 'assistant' }) {
+  return role === 'user' ? <>{text}</> : <ChatMarkdown text={text} />;
 }
 
 function Tools({ tools }: { tools: ToolStep[] }) {
   return (
     <>
       {tools.map((t, i) => (
-        <div key={i} className={`tool-line${t.ok ? '' : ' bad'}`}>
+        <div key={i} className={`tool-line${t.ok ? '' : ' bad'}`} title={typeof t.args?.query === 'string' ? t.args.query : undefined}>
           <span aria-hidden>{t.ok ? '✓' : '✕'}</span>
           <span>{t.label}{t.ok ? '' : ' (failed)'}</span>
         </div>
@@ -55,7 +49,7 @@ function Message({ m }: { m: ChatMessage }) {
       {m.role === 'assistant' && m.tools && <Tools tools={m.tools} />}
       {m.text && (
         <div className={`msg ${m.role}`}>
-          <ChatText text={m.text} />
+          <ChatText text={m.text} role={m.role} />
         </div>
       )}
       {m.conflict_ids && m.conflict_ids.length > 0 && <ConflictRefs ids={m.conflict_ids} />}
@@ -65,7 +59,7 @@ function Message({ m }: { m: ChatMessage }) {
 
 interface Pending { text: string; tools: ToolStep[]; conflictIds: string[] }
 
-export function ChatPanel({ onClose }: { onClose?: () => void }) {
+export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { run, status, reloadAll, chatDraft, setChatDraft, setSummaries } = useRun();
   const [history, setHistory] = useState<ChatMessage[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -167,16 +161,12 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
 
   const empty = history !== null && history.length === 0 && !pending;
   return (
-    <aside className="chat-panel" aria-label="Chat">
+    <aside className={`chat-panel${open ? ' open' : ''}`} id="app-chat" aria-label="Assistant">
       <div className="chat-head">
-        <strong>Chat</strong>
+        <strong>Assistant</strong>
         <div className="row">
           <Button variant="secondary" isQuiet isDisabled={sending || !history?.length} onPress={clear}>Clear chat</Button>
-          {onClose && (
-            <span className="chat-toggle">
-              <Button variant="secondary" isQuiet onPress={onClose} aria-label="Close chat">Close</Button>
-            </span>
-          )}
+          <Button variant="secondary" isQuiet onPress={onClose} aria-label="Close assistant">Close</Button>
         </div>
       </div>
       <div className="chat-log" ref={logRef} aria-live="polite" aria-label="Chat messages" role="log">
@@ -190,7 +180,7 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
         {pending && (
           <div className="msg-wrap">
             <Tools tools={pending.tools} />
-            {pending.text ? <div className="msg assistant"><ChatText text={pending.text} /></div> : <div className="muted">Working...</div>}
+            {pending.text ? <div className="msg assistant"><ChatText text={pending.text} role="assistant" /></div> : <div className="muted">Working...</div>}
             {pending.conflictIds.length > 0 && <ConflictRefs ids={pending.conflictIds} />}
           </div>
         )}
@@ -205,7 +195,7 @@ export function ChatPanel({ onClose }: { onClose?: () => void }) {
             <div>Ask about this RFP or tell me what to correct. For example:</div>
             <div className="starters">
               {STARTERS.map((s) => (
-                <Button key={s} variant="secondary" isDisabled={noKey} onPress={() => void send(s)}>{s}</Button>
+                <button key={s} type="button" className="chip" disabled={noKey} onClick={() => void send(s)}>{s}</button>
               ))}
             </div>
           </div>

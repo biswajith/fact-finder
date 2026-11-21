@@ -1,11 +1,13 @@
 import {
-  Button, Checkbox, FileTrigger, InlineAlert, Heading, Content, Item, Picker, ProgressCircle, Radio, RadioGroup, TextField,
+  Button, Checkbox, FileTrigger, Item, Picker, ProgressCircle, Radio, RadioGroup, TextField,
 } from '@adobe/react-spectrum';
 import * as api from '../api';
 import { VOTES, type NewRun } from '../newRun';
 import { useAsync } from '../hooks';
 import { useRun } from '../store';
 import { Empty, ErrorBox } from './common';
+import { PageHeader } from './shell/PageHeader';
+import './pages.css';
 
 export function NewRunTab({ n }: { n: NewRun }) {
   const { status } = useRun();
@@ -16,24 +18,24 @@ export function NewRunTab({ n }: { n: NewRun }) {
   const failed = n.job?.status === 'failed' ? n.job : null;
 
   return (
-    <div className="panel">
+    <>
+    <PageHeader title="New run" subtitle="Extract the facts from an RFP PDF" />
+    <div className="pg-stack pg-narrow">
       {done && (
-        <InlineAlert variant="positive">
-          <Heading>Run finished</Heading>
-          <Content>
-            <div className="wrap-text">{done.result}</div>
-            {done.run && <div className="muted">Written to {done.run}. It is now the open run.</div>}
-          </Content>
-        </InlineAlert>
+        <div className="pg-banner ok" role="status">
+          <strong>Run finished</strong>
+          <div className="wrap-text">{done.result}</div>
+          {done.run && <div className="muted">Written to {done.run}. It is now the open run.</div>}
+        </div>
       )}
       {failed && (
-        <InlineAlert variant="negative">
-          <Heading>The run failed and nothing was written</Heading>
-          <Content><span className="wrap-text">{failed.error}</span></Content>
-        </InlineAlert>
+        <div className="pg-banner bad" role="alert">
+          <strong>The run failed and nothing was written</strong>
+          <span className="wrap-text">{failed.error}</span>
+        </div>
       )}
-      <div className="muted">Runs are written to runs/&lt;doc_id&gt;/&lt;run_id&gt;/ with facts.json, report.json and source.pdf.</div>
-      <div className="form-col">
+      <div className="pg-note">Runs are written to runs/&lt;doc_id&gt;/&lt;run_id&gt;/ with facts.json, report.json and source.pdf.</div>
+      <div className="pg-form">
         <RadioGroup label="PDF" orientation="horizontal" value={n.mode} onChange={(v) => n.setMode(v as 'pick' | 'upload')}>
           <Radio value="pick">Pick from the working directory</Radio>
           <Radio value="upload">Upload</Radio>
@@ -86,9 +88,9 @@ export function NewRunTab({ n }: { n: NewRun }) {
         ) : n.plan.loading && !plan ? (
           <div className="row"><ProgressCircle aria-label="Planning the calls" isIndeterminate size="S" /> Reading the PDF...</div>
         ) : plan ? (
-          <details className="card">
+          <details className="pg-fold">
             <summary>Planned calls: {plan.total_calls} calls over {plan.units} units, sent together</summary>
-            <div className="table-wrap">
+            <div className="pg-table-wrap">
               <table className="data-table" aria-label="Planned calls">
                 <thead><tr><th scope="col">Call</th><th scope="col" className="num">Times</th><th scope="col" className="num">Units</th><th scope="col">Pages</th></tr></thead>
                 <tbody>
@@ -103,42 +105,41 @@ export function NewRunTab({ n }: { n: NewRun }) {
       )}
 
       {stored && (
-        <InlineAlert variant="positive">
-          <Heading>Stored result found</Heading>
-          <Content>
-            <div className="wrap-text">
-              This PDF already has a stored result ({stored.facts} facts, {stored.created}). Opening it calls no model and shows the same facts.
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <Button variant="accent" onPress={() => n.selectRun(stored.run)}>Open the stored result</Button>
-            </div>
-          </Content>
-        </InlineAlert>
+        <div className="pg-banner ok">
+          <strong>Stored result found</strong>
+          <div className="wrap-text">
+            This PDF already has a stored result ({stored.facts} facts, {stored.created}). Opening it calls no model and shows the same facts.
+          </div>
+          <div style={{ marginTop: 4 }}>
+            <Button variant="accent" onPress={() => n.selectRun(stored.run)}>Open the stored result</Button>
+          </div>
+        </div>
       )}
-      <InlineAlert variant="notice">
-        <Heading>This calls the model</Heading>
-        <Content>Extracting calls the model and spends API tokens.{stored ? ' The stored result is kept.' : ''}</Content>
-      </InlineAlert>
-      <Checkbox isSelected={n.confirmed} onChange={n.setConfirmed}>I understand this spends API tokens</Checkbox>
+      <div className="pg-confirm">
+        <strong>This calls the model</strong>
+        <div className="body">Extracting calls the model and spends API tokens.{stored ? ' The stored result is kept.' : ''}</div>
+        <Checkbox isSelected={n.confirmed} onChange={n.setConfirmed}>I understand this spends API tokens</Checkbox>
+      </div>
       {status && !status.has_key && (
-        <InlineAlert variant="negative">
-          <Heading>No API key</Heading>
-          <Content>The API key is not set (in the environment or .env), so no run can start.</Content>
-        </InlineAlert>
+        <div className="pg-banner bad" role="alert">
+          <strong>No API key</strong>
+          <span>The API key is not set (in the environment or .env), so no run can start.</span>
+        </div>
       )}
-      {n.missing.length > 0 && <div className="muted">Still needed: {n.missing.join(', ')}.</div>}
+      {n.missing.length > 0 && <div className="pg-note">Still needed: {n.missing.join(', ')}.</div>}
       {n.startError && <ErrorBox message={n.startError} />}
-      <div className="row">
+      <div className="pg-actions">
         <Button variant={stored ? 'secondary' : 'accent'} isDisabled={!n.canStart} onPress={() => void n.start()}>
           {stored ? 'Extract again' : 'Start extraction'}
         </Button>
         {n.running && (
-          <span className="row" role="status" aria-live="polite">
+          <span className="pg-progress" role="status" aria-live="polite">
             <ProgressCircle aria-label="Extracting" isIndeterminate size="S" />
             Extracting... this takes about half a minute on a 50-page RFP.{n.job ? ` ${Math.round(n.job.seconds)} s so far.` : ''}
           </span>
         )}
       </div>
     </div>
+    </>
   );
 }

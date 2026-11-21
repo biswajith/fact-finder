@@ -29,7 +29,7 @@ export function FactForm({
   const [citationIds, setCitationIds] = useState('');
   return (
     <form
-      style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+      className="fx-form"
       onSubmit={(e) => {
         e.preventDefault();
         if (text.trim()) onSubmit({ category, text: text.trim(), flags, note, reason, citationIds });

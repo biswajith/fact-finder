@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitFactTokens } from './factTokens';
+import { linkifyFactTokens, splitFactTokens } from './factTokens';
 
 describe('splitFactTokens', () => {
   it('returns plain text unchanged', () => {
@@ -34,5 +34,32 @@ describe('splitFactTokens', () => {
       { kind: 'fact', factId: 'f_a1' },
       { kind: 'text', text: '</b>' },
     ]);
+  });
+});
+
+describe('bare ids and linkifyFactTokens', () => {
+  it('recognises bare ids but not short or embedded look-alikes', () => {
+    expect(splitFactTokens('see f_892a19a7ce.')).toEqual([
+      { kind: 'text', text: 'see ' },
+      { kind: 'fact', factId: 'f_892a19a7ce' },
+      { kind: 'text', text: '.' },
+    ]);
+    const t = 'f_12 and my_f_892a19a7ce and /f_892a19a7ce';
+    expect(splitFactTokens(t)).toEqual([{ kind: 'text', text: t }]);
+  });
+
+  it('turns ids into fact links and groups adjacent ones', () => {
+    expect(linkifyFactTokens('a f_892a19a7ce, [f_a0d7b72f9d] and f_cab5d82ad4 b')).toBe(
+      'a [](fact:f_892a19a7ce,f_a0d7b72f9d,f_cab5d82ad4) b',
+    );
+  });
+
+  it('drops parentheses that only wrap the ids', () => {
+    expect(linkifyFactTokens('x (f_892a19a7ce, f_a0d7b72f9d).')).toBe('x [](fact:f_892a19a7ce,f_a0d7b72f9d).');
+  });
+
+  it('leaves code spans and fences alone', () => {
+    const t = 'use `f_892a19a7ce` and\n```\nf_892a19a7ce\n```';
+    expect(linkifyFactTokens(t)).toBe(t);
   });
 });

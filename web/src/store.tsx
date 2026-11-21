@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ToastQueue } from '@adobe/react-spectrum';
 import * as api from './api';
-import type { Conflict, CorrectionEntry, Fact, FactsResponse, RunInfo, Status, SummariesResponse } from './types';
+import { hashForPage, pageFromHash, type PageName } from './nav';
+import type { Conflict, CorrectionEntry, Fact, FactsListFilters, FactsResponse, RunInfo, Status, SummariesResponse } from './types';
 
 export interface Resource<T> {
   data: T | null;
@@ -37,6 +38,15 @@ interface RunCtx {
   openFact: (id: string | null) => void;
   chatDraft: string;
   setChatDraft: (s: string) => void;
+  /** Navigation. The current page lives in the URL hash (#/overview ...); back and forward work. */
+  page: PageName;
+  goTo: (page: PageName) => void;
+  /** Filters set by showFacts, waiting for the facts page to apply them; null when none. */
+  factsPreset: Partial<FactsListFilters> | null;
+  /** Set factsPreset and go to the facts page. */
+  showFacts: (preset: Partial<FactsListFilters>) => void;
+  /** Call once the facts page has applied the preset. */
+  clearFactsPreset: () => void;
 }
 
 const Ctx = createContext<RunCtx | null>(null);
@@ -56,6 +66,22 @@ export function RunProvider({ run, runs, refreshRuns, selectRun, status, childre
   const [openFactId, openFact] = useState<string | null>(null);
   const [chatDraft, setChatDraft] = useState('');
   const gen = useRef(0);
+  const [page, setPage] = useState<PageName>(() => pageFromHash(window.location.hash));
+  const [factsPreset, setFactsPreset] = useState<Partial<FactsListFilters> | null>(null);
+  useEffect(() => {
+    const on = () => setPage(pageFromHash(window.location.hash));
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
+  const goTo = useCallback((p: PageName) => {
+    if (pageFromHash(window.location.hash) === p && window.location.hash) return;
+    window.location.hash = hashForPage(p);
+  }, []);
+  const showFacts = useCallback((preset: Partial<FactsListFilters>) => {
+    setFactsPreset(preset);
+    goTo('facts');
+  }, [goTo]);
+  const clearFactsPreset = useCallback(() => setFactsPreset(null), []);
 
   const load = useCallback(
     async <T,>(fn: () => Promise<T>, set: (f: (r: Resource<T>) => Resource<T>) => void, g: number) => {
@@ -124,7 +150,7 @@ export function RunProvider({ run, runs, refreshRuns, selectRun, status, childre
 
   const value: RunCtx = {
     run, runs, runInfo: runs.find((r) => r.run === run), refreshRuns, selectRun, status, facts, conflicts, corrections, summaries, factById, liveFacts, reloadAll, setSummaries, act,
-    openFactId, openFact, chatDraft, setChatDraft,
+    openFactId, openFact, chatDraft, setChatDraft, page, goTo, factsPreset, showFacts, clearFactsPreset,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

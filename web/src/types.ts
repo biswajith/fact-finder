@@ -149,21 +149,25 @@ export interface CorrectionEntry {
   fact_text: string | null;
 }
 
-export interface SummaryPoint {
+export interface SummaryRow {
+  row: string;
   text: string;
+  page: string;
   fact_ids: string[];
+  checked: boolean;
 }
 
 export interface SummarySection {
   key: string;
   title: string;
-  points: SummaryPoint[];
+  codes: string[];
+  rows: SummaryRow[];
+  source: 'extraction' | 'app' | null;
   generated_at: string | null;
   stale: boolean;
   updating: boolean;
   fact_count: number;
   uncovered: string[];
-  pinned: string[];
   error: string | null;
 }
 
@@ -176,6 +180,9 @@ export interface ToolStep {
   name: string;
   label: string;
   ok: boolean;
+  /** Logged with stored chats only: the tool's arguments and a short result. */
+  args?: Record<string, unknown>;
+  summary?: string;
 }
 
 export interface ChatMessage {
@@ -207,11 +214,6 @@ export interface OverviewEntry {
   page: string;
   children: { text: string; page: string }[];
 }
-export interface BriefRow {
-  row: string;
-  text: string;
-  page: string;
-}
 export interface CalendarDate {
   date: string;
   label: string;
@@ -220,8 +222,6 @@ export interface CalendarDate {
   page: string;
 }
 export interface Overview {
-  summary: { submission: BriefRow[]; gates: BriefRow[]; scoring: BriefRow[]; questions: BriefRow[] };
-  buyer: BriefRow[];
   buyer_facts: OverviewEntry[];
   gates: OverviewEntry[];
   disqualifiers: OverviewEntry[];

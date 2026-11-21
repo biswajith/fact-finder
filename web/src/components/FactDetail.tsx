@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Button, ButtonGroup, Content, Dialog, DialogContainer, Divider, Heading, InlineAlert, Item, Picker } from '@adobe/react-spectrum';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Content, Dialog, Divider, Heading, Item, Picker } from '@adobe/react-spectrum';
 import * as api from '../api';
 import { useRun } from '../store';
 import type { Fact, FactPatch } from '../types';
 import { CATEGORY_NAMES } from '../types';
-import { CategoryChip, FlagBadges, formatTime } from './common';
+import { formatTime } from './common';
 import { FactForm, type FactFormValues } from './FactForm';
+import { CatPill, FactTags, STATUS_LABEL, Tag } from './facts/parts';
+import './facts.css';
 
 function PageImage({ run, factId, pages }: { run: string; factId: string; pages: { page: number; label: string }[] }) {
   const [page, setPage] = useState(pages[0]?.page);
@@ -13,7 +15,7 @@ function PageImage({ run, factId, pages }: { run: string; factId: string; pages:
   useEffect(() => setState('loading'), [page, factId, run]);
   if (page === undefined) return null;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className="fx-page-img">
       {pages.length > 1 && (
         <Picker label="Page" selectedKey={String(page)} onSelectionChange={(k) => setPage(Number(k))}>
           {pages.map((p) => (
@@ -28,7 +30,6 @@ function PageImage({ run, factId, pages }: { run: string; factId: string; pages:
           {state === 'loading' && <div className="muted">Loading page image...</div>}
           <img
             key={`${page}`}
-            className="page-img"
             style={state === 'loading' ? { display: 'none' } : undefined}
             src={api.pageImageUrl(run, page, factId)}
             alt={`PDF page ${pages.find((p) => p.page === page)?.label ?? page} with the cited text highlighted`}
@@ -82,127 +83,139 @@ function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
 
   return (
     <>
-      <Heading>
-        <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-          <CategoryChip code={fact.category} /> {CATEGORY_NAMES[fact.category]}
-        </span>
-      </Heading>
-      <Divider />
-      <Content>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {editing ? (
-            <FactForm fact={fact} busy={busy} onSubmit={save} onCancel={() => setEditing(false)} />
-          ) : (
-            <>
-              <div className="wrap-text" style={{ fontSize: 16 }}>{fact.text}</div>
-              {fact.deleted && <div><strong>This fact was deleted.</strong></div>}
-              {fact.original?.text !== undefined && (
-                <div className="muted wrap-text">As first extracted: <span className="old">{fact.original.text}</span></div>
-              )}
-              {fact.original?.category !== undefined && (
-                <div className="muted">First extracted as: {CATEGORY_NAMES[fact.original.category]}</div>
-              )}
-              <div className="row">
-                <FlagBadges flags={fact.flags} />
-                {fact.edited && <span className="muted">Changed</span>}
-                {fact.origin === 'user' && <span className="muted">Added by you</span>}
-                <span className="muted">Status: {fact.status.replace('_', ' ')}</span>
-                {fact.source_call && <span className="muted">Source call: {fact.source_call}</span>}
-                {fact.split && <span className="muted">Split vote{fact.agreement ? ` ${fact.agreement}` : ''}</span>}
+      <div className="fx-panel-head">
+        <button type="button" className="fx-back" onClick={onClose}>&larr; Back to chat</button>
+        <CatPill code={fact.category} />
+        <span className="id">{fact.fact_id}</span>
+        <button type="button" className="fx-close" aria-label="Close" title="Close (Esc)" onClick={onClose}>&times;</button>
+      </div>
+      <div className="fx-panel-body">
+        {editing ? (
+          <FactForm fact={fact} busy={busy} onSubmit={save} onCancel={() => setEditing(false)} />
+        ) : (
+          <>
+            <p className={`fx-big${fact.deleted ? ' deleted' : ''}`}>{fact.text}</p>
+            <div className="fx-tags">
+              <FactTags f={fact} stated={stated.length} />
+              <Tag>Status: {STATUS_LABEL[fact.status] ?? fact.status}</Tag>
+              {fact.source_call && <Tag>Source call: {fact.source_call}</Tag>}
+            </div>
+            {fact.deleted && <div className="fx-alert danger"><strong>This fact was deleted.</strong>Restore it to bring it back.</div>}
+            {(fact.original?.text !== undefined || fact.original?.category !== undefined) && (
+              <div className="fx-sec">
+                <h3>As first extracted</h3>
+                {fact.original?.text !== undefined && <div className="wrap-text old">{fact.original.text}</div>}
+                {fact.original?.category !== undefined && <div className="muted">Category: {CATEGORY_NAMES[fact.original.category]}</div>}
               </div>
-              {fact.note && <div className="wrap-text"><strong>Note: </strong>{fact.note}</div>}
-              {fact.problems.length > 0 && (
-                <InlineAlert variant="notice">
-                  <Heading>Needs review</Heading>
-                  <Content>
-                    <ul style={{ margin: 0, paddingLeft: 18 }}>
-                      {fact.problems.map((p, i) => <li key={i} className="wrap-text">{p}</li>)}
-                    </ul>
-                  </Content>
-                </InlineAlert>
-              )}
-              {fact.resolution && (
-                <div className="wrap-text"><strong>You decided: </strong>{fact.resolution.text}{fact.resolution.at ? ` (${formatTime(fact.resolution.at)})` : ''}</div>
-              )}
-              {fact.conflicts.length > 0 && (
-                <div className="row muted">
-                  Contradicted by:{' '}
+            )}
+            {fact.note && <div className="fx-sec"><h3>Note</h3><div className="fx-note">{fact.note}</div></div>}
+            {fact.problems.length > 0 && (
+              <div className="fx-alert">
+                <strong>Needs review</strong>
+                <ul>{fact.problems.map((p, i) => <li key={i}>{p}</li>)}</ul>
+              </div>
+            )}
+            {fact.resolution && (
+              <div className="fx-sec">
+                <h3>You decided</h3>
+                <div className="wrap-text">{fact.resolution.text}{fact.resolution.at ? ` (${formatTime(fact.resolution.at)})` : ''}</div>
+              </div>
+            )}
+            {fact.conflicts.length > 0 && (
+              <div className="fx-sec">
+                <h3>Contradicted by</h3>
+                <div className="row">
                   {fact.conflicts.map((id) => (
                     <button key={id} type="button" className="linkbtn" aria-label={`Open fact ${id}`} onClick={() => openFact(id)}>{id}</button>
                   ))}
                 </div>
-              )}
-              <div>
-                <strong>Where it comes from</strong>
-                {fact.citations.length === 0 && <div className="muted">No citation.</div>}
-                {fact.citations.map((c) => (
-                  <div key={c.id} className="quote">
-                    <div className="muted">Page {c.page_label || c.page}{c.section ? ` · ${c.section}` : ''}</div>
-                    <div className="wrap-text">{c.text}</div>
-                  </div>
-                ))}
               </div>
-              {fact.unresolved_ids.length > 0 && (
-                <InlineAlert variant="notice">
-                  <Heading>Unknown cited IDs</Heading>
-                  <Content><span className="wrap-text">The model cited IDs that are not in the document: {fact.unresolved_ids.join(', ')}</span></Content>
-                </InlineAlert>
-              )}
-              {stated.length > 1 && (
-                <div className="muted wrap-text">
-                  This point is stated {stated.length} times, on pages {[...new Set(stated.flatMap((f) => f.citations.map((c) => c.page_label || String(c.page))))].join('; ')}.
-                </div>
-              )}
-              {pages.length > 0 && <PageImage key={fact.fact_id} run={run} factId={fact.fact_id} pages={pages} />}
-            </>
-          )}
-        </div>
-      </Content>
+            )}
+            {stated.length > 1 && (
+              <div className="muted wrap-text">
+                This point is stated {stated.length} times, on pages {[...new Set(stated.flatMap((f) => f.citations.map((c) => c.page_label || String(c.page))))].join('; ')}.
+              </div>
+            )}
+            <div className="fx-sec">
+              <h3>Where it comes from</h3>
+              {fact.citations.length === 0 && <div className="muted">No citation.</div>}
+              {fact.citations.map((c) => (
+                <blockquote key={c.id} className="fx-quote">
+                  <div className="src">Page {c.page_label || c.page}{c.section ? ` · ${c.section}` : ''}</div>
+                  <div className="q">{c.text}</div>
+                </blockquote>
+              ))}
+            </div>
+            {fact.unresolved_ids.length > 0 && (
+              <div className="fx-alert">
+                <strong>Unknown cited IDs</strong>
+                The model cited IDs that are not in the document: {fact.unresolved_ids.join(', ')}
+              </div>
+            )}
+            {pages.length > 0 && <PageImage key={fact.fact_id} run={run} factId={fact.fact_id} pages={pages} />}
+          </>
+        )}
+      </div>
       {!editing && (
-        <ButtonGroup>
-          <Button variant="secondary" onPress={onClose}>Close</Button>
-          <Button variant="secondary" isDisabled={busy} onPress={() => { setChatDraft(`About [${fact.fact_id}]: `); onClose(); }}>
-            Ask in chat
-          </Button>
+        <div className="fx-panel-foot">
+          <Button variant="secondary" isDisabled={busy} onPress={() => { setChatDraft(`About [${fact.fact_id}]: `); onClose(); }}>Ask in chat</Button>
           {fact.deleted ? (
             <Button variant="accent" isDisabled={busy} onPress={restore}>Restore</Button>
           ) : (
             <>
-              {(fact.edited) && fact.origin === 'extracted' && (
-                <Button variant="secondary" isDisabled={busy} onPress={restore}>Restore</Button>
-              )}
+              {fact.edited && fact.origin === 'extracted' && <Button variant="secondary" isDisabled={busy} onPress={restore}>Restore</Button>}
               <Button variant="negative" isDisabled={busy} onPress={del}>Delete</Button>
               <Button variant="accent" isDisabled={busy} onPress={() => setEditing(true)}>Edit</Button>
             </>
           )}
-        </ButtonGroup>
+        </div>
       )}
     </>
   );
 }
 
-/** Dialog that shows the fact whose id is `openFactId` in the run context. */
+/** Right-hand side panel showing the fact whose id is `openFactId` in the run context. */
 export function FactDetail() {
   const { openFactId, openFact, factById, facts } = useRun();
   const fact = openFactId ? factById.get(openFactId) : undefined;
   const close = () => openFact(null);
+  const ref = useRef<HTMLElement>(null);
+  const open = openFactId !== null;
+
+  // Escape closes the panel, unless a dialog or popover (add-fact, filters) is open above it.
+  useEffect(() => {
+    if (!open) return;
+    const on = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      openFact(null);
+    };
+    window.addEventListener('keydown', on);
+    return () => window.removeEventListener('keydown', on);
+  }, [open, openFact]);
+  // Move focus into the panel when it opens.
+  useEffect(() => {
+    if (open && !ref.current?.contains(document.activeElement)) ref.current?.focus();
+  }, [open]);
+
+  if (!openFactId) return null;
   return (
-    <DialogContainer onDismiss={close} type="modal" isDismissable>
-      {openFactId && (
-        <Dialog size="L" aria-label={`Fact ${openFactId}`}>
-          {fact ? (
-            <FactBody key={fact.fact_id} fact={fact} onClose={close} />
-          ) : (
-            <>
-              <Heading>Fact {openFactId}</Heading>
-              <Divider />
-              <Content>{facts.loading ? 'Loading...' : 'This fact is not in the current run.'}</Content>
-              <ButtonGroup><Button variant="secondary" onPress={close}>Close</Button></ButtonGroup>
-            </>
-          )}
-        </Dialog>
+    <aside ref={ref} className="fx-panel" tabIndex={-1} aria-label={`Fact ${openFactId}`}>
+      {fact ? (
+        <FactBody key={fact.fact_id} fact={fact} onClose={close} />
+      ) : (
+        <>
+          <div className="fx-panel-head">
+            <button type="button" className="fx-back" onClick={close}>&larr; Back to chat</button>
+            <strong>Fact {openFactId}</strong>
+            <button type="button" className="fx-close" style={{ marginLeft: 'auto' }} aria-label="Close" onClick={close}>&times;</button>
+          </div>
+          <div className="fx-panel-body">
+            <div className="fx-state">{facts.loading ? 'Loading...' : 'This fact is not in the current run.'}</div>
+          </div>
+        </>
       )}
-    </DialogContainer>
+    </aside>
   );
 }
 

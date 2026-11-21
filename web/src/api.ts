@@ -82,8 +82,6 @@ export const getSummaries = (run: string, signal?: AbortSignal) =>
   request<SummariesResponse>('GET', `/summaries?${q({ run })}`, undefined, signal);
 export const generateSummaries = (run: string, sections?: string[]) =>
   request<SummariesResponse>('POST', `/summaries/generate?${q({ run })}`, sections ? { sections } : {});
-export const pinFacts = (run: string, factIds: string[], pinned: boolean) =>
-  request<SummariesResponse>('POST', `/summaries/pin?${q({ run })}`, { fact_ids: factIds, pinned });
 
 // ---- Overview, filtered facts, report, compare, PDFs, new run (spec 11.1) ----
 

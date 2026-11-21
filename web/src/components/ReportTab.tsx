@@ -4,6 +4,8 @@ import { useAsync } from '../hooks';
 import { useRun } from '../store';
 import type { Report } from '../types';
 import { Empty, ErrorBox, Loading } from './common';
+import { PageHeader } from './shell/PageHeader';
+import './pages.css';
 
 const fmtNum = (v: unknown) => (typeof v === 'number' ? v.toLocaleString() : '-');
 
@@ -31,7 +33,7 @@ function ReportBody({ rep, run }: { rep: Report; run: string }) {
   const stages = useMemo(() => Object.entries(secs).filter(([k]) => k !== 'total').map(([k, v]) => `${k} ${v} s`).join(', '), [secs]);
   return (
     <>
-      <div className="stats" role="list" aria-label="Run totals">
+      <div className="rp-stats" role="list" aria-label="Run totals">
         <Stat label="Total time" value={`${secs.total ?? '-'} s`} hint={stages} />
         <Stat label="Output tokens" value={fmtNum(rep.output_tokens)} hint="reasoning included" />
         <Stat label="Cache hit" value={typeof hit === 'number' ? `${Math.round(hit * 100)}%` : '-'} hint="input tokens of calls 2..n" />
@@ -40,16 +42,16 @@ function ReportBody({ rep, run }: { rep: Report; run: string }) {
         <Stat label="Incomplete calls" value={incomplete.length} hint={incomplete.map(String).join(', ') || 'none'} tone={incomplete.length ? 'warn' : ''} />
       </div>
       {(incomplete.length > 0 || !!rep.units_unanswered_votes) && (
-        <div className="muted">
+        <div className="pg-note">
           {rep.units_unanswered_votes ?? 0} label votes are missing: a call that answers for only some of its units is asked once more,
           and is listed as incomplete if it is still short. Those units were decided on fewer votes.
         </div>
       )}
-      <h2 style={{ fontSize: 16, margin: 0 }}>Calls</h2>
+      <h2 className="pg-h2">Calls</h2>
       {calls.length === 0 ? (
         <Empty>This report lists no calls.</Empty>
       ) : (
-        <div className="table-wrap">
+        <div className="pg-table-wrap">
           <table className="data-table" aria-label="Calls">
             <thead>
               <tr>
@@ -79,13 +81,17 @@ function ReportBody({ rep, run }: { rep: Report; run: string }) {
         </div>
       )}
       {!call ? (
-        <div className="muted">Select a call to see its log and output.</div>
+        <div className="pg-note">Select a call to see its log and output.</div>
       ) : (
         <>
-          <strong>Log</strong>
-          <pre className="pre" aria-label={`Log of call ${call.name ?? ''}`}>{(call.log ?? []).map(String).join('\n') || '(empty)'}</pre>
-          <strong>Output</strong>
-          <pre className="pre" aria-label={`Output of call ${call.name ?? ''}`}>{call.output || '(empty)'}</pre>
+          <details className="pg-fold" key={`log-${sel}`}>
+            <summary>Log of {call.name ?? 'this call'}</summary>
+            <pre className="pg-code" aria-label={`Log of call ${call.name ?? ''}`}>{(call.log ?? []).map(String).join('\n') || '(empty)'}</pre>
+          </details>
+          <details className="pg-fold" key={`out-${sel}`}>
+            <summary>Output of {call.name ?? 'this call'}</summary>
+            <pre className="pg-code" aria-label={`Output of call ${call.name ?? ''}`}>{call.output || '(empty)'}</pre>
+          </details>
         </>
       )}
     </>
@@ -98,13 +104,13 @@ function AllRuns() {
   const t = useAsync((signal) => api.getRunsTable(signal), [runs]);
   return (
     <>
-      <h2 style={{ fontSize: 16, margin: 0 }}>All runs in this folder</h2>
-      <div className="muted">
+      <h2 className="pg-h2">All runs in this folder</h2>
+      <div className="pg-note">
         Wall-clock seconds from the run report. Extract is the first round of calls; sweep and check is everything after it.
         A run with no report shows no timing.
       </div>
       {t.loading && !t.data ? <Loading label="Loading runs" /> : t.error && !t.data ? <ErrorBox message={t.error} onRetry={t.reload} /> : (
-        <div className="table-wrap">
+        <div className="pg-table-wrap">
           <table className="data-table" aria-label="All runs">
             <thead>
               <tr>
@@ -136,7 +142,9 @@ export function ReportTab() {
   const { run } = useRun();
   const rep = useAsync((signal) => api.getReport(run, signal), [run]);
   return (
-    <div className="panel">
+    <>
+      <PageHeader title="Run report" subtitle={run} />
+      <div className="pg-stack">
       {rep.loading && !rep.data ? (
         <Loading label="Loading the report" />
       ) : rep.status === 404 ? (
@@ -147,6 +155,7 @@ export function ReportTab() {
         <ReportBody rep={rep.data} run={run} />
       ) : null}
       <AllRuns />
-    </div>
+      </div>
+    </>
   );
 }
