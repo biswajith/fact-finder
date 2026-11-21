@@ -112,6 +112,16 @@ def decisions(state: State, facts: list[dict]) -> list[str]:
     return out
 
 
+KEEP_FIGURES = ("When a row cannot hold every item in under 60 words, keep the figures (amounts, limits, dates, "
+                "durations, counts, percentages) and shorten the words around them; never replace a figure with a "
+                "general word such as 'specified' or 'required'.")
+
+
+def brief_system(spec: Section) -> str:
+    """The extraction's summary prompt (units.py, unchanged for the pipeline), plus the web's rule on figures."""
+    return units.brief_system(spec) + "\n" + KEEP_FIGURES
+
+
 def input_hash(facts: list[dict], decided: list[str]) -> str:
     """A fingerprint of everything the model is given, so any change to it shows as stale."""
     payload = sorted([f["fact_id"], f["category"], sorted(f["flags"]), f["text"], f.get("resolution")] for f in facts)
@@ -258,7 +268,7 @@ class SummaryService:
         digest = input_hash(facts, decided)
         names = tuple(n for n, _ in spec.rows)
         try:
-            raw = await self.model.complete(units.brief_system(spec), user_message(facts, decided)) if facts else ""
+            raw = await self.model.complete(brief_system(spec), user_message(facts, decided)) if facts else ""
             rows = units.parse_brief(raw, facts, names)
             result = {"rows": rows, "generated_at": now(), "input_hash": digest, "error": None}
         except Exception as e:  # a failed call must not kill the rebuild loop

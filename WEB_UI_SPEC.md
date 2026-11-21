@@ -313,9 +313,9 @@ reads them with tools.
 | --- | --- |
 | `search(query?, queries?, section?, label?, category?, flag?, status?, edited?, limit=10)` | Word search over the labelled text of the whole document (`labels.json`) and the facts; each row's section heading is searched with it, since a section's sentences often do not repeat the topic of the heading. A hit is a fact row (`fact_id`, category, fact line, page, section; flags, status and `edited` only when set) or, for source text with no fact, a unit row (`unit_id`, label, `unit_text` cut at 400 characters); `votes` only when they disagreed. Ranked by the sum of the squared rarity (inverse frequency) of the query terms a row matches, so rare words outweigh common ones; rows under 25% of the best score are left out. `queries` runs up to 10 searches in one call under the same filters, at most 6 hits each. A row already returned in full earlier in the turn comes back as its ID with `sent_before`. `more` counts matches not shown; `section` (part of a heading) keeps only that section's rows |
 | `get_fact(fact_id? , fact_ids?)` | Full effective fact with cited source text and section and its original values; `fact_ids` reads up to 20 in one call; empty fields are left out |
-| `edit_fact(fact_id, text?, category?, flags?, note?, reason)` | Correction |
+| `edit_fact(fact_id, text?, category?, flags?, note?, reason, values_removed?)` | Correction of a fact that is wrong. A new text that drops more figures (amounts, dates, numbers) than it adds is refused unless `values_removed` is true |
 | `delete_fact(fact_id, reason)` | Correction |
-| `add_fact(category, text, flags?, citation_ids?, note?)` | New customer fact |
+| `add_fact(category, text, flags?, citation_ids?, note?)` | New customer fact: something the extraction missed, or new information from the buyer (a clarification or update), cited to the related source unit. New information never rewrites an extracted fact |
 | `restore_fact(fact_id)` | Back to the extracted value |
 | `list_conflicts(status?)` | Conflicts with their options |
 | `raise_conflict(title, description, fact_ids, options)` | Record a conflict for the customer to choose; use when a correction could apply to several facts in ways that differ, or facts disagree |

@@ -168,7 +168,7 @@ async def test_sections_without_rows_build_only_on_explicit_generate(ws):
     assert d["source"] == "app" and d["generated_at"] and not d["stale"] and d["fact_count"] == 1
     assert [r["row"] for r in d["rows"]][:2] == ["Scope of work", "Mandatory requirements"]
     assert d["rows"][0]["fact_ids"] == ["f_r1"] and d["rows"][0]["page"] == "3"
-    assert len(model.calls) == 1 and model.calls[0][0] == units.brief_system(S.REQUIREMENTS)
+    assert len(model.calls) == 1 and model.calls[0][0] == S.brief_system(S.REQUIREMENTS)
     ws.edit("f_r1", {"text": "Changed again"})  # now it has rows: a change rebuilds it
     svc.notify_change(ws)
     await settle(svc)
@@ -311,3 +311,9 @@ async def test_a_raised_conflict_choice_reaches_the_summary_even_without_fact_ch
     await settle(svc)
     assert "decision: Deadline wording -> Keep March 3, and note extensions may be granted." in model.calls[-1][1]
     assert S.decisions(ws.state(), S.section_facts(ws.state(), S.BY_KEY["buyer"])) == []  # other sections: no
+
+
+def test_summary_prompt_keeps_figures():
+    system = S.brief_system(S.BY_KEY["contract"])
+    assert system.startswith(units.brief_system(S.BY_KEY["contract"]))  # the pipeline's prompt, unchanged
+    assert "keep the figures" in system and "specified" in system

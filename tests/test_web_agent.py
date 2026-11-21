@@ -548,3 +548,30 @@ async def test_get_fact_reads_several_and_leaves_out_empty_fields(ws, svc):
         await A.t_get_fact(ctx, {"fact_ids": []})
     events = await run_chat(ws, svc, ScriptedChat([call("get_fact", fact_ids=["f_d1", "f_d2"]), call("get_fact", "c2", fact_id="f_d1")], ["ok"]))
     assert [e["label"] for e in events if e["type"] == "tool"] == ["Read 2 facts", "Read fact f_d1"]
+
+
+async def test_edit_fact_refuses_to_lose_figures_but_allows_replacing_them(ws, svc):
+    ctx = A.Ctx(ws, svc, [])
+    ws.edit("f_d1", {"text": "Bids due March 3 at 2 pm; liability of $1,000,000 each occurrence and $2,000,000 aggregate"})
+    # appending keeps every figure
+    ok = await A.t_edit_fact(ctx, {"fact_id": "f_d1", "reason": "r", "text":
+                                   "Bids due March 3 at 2 pm; liability of $1M each occurrence and $2M aggregate; limits may change with 90 days notice"})
+    assert ok["ok"]
+    # a correction that swaps one figure for another is a replacement, not a loss
+    assert (await A.t_edit_fact(ctx, {"fact_id": "f_d1", "reason": "r", "text":
+                                      "Bids due March 5 at 2 pm; liability of $1M each occurrence and $2M aggregate; limits may change with 90 days notice"}))["ok"]
+    # rewriting the text without its amounts is refused, and says what would be lost
+    with pytest.raises(A.WorkspaceError, match="drops values the fact states: .*1000000.*2000000"):
+        await A.t_edit_fact(ctx, {"fact_id": "f_d1", "reason": "r", "text": "Insurance limits may change with 90 days notice"})
+    assert "$2M" in ws.state().get("f_d1")["text"]
+    # unless the customer's correction removes them
+    assert (await A.t_edit_fact(ctx, {"fact_id": "f_d1", "reason": "r", "values_removed": True,
+                                      "text": "Insurance limits may change with 90 days notice"}))["ok"]
+    # edits without text are not checked
+    assert (await A.t_edit_fact(ctx, {"fact_id": "f_d1", "reason": "r", "note": "checked"}))["ok"]
+
+
+def test_prompt_separates_corrections_from_new_information(ws):
+    text = A.system_prompt(ws)
+    assert "Tell a correction from new information" in text and "add_fact" in text
+    assert "new information" in A.BY_NAME["add_fact"].description and "values_removed" in A.BY_NAME["edit_fact"].description
