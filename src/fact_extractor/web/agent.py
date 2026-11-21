@@ -20,10 +20,14 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Protocol
 
 from ..models import CATEGORIES, FLAGS
 from . import ModelUnavailable, model_name, require_api_key
+from . import planning as P
 from .summaries import BY_KEY, SECTIONS, SummaryService
 from .workspace import Workspace, WorkspaceError, new_id, now
 
-MAX_ROUNDS = 8
+MAX_ROUNDS = 8  # direct and light mode
+HEAVY_ROUNDS = 16  # heavy mode: a written plan over many facts needs more lookups
+ROUTER_CONTEXT_MESSAGES = 6  # recent chat messages the router sees, each clipped
+ROUTER_CONTEXT_CHARS = 600
 WRAP_UP = ("You have used all your tool rounds. Do not look anything up again. Answer the customer now "
            "from what you found, and say plainly what you could not confirm.")
 # gpt-6-luna rejects function tools together with a reasoning effort on Chat Completions
@@ -50,7 +54,10 @@ class ToolCall:
 class ChatModel(Protocol):
     def stream(self, messages: list[dict], tools: list[dict]) -> AsyncIterator[str | ToolCall]:
         """One model turn. Yield text deltas (str) as they arrive, then each complete ToolCall.
-        A model whose `stream` also takes a `cache_key` keyword is given a stable per-run key."""
+        A model whose `stream` also takes a `cache_key` keyword is given a stable per-run key.
+        A model whose `stream` takes `allow_tools` is sent the tool list even on calls that must not
+        use tools, with allow_tools=False, so the request starts the same and stays cached; any
+        other model gets an empty tool list on those calls."""
         ...
 
 
@@ -61,13 +68,17 @@ class OpenAIChatModel:
         self.timeout = timeout
         self._client = None
 
-    async def stream(self, messages: list[dict], tools: list[dict], cache_key: str | None = None) -> AsyncIterator[str | ToolCall]:
+    async def stream(self, messages: list[dict], tools: list[dict], cache_key: str | None = None,
+                     allow_tools: bool = True) -> AsyncIterator[str | ToolCall]:
         require_api_key()
         if self._client is None:
             import openai
 
             self._client = openai.AsyncOpenAI(timeout=self.timeout, max_retries=1)
-        extra = {"tools": tools} if tools else {}  # the API rejects an empty tools list
+        extra: dict[str, Any] = {"tools": tools} if tools else {}  # the API rejects an empty tools list
+        if tools and not allow_tools:
+            # The tools stay in the request (it is cached as a prefix, tools first); the model may not call them.
+            extra["tool_choice"] = "none"
         if cache_key:  # routes every turn of one run to the same prompt cache
             extra["prompt_cache_key"] = cache_key
         stream = await self._client.chat.completions.create(
@@ -105,7 +116,7 @@ Rules you always follow:
 5. Every change is logged and can be undone by the customer, but still say plainly what you changed. When you mention a fact, write its ID in square brackets, like [f_0123456789], so the interface can link to it.
 6. Do not make up facts about the document. When you are unsure, search the source, or say that you do not know.
 7. Each section (buyer, submission, gates, scoring, questions, contract, requirements) has one summary in fixed rows, each row citing the facts it rests on. After a change, a summary that depends on it is marked out of date and rebuilt automatically; you do not need to rebuild it. Call generate_summary only when the customer asks for a summary to be written, or for a section that has no rows yet.
-8. Be efficient: a few lookups are enough. Do not repeat a search that already returned what you need; once you have the facts, answer.
+8. Be efficient: every reply that calls tools costs a round trip, so do in one reply everything that does not depend on a result you have not seen yet. Put the different things you need to find into one search call (queries), and make independent calls together in the same reply. Do not repeat a search that already returned what you need; once you have the facts, answer.
 9. Be brief and concrete. The customer is a bid manager, not an engineer.
 
 Fact categories: {categories}.
@@ -157,6 +168,8 @@ class Ctx:
     ws: Workspace
     summaries: SummaryService
     conflict_ids: list[str]
+    plan: list[dict] | None = None  # heavy mode only: [{"step": str, "done": bool}]
+    tools_run: int = 0  # successful tool calls this turn, other than update_plan
 
 
 _DASHES = dict.fromkeys(map(ord, "\u2010\u2011\u2012\u2013\u2014\u2015\u2212"), "-")
@@ -205,7 +218,39 @@ def _limit(args: dict, default: int, top: int = 50) -> int:
     return max(1, min(top, n)) if isinstance(n, int) and not isinstance(n, bool) else default
 
 
+MULTI_QUERY_LIMIT = 10  # hits per query when one search call carries several queries
+
+
 async def t_search(ctx: Ctx, a: dict) -> dict:
+    """One query (`query`), or several in one call (`queries`), so independent lookups cost one model
+    round, not one each. With several, each query gets its own hits under the same filters, and a row
+    already listed for an earlier query is shown again only by its IDs."""
+    queries = a.get("queries")
+    if queries is None:
+        return await _search_one(ctx, a)
+    if not isinstance(queries, list) or not queries or not all(isinstance(q, str) for q in queries):
+        raise WorkspaceError("queries must be a non-empty list of strings")
+    base = {k: v for k, v in a.items() if k not in ("queries", "query")}
+    # Each query's hits are capped, so several queries cannot fill the context: _limit allows 50 for one.
+    base["limit"] = min(_limit(a, MULTI_QUERY_LIMIT), MULTI_QUERY_LIMIT)
+    seen: set[tuple] = set()
+    results = []
+    for q in queries[:10]:
+        r = await _search_one(ctx, {**base, "query": q})
+        hits = []
+        for h in r["hits"]:
+            key = (h.get("fact_id"), h.get("unit_id"))
+            hits.append({k: h[k] for k in ("fact_id", "unit_id") if h.get(k)} | {"listed_above": True}
+                        if key in seen else h)
+            seen.add(key)
+        results.append({"query": q, "count": r["count"], "hits": hits})
+    out: dict = {"results": results}
+    if len(queries) > 10:
+        out["note"] = "Only the first 10 queries were run."
+    return out
+
+
+async def _search_one(ctx: Ctx, a: dict) -> dict:
     """Search the labelled text of the whole document: every source unit with the label the extraction
     gave it, and the fact line written from it. Facts with no unit (added by the customer) come after."""
     state = ctx.ws.state()
@@ -374,8 +419,9 @@ class Tool:
 
 _FACTS = ("facts", "conflicts", "summaries")
 TOOLS: tuple[Tool, ...] = (
-    Tool("search", "Search the labelled text of the whole document: every source unit with the label the extraction gave it (a category code, '=' continues the unit above, '-' is not a fact) and its votes, plus the fact line written from it and that fact's ID, status and flags. Use it to find a fact, or a unit the extraction left out. Optional filters: label (unit label), category, flag, status, edited (these four apply to facts).",
-         _schema({"query": _S, "label": _S, "category": _CATEGORY, "flag": {"type": "string", "enum": list(FLAGS)},
+    Tool("search", "Search the labelled text of the whole document: every source unit with the label the extraction gave it (a category code, '=' continues the unit above, '-' is not a fact) and its votes, plus the fact line written from it and that fact's ID, status and flags. Use it to find a fact, or a unit the extraction left out. Give one query, or several in queries (up to 10) to look up different things in one call; the filters apply to every query. Optional filters: label (unit label), category, flag, status, edited (these four apply to facts).",
+         _schema({"query": _S, "queries": {"type": "array", "items": _S, "description": "several searches in one call"},
+                  "label": _S, "category": _CATEGORY, "flag": {"type": "string", "enum": list(FLAGS)},
                   "status": {"type": "string", "enum": ["valid", "needs_review", "conflict"]},
                   "edited": {"type": "boolean"}, "limit": {"type": "integer"}}), t_search, (), "Searched the document"),
     Tool("get_fact", "Get one fact in full: text, flags, note, cited source text, its original values if it was changed.",
@@ -415,8 +461,36 @@ TOOLS: tuple[Tool, ...] = (
     Tool("generate_summary", "Start rewriting summary sections (all when none are named). It answers at once; the interface shows progress.",
          _schema({"sections": {"type": "array", "items": _SECTION}}), t_generate_summary, ("summaries",), "Started summary generation"),
 )
-BY_NAME = {t.name: t for t in TOOLS}
-TOOL_SPECS = [{"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.parameters}} for t in TOOLS]
+async def t_update_plan(ctx: Ctx, a: dict) -> dict:
+    if ctx.plan is None:
+        raise WorkspaceError("there is no plan in this turn")
+    if a.get("revise") is not None and ctx.tools_run == 0:
+        # A revision must come from something a tool found, not from rewording the plan the customer saw.
+        raise WorkspaceError("revise only after a tool result shows a step is wrong; start with step 1 as written")
+    try:
+        P.update_steps(ctx.plan, a.get("done"), a.get("revise"))
+    except ValueError as e:
+        raise WorkspaceError(str(e)) from e
+    left = [i for i, s in enumerate(ctx.plan, start=1) if not s["done"]]
+    return {"ok": True, "plan": P.numbered(ctx.plan), "steps_left": left}
+
+
+# Offered in heavy mode only, so it is not in TOOLS (the tool list every other turn sends, and caches).
+PLAN_TOOL = Tool(
+    "update_plan",
+    "Update this turn's plan: mark steps done by number, and/or replace every step not yet done with new ones.",
+    _schema({"done": {"type": "array", "items": {"type": "integer"}, "description": "1-based step numbers now done"},
+             "revise": {"type": "array", "items": _S, "description": "new steps replacing the ones not yet done"}}),
+    t_update_plan, (), "Updated the plan")
+
+
+def _spec(t: Tool) -> dict:
+    return {"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.parameters}}
+
+
+BY_NAME = {t.name: t for t in (*TOOLS, PLAN_TOOL)}
+TOOL_SPECS = [_spec(t) for t in TOOLS]
+HEAVY_TOOL_SPECS = [*TOOL_SPECS, _spec(PLAN_TOOL)]
 
 
 class _Fill(dict):
@@ -471,6 +545,8 @@ def _summary(result: dict) -> str:
     """A few words on what a tool returned, for the chat log."""
     if "error" in result:
         return "error: " + str(result["error"])[:200]
+    if isinstance(result.get("results"), list):
+        return ", ".join(f"{r['query']}: {r['count']} hits" for r in result["results"])[:200]
     if isinstance(result.get("hits"), list):
         return f"{result.get('count', len(result['hits']))} hits"
     if result.get("fact_id"):
@@ -488,57 +564,190 @@ def _message(role: str, text: str, tools: list[dict] | None = None, conflict_ids
     return {"id": new_id("m_"), "role": role, "at": now(), "text": text, "tools": tools or [], "conflict_ids": conflict_ids or []}
 
 
-async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_text: str) -> AsyncIterator[dict]:
+def _router_context(history: list[dict], state: str) -> str:
+    """What the router sees besides the new message: the last few messages, clipped, and the state."""
+    lines = [f"{m['role'].upper()}: {_clip(m['content'] or '')[:ROUTER_CONTEXT_CHARS]}"
+             for m in history[-ROUTER_CONTEXT_MESSAGES:]]
+    return "RECENT CONVERSATION\n" + ("\n".join(lines) or "(none)") + f"\n\nWORKSPACE\n{state}"
+
+
+def _no_tools(model: ChatModel, tools: list[dict], extra: dict) -> tuple[list[dict], dict]:
+    """Arguments for a call that must not use tools. A model that can refuse tools itself keeps the tool
+    list, so the request starts like the calls around it and the cached prefix is reused."""
+    if "allow_tools" in inspect.signature(model.stream).parameters:
+        return tools, {**extra, "allow_tools": False}
+    return [], extra
+
+
+async def _plan_call(model: ChatModel, messages: list[dict], extra: dict, prompt: str,
+                     tools: list[dict] = TOOL_SPECS) -> str:
+    """A planning call: the same context plus `prompt`, no tool calls allowed, text back. `tools` is the
+    list the calls that carry the plan out will send."""
+    ask = [*messages, {"role": "system", "content": prompt}]
+    specs, kw = _no_tools(model, tools, extra)
+    return "".join([item async for item in model.stream(ask, specs, **kw) if isinstance(item, str)])
+
+
+async def _write_plan(model: ChatModel, messages: list[dict], extra: dict, route: P.Route) -> None:
+    """Fill `route.steps` (heavy: a JSON list of steps) or `route.plan_text` (light: one line).
+    Heavy with no usable steps becomes light, so the work is still planned."""
+    route.steps, route.plan_text = [], ""
+    if route.mode == "heavy":
+        steps = P.parse_plan(await _plan_call(model, messages, extra, P.plan_prompt([t.name for t in TOOLS]),
+                                              HEAVY_TOOL_SPECS))
+        if steps:
+            route.steps = [{"step": s, "done": False} for s in steps]
+            return
+        route.mode = "light"
+        route.add_note("planning call gave no steps, planned light")
+    text = " ".join((await _plan_call(model, messages, extra, P.LIGHT_PLAN_PROMPT)).split())
+    route.plan_text = text if not text or text.lower().startswith("plan") else f"Plan: {text}"
+
+
+async def _route(router: P.Router, context: str, user_text: str) -> P.Route:
+    try:
+        return await router.route(context, user_text)
+    except ModelUnavailable:
+        raise
+    except Exception as e:  # a router is expected to fall back itself; this is the last guard
+        return P.Route("direct", "fallback", note=f"router failed: {type(e).__name__}: {e}"[:300])
+
+
+async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_text: str,
+               planning: P.Planning | None = None) -> AsyncIterator[dict]:
     """Handle one customer message; yield the stream events of WEB_UI_SPEC.md 6.1.
 
     The user message is stored before the loop and the assistant message at the end, so a
     dropped connection never loses what the customer typed. The last event is always `done`.
+
+    With `planning`, the message first gets a planning mode (planning.py): direct, light or heavy.
+    In a mode that needs approval the turn ends with the plan and a question; the next message is
+    the customer's answer to it. Without `planning`, the message runs direct, as the loop always
+    did, and the stored message has no `planning`.
     """
-    stored = [{"role": m["role"], "content": m["text"]} for m in ws.chat() if m.get("role") in ("user", "assistant")]
+    log = ws.chat()
+    stored = [{"role": m["role"], "content": m["text"]} for m in log if m.get("role") in ("user", "assistant")]
     history = stored[_history_start(stored):]
+    pending = P.pending_plan(log) if planning is not None and planning.judge is not None else None
     ws.append_chat(_message("user", user_text))
-    # static prefix (system prompt, then history) first, volatile state and the new message last
-    messages: list[dict] = [{"role": "system", "content": system_prompt(ws)}, *history,
-                            {"role": "system", "content": state_message(ws)}, {"role": "user", "content": user_text}]
+    state = state_message(ws)
     extra = {"cache_key": _cache_key(ws)} if "cache_key" in inspect.signature(model.stream).parameters else {}
     ctx = Ctx(ws, summaries, [])
     text_parts: list[str] = []
     steps: list[dict] = []
     error: str | None = None
+    route: P.Route | None = None
+
+    def say(text: str) -> dict:
+        text_parts.append(text)
+        return {"type": "text", "delta": text}
+
     try:
-        for round_no in range(MAX_ROUNDS + 1):
-            calls: list[ToolCall] = []
-            turn: list[str] = []
-            last = round_no == MAX_ROUNDS
-            if last:  # out of tool rounds: no tools, so the model must answer with what it has found
-                messages.append({"role": "system", "content": WRAP_UP})
-            async for item in model.stream(messages, [] if last else TOOL_SPECS, **extra):
-                if isinstance(item, ToolCall):
-                    calls.append(item)
+        # static prefix (system prompt, then history) first, volatile state and the new message last
+        messages: list[dict] = [{"role": "system", "content": system_prompt(ws)}, *history,
+                                {"role": "system", "content": state}, {"role": "user", "content": user_text}]
+        action = "run"  # "run" the tool loop, "ask" for approval of a plan, or "cancel"
+        if planning is not None:
+            context = _router_context(history, state)
+            feedback: P.Feedback | None = None
+            if pending is not None and planning.judge is not None:
+                feedback = await planning.judge.judge(context, P.shown_plan(pending), user_text)
+                if feedback.verdict != "new_request":
+                    route = pending
+            if route is None:
+                route = await _route(planning.router, context, user_text)
+            if feedback is not None:
+                route.feedback = feedback.record()
+
+            if route.source == "plan":  # the customer answered the plan that was waiting
+                verdict = route.feedback["verdict"] if route.feedback else "revise"
+                if verdict == "cancel":
+                    action, route.status = "cancel", "cancelled"
+                elif verdict == "approve":
+                    route.status = "approved"
+                    messages.append({"role": "system", "content": P.APPROVED_PROMPT})
+                    if route.mode == "heavy" and route.steps:
+                        ctx.plan = route.steps
+                        messages.append({"role": "system", "content": P.EXECUTE_PROMPT.format(steps=P.numbered(ctx.plan))})
+                    else:
+                        messages.append({"role": "system", "content": P.APPROVED_LIGHT_PROMPT})
+                else:  # revise: write the plan again with the changes, and ask again
+                    messages.append({"role": "system", "content": P.REVISE_PROMPT})
+                    await _write_plan(model, messages, extra, route)
+                    action = "ask"
+            elif planning.needs_approval(route.mode):
+                await _write_plan(model, messages, extra, route)
+                action = "ask"
+            elif route.mode == "heavy":  # plan, show it, and carry it out in the same turn
+                plan = P.parse_plan(await _plan_call(model, messages, extra, P.plan_prompt([t.name for t in TOOLS]),
+                                                     HEAVY_TOOL_SPECS))
+                if plan:
+                    ctx.plan = route.steps = [{"step": s, "done": False} for s in plan]
+                    shown = P.shown_plan(route)
+                    yield say(shown + "\n\n")
+                    messages += [{"role": "assistant", "content": shown},
+                                 {"role": "system", "content": P.EXECUTE_PROMPT.format(steps=P.numbered(ctx.plan))}]
+                else:  # no usable plan: still plan, the light way
+                    route.mode = "light"
+                    route.add_note("planning call gave no steps, ran light")
+                    messages.append({"role": "system", "content": P.LIGHT_PROMPT})
+            elif route.mode == "light":
+                messages[-2] = {"role": "system", "content": f"{state}\n\n{P.LIGHT_PROMPT}"}
+
+            if action == "ask":
+                shown = P.shown_plan(route)
+                if shown:
+                    route.status = P.AWAITING
+                    yield say(f"{shown}\n\n{P.ASK_APPROVAL}")
                 else:
-                    turn.append(item)
-                    text_parts.append(item)
-                    yield {"type": "text", "delta": item}
-            if not calls:
-                break
-            if round_no == MAX_ROUNDS:
-                error = f"Stopped after {MAX_ROUNDS} rounds of tool calls."
-                break
-            messages.append({"role": "assistant", "content": "".join(turn) or None,
-                             "tool_calls": [{"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.arguments}}
-                                            for c in calls]})
-            for c in calls:
-                before = len(ctx.conflict_ids)
-                result, event, changed = await run_tool(ctx, c)
-                steps.append({**{k: event[k] for k in ("name", "label", "ok")}, "args": _clip(_parsed_args(c)),
-                              "summary": _summary(result)})
-                messages.append({"role": "tool", "tool_call_id": c.id, "content": json.dumps(result, ensure_ascii=False)})
-                yield event
-                if changed:
-                    summaries.notify_change(ws)
-                    yield {"type": "changed", "what": list(BY_NAME[c.name].changes)}
-                for cid in ctx.conflict_ids[before:]:
-                    yield {"type": "conflict", "conflict_id": cid}
+                    route.status = ""
+                    route.add_note("no plan was written")
+                    yield say(P.NO_PLAN)
+            elif action == "cancel":
+                yield say(P.CANCELLED)
+            yield {"type": "plan", **route.record()}
+        if action == "run":
+            mode = route.mode if route else "direct"
+            rounds = HEAVY_ROUNDS if mode == "heavy" and ctx.plan else MAX_ROUNDS
+            tool_specs = HEAVY_TOOL_SPECS if ctx.plan else TOOL_SPECS
+            for round_no in range(rounds + 1):
+                calls: list[ToolCall] = []
+                turn: list[str] = []
+                last = round_no == rounds
+                if last:  # out of tool rounds: no tools, so the model must answer with what it has found
+                    messages.append({"role": "system", "content": WRAP_UP})
+                specs, kw = _no_tools(model, tool_specs, extra) if last else (tool_specs, extra)
+                async for item in model.stream(messages, specs, **kw):
+                    if isinstance(item, ToolCall):
+                        calls.append(item)
+                    else:
+                        turn.append(item)
+                        text_parts.append(item)
+                        yield {"type": "text", "delta": item}
+                if not calls:
+                    break
+                if last:
+                    error = f"Stopped after {rounds} rounds of tool calls."
+                    break
+                messages.append({"role": "assistant", "content": "".join(turn) or None,
+                                 "tool_calls": [{"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.arguments}}
+                                                for c in calls]})
+                for c in calls:
+                    before = len(ctx.conflict_ids)
+                    result, event, changed = await run_tool(ctx, c)
+                    if event["ok"] and c.name != PLAN_TOOL.name:
+                        ctx.tools_run += 1
+                    steps.append({**{k: event[k] for k in ("name", "label", "ok")}, "args": _clip(_parsed_args(c)),
+                                  "summary": _summary(result)})
+                    messages.append({"role": "tool", "tool_call_id": c.id, "content": json.dumps(result, ensure_ascii=False)})
+                    yield event
+                    if route is not None and c.name == PLAN_TOOL.name and event["ok"]:
+                        yield {"type": "plan", **route.record()}
+                    if changed:
+                        summaries.notify_change(ws)
+                        yield {"type": "changed", "what": list(BY_NAME[c.name].changes)}
+                    for cid in ctx.conflict_ids[before:]:
+                        yield {"type": "conflict", "conflict_id": cid}
     except ModelUnavailable as e:
         error = str(e)
     except Exception as e:  # the stream must still end with `done`
@@ -546,5 +755,7 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
     if error:
         yield {"type": "error", "message": error}
     reply = _message("assistant", "".join(text_parts) or (error or ""), steps, ctx.conflict_ids)
+    if route is not None:
+        reply["planning"] = route.record()
     ws.append_chat(reply)
     yield {"type": "done", "message": reply}

@@ -544,6 +544,7 @@ evals = [
 ]
 web = [
     { name = "fastapi" },
+    { name = "langchain-openai" },
     { name = "uvicorn" },
 ]
 
@@ -563,6 +564,7 @@ requires-dist = [
     { name = "jmespath", marker = "extra == 'evals'", specifier = ">=1.1.0" },
     { name = "langchain", marker = "extra == 'evals'", specifier = ">=1.4.7" },
     { name = "langchain-openai", marker = "extra == 'evals'", specifier = ">=1.7.2" },
+    { name = "langchain-openai", marker = "extra == 'web'", specifier = ">=1.7.2" },
     { name = "langgraph", marker = "extra == 'evals'", specifier = ">=1.2.18" },
     { name = "openai", specifier = ">=1.60" },
     { name = "pydantic", marker = "extra == 'evals'", specifier = ">=2.14.1" },

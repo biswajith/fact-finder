@@ -10,7 +10,8 @@ dependencies = [
 
 [project.optional-dependencies]
 # Chat workspace web UI (fact-extractor web).
-web = ["fastapi>=0.115", "uvicorn>=0.30"]
+# langchain-openai: the Decisions API client that picks the chat planning mode (web/planning.py).
+web = ["fastapi>=0.115", "uvicorn>=0.30", "langchain-openai>=1.7.2"]
 # goldset (src/goldset) runtime dependencies plus the DeepEval suite.
 evals = [
     "jmespath>=1.1.0",

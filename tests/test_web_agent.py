@@ -411,3 +411,64 @@ async def test_search_covers_the_labelled_text_of_the_document(ws, svc):
     assert no_unit == []  # a fact filter needs a fact
     res = await A.t_search(ctx, {"query": "zzz"})
     assert res["hits"] == [] and "note" not in res
+
+
+async def test_one_search_call_can_carry_several_queries(ws, svc):
+    ctx = A.Ctx(ws, svc, [])
+    one = await A.t_search(ctx, {"query": "March 5 bids"})
+    many = await A.t_search(ctx, {"queries": ["March 5 bids", "bids March", "zzz nothing"]})
+    first, second, none = many["results"]
+    assert first["query"] == "March 5 bids" and first["hits"] == one["hits"][: A.MULTI_QUERY_LIMIT]
+    shown = {h["fact_id"] for h in first["hits"]}
+    repeats = [h for h in second["hits"] if h.get("fact_id") in shown]
+    assert repeats and all(h == {"fact_id": h["fact_id"], "listed_above": True} for h in repeats)  # in full only once
+    assert none == {"query": "zzz nothing", "count": 0, "hits": []}
+    filtered = await A.t_search(ctx, {"queries": ["bids", "questions"], "category": "D"})
+    assert all(h.get("fact_id", "").startswith("f_d") for r in filtered["results"] for h in r["hits"])
+    for bad in ([], "bids", [1]):
+        with pytest.raises(A.WorkspaceError):
+            await A.t_search(ctx, {"queries": bad})
+    assert A._summary(many).startswith("March 5 bids: ")
+
+
+async def test_no_tool_calls_keep_the_tool_list_for_models_that_can_refuse_tools(ws, svc):
+    class Refusing(ScriptedChat):
+        async def stream(self, messages, tools, allow_tools=True):
+            self.calls = getattr(self, "calls", []) + [(len(tools), allow_tools)]
+            for item in ([call("search", query="bids")] if allow_tools else ["Answer."]):
+                yield item
+
+    model = Refusing()
+    await run_chat(ws, svc, model)
+    n = len(A.TOOL_SPECS)
+    assert model.calls == [(n, True)] * A.MAX_ROUNDS + [(n, False)]  # same tools on the last call, refused
+
+
+async def test_openai_model_sends_tool_choice_none_when_tools_are_refused(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-real")
+    sent = []
+
+    async def create(**kw):
+        sent.append(kw)
+
+        async def gen():
+            return
+            yield
+        return gen()
+
+    model = A.OpenAIChatModel()
+    model._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    msgs = [{"role": "user", "content": "x"}]
+    [x async for x in model.stream(msgs, A.TOOL_SPECS, allow_tools=False)]
+    [x async for x in model.stream(msgs, A.TOOL_SPECS)]
+    [x async for x in model.stream(msgs, [], allow_tools=False)]
+    assert sent[0]["tools"] == A.TOOL_SPECS and sent[0]["tool_choice"] == "none"
+    assert "tool_choice" not in sent[1] and "tools" not in sent[2] and "tool_choice" not in sent[2]
+
+
+async def test_several_queries_cap_hits_per_query(ws, svc, monkeypatch):
+    monkeypatch.setattr(A, "MULTI_QUERY_LIMIT", 2)
+    ctx = A.Ctx(ws, svc, [])
+    r = await A.t_search(ctx, {"queries": ["bids", "March"], "limit": 100})
+    assert all(len(x["hits"]) <= 2 for x in r["results"])
+    assert len((await A.t_search(ctx, {"query": "bids March questions", "limit": 100}))["hits"]) > 2  # one query: as before

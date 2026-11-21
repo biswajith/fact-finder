@@ -262,17 +262,27 @@ Each event is one line `data: <json>` followed by a blank line.
 {"type": "tool", "name": "edit_fact", "label": "Changed fact f_65ed2f51cf", "ok": true}
 {"type": "changed", "what": ["facts", "conflicts", "summaries"]}
 {"type": "conflict", "conflict_id": "k_1a2b3c4d"}
+{"type": "plan", "mode": "heavy", "source": "router", "confidence": 0.82, "status": "awaiting_approval",
+ "steps": [{"step": "Find the deadlines", "done": false}]}
 {"type": "error", "message": "OPENAI_API_KEY is not set"}
 {"type": "done", "message": {chat message}}
 ```
+
+`plan` is sent only when planning is on (section 7.1): once when the mode is known, and
+again after each `update_plan` call. The frontend may ignore it; the plan and the
+approval question are also in the `text` deltas.
 
 Chat message:
 
 ```json
 {"id": "m_1a2b3c4d", "role": "assistant", "at": "...", "text": "...",
  "tools": [{"name": "edit_fact", "label": "...", "ok": true}],
- "conflict_ids": ["k_1a2b3c4d"]}
+ "conflict_ids": ["k_1a2b3c4d"],
+ "planning": {"mode": "light", "source": "router", "status": "awaiting_approval", "plan_text": "Plan: 1) ..."}}
 ```
+
+`planning` is on assistant messages only when planning is on; it is the `plan` event's
+content at the end of the turn, and how the next turn finds a plan waiting for approval.
 
 The assistant refers to a fact as `[f_65ed2f51cf]` in its text; the frontend shows
 these as links that open the fact.
@@ -291,7 +301,7 @@ reads them with tools.
 
 | Tool | Does |
 | --- | --- |
-| `search(query?, label?, category?, flag?, status?, edited?, limit=20)` | Word-overlap search over the labelled text of the whole document (`labels.json`): every source unit with its label and votes, plus the fact line written from it (`fact_id`, status, flags). Facts with no unit follow |
+| `search(query?, queries?, label?, category?, flag?, status?, edited?, limit=20)` | Word-overlap search over the labelled text of the whole document (`labels.json`): every source unit with its label and votes, plus the fact line written from it (`fact_id`, status, flags). Facts with no unit follow. `queries` runs up to 10 searches in one call under the same filters, at most 10 hits each; a row already listed for an earlier query comes back as its IDs only |
 | `get_fact(fact_id)` | Full effective fact with cited source text and its original values |
 | `edit_fact(fact_id, text?, category?, flags?, note?, reason)` | Correction |
 | `delete_fact(fact_id, reason)` | Correction |
@@ -307,6 +317,41 @@ reads them with tools.
 
 Tool results are JSON. A tool error is returned to the model as `{"error": "..."}`
 and reported in the stream with `ok: false`.
+
+### 7.1 Planning
+
+`planning.py` decides, per customer message, whether the agent plans before it acts.
+There are three modes, so each can be measured against the others:
+
+| Mode | What happens |
+| --- | --- |
+| `direct` | The plain tool loop above: the model decides one round at a time. |
+| `light` | The model writes its steps in one line (`Plan: 1) ... 2) ...`) and follows them. |
+| `heavy` | A planning call with no tools writes the steps as JSON. The loop carries them out with an extra tool, `update_plan(done?, revise?)`, that ticks steps off or replaces the ones not yet done, and gets 16 tool rounds, not 8. |
+
+**Which mode.** `FACT_EXTRACTOR_CHAT_PLANNING`: `auto` (default) asks the OpenAI Decisions
+API one `Choice` question (`direct` / `light` / `heavy`, judged by the work the message
+needs) over the last 6 chat messages, the workspace counts and the new message. A pick
+below confidence 0.6 runs `light`; a failed call runs `direct`. `direct` (or `off`),
+`light` and `heavy` force one mode for every message (the baselines).
+`FACT_EXTRACTOR_DECISIONS_MODEL` sets the Decisions model (default `gpt-6-luna`).
+
+**Approval.** `FACT_EXTRACTOR_CHAT_PLAN_APPROVAL`: `on` (default: light and heavy),
+`heavy`, or `off`. In a mode that needs approval the agent writes the plan with no tools,
+shows it, asks "Shall I go ahead? You can also tell me what to change.", and ends the turn
+having changed nothing. The customer's next message is judged by a second Decisions
+`Choice` question:
+
+| Verdict | What happens |
+| --- | --- |
+| `approve` | The stored plan runs (heavy: the stored steps with `update_plan`). |
+| `revise` | The plan is written again with the customer's changes and shown again. |
+| `cancel` | A fixed reply; no model call, nothing changed. |
+| `new_request` | The plan is dropped and the message is routed like any other. |
+
+Anything but a confident `approve` counts as `revise`, so no plan runs without a clear yes.
+Without an approval mode, `light` plans inline in the loop and `heavy` shows its steps and
+carries them out in the same turn.
 
 ## 8. Frontend
 

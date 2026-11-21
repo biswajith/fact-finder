@@ -29,6 +29,7 @@ from .. import stability
 from . import has_api_key, model_name
 from . import runs as R
 from .agent import ChatModel, OpenAIChatModel, chat
+from .planning import Planning, planning_from_env
 from .runs import find_runs, render_page
 from .summaries import SECTIONS, CompletionModel, SummaryService
 from .workspace import BadRequest, Conflict, NotFound, Workspace, WorkspaceError, attached_pdf
@@ -194,15 +195,19 @@ def _pdf_of(facts_path: Path) -> tuple[bool, str | None]:
 
 
 def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
-               summary_model: CompletionModel | None = None, extractor: Callable | None = None) -> FastAPI:
+               summary_model: CompletionModel | None = None, extractor: Callable | None = None,
+               chat_planning: Planning | None = None) -> FastAPI:
     """Build the app. Models are injected by tests; otherwise the OpenAI-backed ones are created
     on first use, and a missing OPENAI_API_KEY shows up as a chat error or a section error.
-    `extractor` replaces `runs.run_extraction` (the one call that spends tokens) in tests."""
+    `extractor` replaces `runs.run_extraction` (the one call that spends tokens) in tests.
+    `chat_planning` sets how each chat message is planned; with the real chat model and none
+    given, it comes from FACT_EXTRACTOR_CHAT_PLANNING and _PLAN_APPROVAL. An injected chat model gets none unless passed."""
     root = Path(runs_folder)
     extract_fn = extractor or R.run_extraction
     app = FastAPI(title="fact-extractor web", docs_url=None, redoc_url=None)
     app.state.summaries = summaries = SummaryService(summary_model)
     app.state.chat_model = chat_model or OpenAIChatModel()
+    app.state.chat_planning = chat_planning if chat_planning is not None or chat_model is not None else planning_from_env()
     workspaces: dict[Path, Workspace] = {}
     pages: OrderedDict[tuple, bytes] = OrderedDict()
     uploads: dict[str, tuple[Path, str]] = {}  # upload_id -> (file, name), in a folder the app owns
@@ -565,7 +570,7 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
             raise HTTPException(400, "message must not be empty")
 
         async def events() -> AsyncIterator[str]:
-            async for ev in chat(ws, summaries, app.state.chat_model, body.message.strip()):
+            async for ev in chat(ws, summaries, app.state.chat_model, body.message.strip(), app.state.chat_planning):
                 yield sse(ev)
 
         return StreamingResponse(events(), media_type="text/event-stream",

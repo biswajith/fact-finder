@@ -92,6 +92,9 @@ Without the dev group, ask for what you need: `uv sync --extra evals`,
 | --- | --- |
 | `OPENAI_API_KEY` | Required for `extract`. |
 | `FACT_EXTRACTOR_MODEL` | Model ID for all calls. Default `gpt-6-luna`. `--model` overrides it. |
+| `FACT_EXTRACTOR_CHAT_PLANNING` | Chat workspace: `auto` (default; the Decisions API picks per message), `direct`, `light` or `heavy`. See WEB_UI_SPEC.md 7.1. |
+| `FACT_EXTRACTOR_CHAT_PLAN_APPROVAL` | Chat workspace: which planning modes show their plan and wait for the customer: `on` (light and heavy, default), `heavy`, `off`. |
+| `FACT_EXTRACTOR_DECISIONS_MODEL` | Model for the chat's Decisions API questions. Default `gpt-6-luna`. |
 | `OPENAI_BASE_URL` | Optional proxy or compatible endpoint (read by the `openai` SDK). |
 | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING` | Optional. Trace every LangChain call that the golden-dataset builder makes. |
 | `DEEPEVAL_TELEMETRY_OPT_OUT` | `1` in `.env.example`: turns off DeepEval's usage telemetry (see "DeepEval suite"). |
