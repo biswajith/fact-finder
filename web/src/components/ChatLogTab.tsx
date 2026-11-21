@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@adobe/react-spectrum';
 import * as api from '../api';
-import { argsText, cacheShare, fmtNum, fmtSecs, groupTurns, purposeLabel, turnTotals, type Turn } from '../chatLog';
+import { argsText, cacheShare, fmtNum, fmtSecs, fmtUsd, groupTurns, purposeLabel, turnTotals, type Turn } from '../chatLog';
 import { errorText, useRun } from '../store';
 import type { ChatLogEvent, ChatSession, ChatSessionDetail, ChatTotals } from '../types';
 import { ErrorBox, Loading, formatTime } from './common';
@@ -19,7 +19,11 @@ const STATUS_LABEL: Record<string, string> = {
 const pct = (p?: number | null) => (p == null ? '' : `${Math.round(p * 100)}%`);
 
 function Totals({ totals, turns }: { totals: ChatTotals; turns?: number }) {
+  const costHint = totals.cost_usd != null
+    ? `LLM ${fmtUsd(totals.llm_cost_usd ?? 0)} · Decisions ${fmtUsd(totals.decisions_cost_usd ?? 0)}`
+    : 'not priced: no price for the model used';
   const tiles: { l: string; v: string; h?: string }[] = [
+    { l: 'Estimated cost', v: fmtUsd(totals.cost_usd), h: costHint },
     ...(turns !== undefined ? [{ l: 'Turns', v: fmtNum(turns) }] : []),
     { l: 'LLM calls', v: fmtNum(totals.llm_calls ?? 0), h: totals.llm_seconds ? `${fmtSecs(totals.llm_seconds)} waiting` : undefined },
     { l: 'Tool calls', v: fmtNum(totals.tool_calls ?? 0) },
@@ -59,7 +63,8 @@ function SessionList({ sessions, selected, onSelect }: { sessions: ChatSession[]
           </span>
           <span className="id">{s.session_id}</span>
           <span className="meta">
-            {s.turns} turn{s.turns === 1 ? '' : 's'} · {fmtNum(s.totals.llm_calls ?? 0)} LLM calls · {fmtNum(s.totals.input_tokens ?? 0)} in
+            {s.turns} turn{s.turns === 1 ? '' : 's'} · {fmtNum(s.totals.llm_calls ?? 0)} LLM calls
+            {s.totals.cost_usd != null ? ` · ${fmtUsd(s.totals.cost_usd)}` : ''}
           </span>
         </button>
       ))}
@@ -69,7 +74,8 @@ function SessionList({ sessions, selected, onSelect }: { sessions: ChatSession[]
 
 function Decision({ label, e, value, tone }: { label: string; e: ChatLogEvent; value: string; tone?: string }) {
   const bits = [e.source, pct(e.confidence) && `confidence ${pct(e.confidence)}`, e.call?.seconds != null && fmtSecs(e.call.seconds),
-    e.call?.input_tokens != null && `${fmtNum(e.call.input_tokens)} tokens`].filter(Boolean);
+    e.call?.input_tokens != null && `${fmtNum(e.call.input_tokens)} tokens`,
+    e.call?.cost_usd != null && fmtUsd(e.call.cost_usd)].filter(Boolean);
   return (
     <div className="cl-decision">
       <span className="k">{label}</span>
@@ -119,6 +125,7 @@ function Calls({ turn }: { turn: Turn }) {
             <th scope="col" className="num">Input</th>
             <th scope="col" className="num">Cached</th>
             <th scope="col" className="num">Output</th>
+            <th scope="col" className="num">Cost</th>
             <th scope="col" className="num">Time</th>
           </tr>
         </thead>
@@ -153,6 +160,7 @@ function CallRows({ n, call, tools }: { n: number; call: ChatLogEvent; tools: Ch
         <td className="num">{fmtNum(call.input_tokens)}</td>
         <td className="num">{call.input_tokens ? `${fmtNum(call.cached_tokens)} (${cacheShare(call.input_tokens, call.cached_tokens)})` : '–'}</td>
         <td className="num">{fmtNum(call.output_tokens)}</td>
+        <td className="num">{fmtUsd(call.cost_usd)}</td>
         <td className="num">{fmtSecs(call.seconds)}</td>
       </tr>
       {tools.map((t) => (
@@ -163,7 +171,7 @@ function CallRows({ n, call, tools }: { n: number; call: ChatLogEvent; tools: Ch
             {argsText(t.args) && <span className="cl-args"> {argsText(t.args)}</span>}
             {t.summary && <div className="muted cl-summary">{t.summary}</div>}
           </td>
-          <td colSpan={3} />
+          <td colSpan={4} />
           <td className="num">{fmtSecs(t.seconds)}</td>
         </tr>
       ))}
@@ -180,6 +188,7 @@ function TurnCard({ turn, n }: { turn: Turn; n: number }) {
         <span className="cl-turn-n">Turn {n}</span>
         <span className="muted">{formatTime(turn.at)}</span>
         <span className="tl-spacer" />
+        {totals.cost_usd != null && <span className="cl-cost">{fmtUsd(totals.cost_usd)}</span>}
         <span className="muted">
           {fmtNum(totals.llm_calls ?? 0)} LLM · {fmtNum(totals.tool_calls ?? 0)} tools
           {totals.decisions_calls ? ` · ${totals.decisions_calls} decisions` : ''} · {fmtNum(totals.input_tokens ?? 0)} in
@@ -199,7 +208,7 @@ function TurnCard({ turn, n }: { turn: Turn; n: number }) {
           {turn.route && <Decision label="Planning mode" e={turn.route} value={turn.route.mode ?? '?'} />}
         </div>
       )}
-      {turn.plan && <Plan e={turn.plan} updates={turn.planUpdates} />}
+      {turn.plan && (turn.plan.steps?.length || turn.plan.plan_text) ? <Plan e={turn.plan} updates={turn.planUpdates} /> : null}
       <Calls turn={turn} />
       {turn.reply && (
         <details className="cl-reply">
@@ -288,6 +297,11 @@ export function ChatLogTab() {
                   {session.started && <span className="muted cl-started"> · started {formatTime(session.started)}</span>}
                 </h2>
                 <Totals totals={session.totals} turns={session.turns} />
+                <p className="pg-note">
+                  Costs are estimates from the model price list at the time each turn was logged (GPT-6 Luna: $0.10 per
+                  1M input tokens, $0.01 cached, $0.50 output; Decisions API: input only). Summary rebuilds that a change
+                  starts are not included.
+                </p>
                 {loadingDetail && !detail ? (
                   <Loading label="Loading the session log" />
                 ) : turns.length === 0 ? (

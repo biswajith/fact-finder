@@ -12,7 +12,10 @@ event carries the session id, the turn id (one per customer message) and a seque
                      asked for (arguments clipped), tokens (input, cached, output) and seconds
     tool             one tool run: name, arguments, ok, a short summary, seconds
     assistant_message  the reply's text
-    turn_end         totals for the turn (calls, tokens, seconds) and any error
+    turn_end         totals for the turn (calls, tokens, seconds, estimated dollars) and any error
+
+`cost_usd` on llm_call, on a Decisions `call`, and in the totals is an estimate from pricing.py at
+the prices of the day it was logged; it is absent for a model with no known price.
 
 Writing the log never stops the chat: a failed write is counted, not raised. No FastAPI import here.
 """
@@ -23,7 +26,10 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from . import pricing
 from .workspace import Workspace, new_id, now
+
+USD_DIGITS = 8  # costs are fractions of a cent: keep them exact enough to sum
 
 
 @dataclass
@@ -77,6 +83,11 @@ class TurnLog:
                                   **tokens}
         if usage is not None and usage.model:
             fields["model"] = usage.model
+            usd = pricing.cost(pricing.CHAT, usage.model, usage.input_tokens, usage.cached_tokens, usage.output_tokens)
+            if usd is not None:
+                fields["cost_usd"] = round(usd, USD_DIGITS)
+                self._add("llm_cost_usd", usd)
+                self._add("cost_usd", usd)
         if error:
             fields["error"] = error
         self.log("llm_call", **fields)
@@ -88,6 +99,11 @@ class TurnLog:
         self._add("decisions_calls", 1)
         self._add("decisions_input_tokens", call.get("input_tokens") or 0)
         self._add("decisions_seconds", call.get("seconds") or 0)
+        usd = pricing.cost(pricing.DECISIONS, call.get("model") or "", call.get("input_tokens"))
+        if usd is not None:
+            call = {**call, "cost_usd": round(usd, USD_DIGITS)}
+            self._add("decisions_cost_usd", usd)
+            self._add("cost_usd", usd)
         return call
 
     def tool(self, *, name: str, round_no: int, args: Any, ok: bool, summary: str, seconds: float) -> None:
@@ -95,7 +111,8 @@ class TurnLog:
         self.log("tool", name=name, round=round_no, args=args, ok=ok, summary=summary, seconds=round(seconds, 3))
 
     def end(self, error: str | None) -> None:
-        totals = {k: (round(v, 3) if isinstance(v, float) else v) for k, v in self.totals.items()}
+        totals = {k: (round(v, USD_DIGITS if k.endswith("_usd") else 3) if isinstance(v, float) else v)
+                  for k, v in self.totals.items()}
         totals["seconds"] = round(time.monotonic() - self.started, 3)
         fields: dict[str, Any] = {"totals": totals}
         if error:

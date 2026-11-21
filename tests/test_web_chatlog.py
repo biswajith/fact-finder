@@ -123,3 +123,59 @@ async def test_openai_model_reports_usage_last(monkeypatch):
     assert sent["stream_options"] == {"include_usage": True}
     assert out[0] == "hi" and isinstance(out[-1], CallUsage)
     assert (out[-1].input_tokens, out[-1].cached_tokens, out[-1].output_tokens) == (500, 400, 7)
+
+
+def test_cost_estimates_use_the_price_table():
+    from fact_extractor.web import pricing
+
+    # 200K input with 80K cached, 20K output: 120K x $0.10 + 80K x $0.01 + 20K x $0.50 per 1M
+    assert pricing.cost(pricing.CHAT, "gpt-6-luna", 200_000, 80_000, 20_000) == pytest.approx(0.012 + 0.0008 + 0.01)
+    # over 272K input: 2x input and cache rates, 1.5x output
+    assert pricing.cost(pricing.CHAT, "gpt-6-luna", 300_000, 0, 1_000) == pytest.approx((300_000 * 0.2 + 1_000 * 0.75) / 1e6)
+    assert pricing.cost(pricing.DECISIONS, "gpt-6-luna", 1_000_000) == pytest.approx(0.10)
+    assert pricing.cost(pricing.CHAT, "unknown-model", 1000) is None
+    assert pricing.cost(pricing.CHAT, "gpt-6-luna", None) is None
+
+
+async def test_turns_log_estimated_cost(ws, svc):
+    class Counted(ScriptedChat):
+        async def stream(self, messages, tools):
+            async for item in super().stream(messages, tools):
+                yield item
+            yield CallUsage(10_000, 8_000, 500, "gpt-6-luna")
+
+    fake = FakeDecisions(choice("direct"))
+    await run(ws, svc, Counted(["Hi."]), P.Planning(P.DecisionsRouter(client=fake)))
+    log = ws.chat_events(ws.chat_session())
+    call = next(e for e in log if e["event"] == "llm_call")
+    llm = (2_000 * 0.10 + 8_000 * 0.01 + 500 * 0.50) / 1e6
+    assert call["cost_usd"] == pytest.approx(llm)
+    route = next(e for e in log if e["event"] == "route")
+    dec = 10 * 0.10 / 1e6  # FakeDecisions reports 10 input tokens
+    assert route["call"]["cost_usd"] == pytest.approx(dec)
+    totals = log[-1]["totals"]
+    assert totals["llm_cost_usd"] == pytest.approx(llm) and totals["decisions_cost_usd"] == pytest.approx(dec)
+    assert totals["cost_usd"] == pytest.approx(llm + dec)
+    assert ws.chat_sessions()[0]["totals"]["cost_usd"] == pytest.approx(llm + dec)
+
+
+def test_events_logged_before_costs_are_priced_when_read():
+    from fact_extractor.web.pricing import fill_costs
+
+    old = [
+        {"turn_id": "t1", "event": "route", "call": {"model": "gpt-6-luna", "input_tokens": 400}},
+        {"turn_id": "t1", "event": "llm_call", "model": "gpt-6-luna", "input_tokens": 2000, "cached_tokens": 1000, "output_tokens": 100},
+        {"turn_id": "t1", "event": "turn_end", "totals": {"llm_calls": 1}},
+        {"turn_id": "t2", "event": "llm_call", "model": "gpt-6-luna", "input_tokens": 10, "cost_usd": 0.5},  # kept as logged
+        {"turn_id": "t2", "event": "turn_end", "totals": {"cost_usd": 0.5}},
+        {"turn_id": "t3", "event": "llm_call", "input_tokens": 10},  # no model: not priced
+        {"turn_id": "t3", "event": "turn_end", "totals": {}},
+    ]
+    filled = fill_costs(old)
+    llm = (1000 * 0.10 + 1000 * 0.01 + 100 * 0.50) / 1e6
+    assert filled[1]["cost_usd"] == pytest.approx(llm)
+    assert filled[0]["call"]["cost_usd"] == pytest.approx(400 * 0.10 / 1e6)
+    assert filled[2]["totals"]["cost_usd"] == pytest.approx(llm + 4e-5) and filled[2]["cost_added_later"]
+    assert filled[4]["totals"] == {"cost_usd": 0.5} and "cost_added_later" not in filled[4]
+    assert "cost_usd" not in filled[5] and "cost_usd" not in filled[6]["totals"]
+    assert "cost_usd" not in old[1]  # the input is not changed

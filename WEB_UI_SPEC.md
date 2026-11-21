@@ -381,6 +381,13 @@ session). Clearing the chat ends the session but keeps its folder. Each event ha
 Tokens come from the API's usage report (`stream_options.include_usage`). A failed write to
 the log is counted on `turn_end` (`write_errors`) and never stops the chat.
 
+Cost: `llm_call`, each Decisions `call` and the totals carry `cost_usd` (the totals also
+`llm_cost_usd` and `decisions_cost_usd`), estimated from the price table in `pricing.py` when
+the event is logged. Uncached input is priced at the input rate (the API may bill part of it
+as a cache write, 1.25x), and Decisions input as uncached. Events logged before costs existed
+are priced when read, at today's prices, and their `turn_end` is marked `cost_added_later`.
+Summary rebuilds are separate model calls and are not in the chat log.
+
 ## 8. Frontend
 
 `web/`: Vite, React, TypeScript, `@adobe/react-spectrum` (Provider with the default
@@ -412,7 +419,8 @@ One screen:
     when, from chat or UI, and "Undo".
   - **Chat log** (`#/chatlog`, under Run): the chat sessions of the run (7.2), newest
     first; for the selected one, its totals (turns, LLM, tool and Decisions calls,
-    input tokens and the cached share, output tokens) and each turn: the customer's
+    input tokens and the cached share, output tokens, estimated cost) and each turn
+    with its cost: the customer's
     message, the feedback on a plan, the planning mode and why, the plan and its
     status, a table of the LLM calls (purpose, round, tokens, time) with the tool runs
     each asked for under it, and the reply (folded).

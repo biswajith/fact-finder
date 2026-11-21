@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..models import CATEGORIES, FLAGS
+from .pricing import fill_costs
 from .runs import Run, document_order, load_run, normalize
 
 EDITABLE = ("text", "category", "flags", "note")
@@ -677,7 +678,7 @@ class Workspace:
             append_jsonl(self._session_dir(sid) / "events.jsonl", events)
 
     def chat_events(self, sid: str) -> list[dict]:
-        return read_jsonl(self._session_dir(sid) / "events.jsonl")
+        return fill_costs(read_jsonl(self._session_dir(sid) / "events.jsonl"))
 
     def chat_sessions(self) -> list[dict]:
         """Every session of this run, newest first, with totals summed from its turn_end events."""
@@ -689,12 +690,13 @@ class Workspace:
                 meta = json.loads((d / "session.json").read_text(encoding="utf-8"))
             except (FileNotFoundError, ValueError):
                 meta = {"session_id": d.name}
-            ends = [e for e in read_jsonl(d / "events.jsonl") if e.get("event") == "turn_end"]
-            totals: dict[str, int] = {}
+            ends = [e for e in fill_costs(read_jsonl(d / "events.jsonl")) if e.get("event") == "turn_end"]
+            totals: dict[str, float] = {}
             for e in ends:
                 for k, v in (e.get("totals") or {}).items():
                     if isinstance(v, (int, float)) and not isinstance(v, bool):
                         totals[k] = totals.get(k, 0) + v
+            totals = {k: round(v, 8) if isinstance(v, float) else v for k, v in totals.items()}
             out.append({**meta, "turns": len(ends), "last": ends[-1]["at"] if ends else meta.get("started"),
                         "totals": totals, "_order": (meta.get("started") or "", _mtime(d / "session.json"))})
         current = self.chat_dir / "current.json"

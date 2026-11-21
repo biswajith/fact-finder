@@ -50,17 +50,27 @@ export function groupTurns(events: ChatLogEvent[]): Turn[] {
 /** Turn totals: from turn_end when the turn finished, else summed from its calls. */
 export function turnTotals(t: Turn): ChatTotals {
   if (t.end?.totals) return t.end.totals;
-  const sum = (k: 'input_tokens' | 'cached_tokens' | 'output_tokens') => t.calls.reduce((n, c) => n + (c.call[k] ?? 0), 0);
+  const sum = (k: 'input_tokens' | 'cached_tokens' | 'output_tokens' | 'cost_usd') => t.calls.reduce((n, c) => n + (c.call[k] ?? 0), 0);
+  const priced = t.calls.some((c) => c.call.cost_usd != null);
   return {
     llm_calls: t.calls.length,
     tool_calls: t.calls.reduce((n, c) => n + c.tools.length, 0),
     input_tokens: sum('input_tokens'),
     cached_tokens: sum('cached_tokens'),
     output_tokens: sum('output_tokens'),
+    ...(priced ? { cost_usd: sum('cost_usd') } : {}),
   };
 }
 
 export const fmtNum = (n: number | null | undefined): string => (n == null ? '–' : Math.round(n).toLocaleString('en-US'));
+
+/** Dollars for tiny amounts: two significant figures under a cent ($0.00044), cents above. */
+export function fmtUsd(n: number | null | undefined): string {
+  if (n == null) return '–';
+  if (n === 0) return '$0';
+  if (n < 0.01) return '$' + Number(n.toPrecision(2)).toFixed(Math.max(2, 1 - Math.floor(Math.log10(n))));
+  return '$' + n.toFixed(2);
+}
 
 export const fmtSecs = (s: number | null | undefined): string => (s == null ? '–' : s < 10 ? `${s.toFixed(1)}s` : `${Math.round(s)}s`);
 

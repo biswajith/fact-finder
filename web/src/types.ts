@@ -382,6 +382,10 @@ export interface ChatTotals {
   llm_seconds?: number;
   decisions_seconds?: number;
   seconds?: number;
+  /** Estimated dollars (pricing.py at the time of logging); absent for older logs or unknown models. */
+  cost_usd?: number;
+  llm_cost_usd?: number;
+  decisions_cost_usd?: number;
 }
 
 export interface ChatSession {
@@ -399,6 +403,7 @@ export interface DecisionsCall {
   seconds?: number;
   input_tokens?: number | null;
   output_tokens?: number | null;
+  cost_usd?: number;
   error?: string;
 }
 
@@ -437,6 +442,7 @@ export interface ChatLogEvent {
   output_tokens?: number | null;
   seconds?: number;
   model?: string;
+  cost_usd?: number;
   error?: string;
   // tool
   name?: string;
