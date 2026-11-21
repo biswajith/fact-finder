@@ -112,3 +112,33 @@ async def test_without_a_checker_nothing_is_checked(ws, svc):
     model = ScriptedChat([call("add_fact", category="D", text="Bids due March 20")], ["ok"])
     events = [e async for e in A.chat(ws, svc, model, "x")]
     assert "conflict" not in types(events) and "conflicts_raised" not in model.seen[1][-1]["content"]
+
+
+async def test_chat_edit_lists_facts_that_may_still_state_the_old_value(ws, svc):
+    ws.add({"category": "D", "text": "Email bids by March 3 to the clerk"}, source="ui")
+    checker = ConsistencyChecker(client=FakePredicates({"Email bids by March 3": 0.95}))
+    model = ScriptedChat([call("edit_fact", fact_id="f_d1", text="Bids due March 20", reason="moved")], ["Done."])
+    events = [e async for e in A.chat(ws, svc, model, "The deadline moved to March 20", None, checker)]
+    result = model.seen[1][-1]["content"]
+    assert "may_be_out_of_date" in result and "Email bids by March 3" in result and "update it" in result
+    assert "conflict" not in types(events) and ws.state().conflicts == [c for c in ws.state().conflicts if c["kind"] != "raised"]
+    check = next(e for e in ws.chat_events(ws.chat_session()) if e["event"] == "consistency_check")
+    assert check["kind"] == "edited" and not check["conflicts_raised"]
+
+
+async def test_chat_edit_without_text_is_not_checked(ws, svc):
+    fake = FakePredicates({"Bids due March 3": 0.95})
+    model = ScriptedChat([call("edit_fact", fact_id="f_d1", note="checked", reason="r")], ["ok"])
+    [e async for e in A.chat(ws, svc, model, "x", None, ConsistencyChecker(client=fake))]
+    assert fake.requests == []
+
+
+async def test_screen_edit_raises_a_conflict_whose_options_work(ws):
+    other = ws.add({"category": "D", "text": "Email bids by March 3 to the clerk"}, source="ui")
+    edited = ws.edit("f_d1", {"text": "Bids due March 20"}, "", source="ui")
+    result = await ConsistencyChecker(client=FakePredicates({"Email bids by March 3": 0.9})).check(
+        ws, edited, await A.related_facts(ws, edited), "ui", kind="edited")
+    c = ws.state().conflict(result.conflict_ids[0])
+    assert c["title"].startswith("Edited fact") and [len(o["changes"]) for o in c["options"]] == [1, 0]
+    ws.resolve(c["id"], option=0)
+    assert "replaced" in ws.state().get(other["fact_id"])["flags"]

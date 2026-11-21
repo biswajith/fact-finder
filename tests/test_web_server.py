@@ -345,3 +345,17 @@ async def test_ui_added_fact_is_checked_when_a_checker_is_given(root):
     async with client(create_app(root, chat_model=ScriptedChat(["hi"]), summary_model=Scripted())) as c:
         r = (await c.post("/api/facts", params={"run": RUN}, json={"category": "D", "text": "Bids due March 21"})).json()
         assert "check" not in r  # an injected chat model gets no checker unless one is passed
+
+
+async def test_ui_edit_is_checked_when_a_checker_is_given(root):
+    from test_web_consistency import FakePredicates
+
+    from fact_extractor.web.consistency import ConsistencyChecker
+
+    app = create_app(root, chat_model=ScriptedChat(["hi"]), summary_model=Scripted(),
+                     checker=ConsistencyChecker(client=FakePredicates({"Questions due March 1": 0.9})))
+    async with client(app) as c:
+        r = (await c.patch("/api/facts/f_d1", params={"run": RUN}, json={"text": "Bids and questions due March 20"})).json()
+        assert r["text"] == "Bids and questions due March 20" and r["check"]["conflicts_raised"]
+        r = (await c.patch("/api/facts/f_d1", params={"run": RUN}, json={"note": "n"})).json()
+        assert "check" not in r  # only text edits are checked

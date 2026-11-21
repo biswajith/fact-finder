@@ -394,10 +394,11 @@ as a cache write, 1.25x), and Decisions input as uncached. Events logged before 
 are priced when read, at today's prices, and their `turn_end` is marked `cost_added_later`.
 Summary rebuilds are separate model calls and are not in the chat log.
 
-### 7.3 Checking added facts
+### 7.3 Checking added and edited facts
 
 Extracted facts are compared with each other during extraction; a fact added later, by the
-customer (`POST /facts`) or the chat (`add_fact`), is checked by `consistency.py`:
+customer (`POST /facts`) or the chat (`add_fact`), or whose text is edited (`PATCH /facts`,
+`edit_fact`), is checked by `consistency.py`, since one value is often written in several facts:
 
 1. The 8 existing facts closest to it by the chat's search ranking (itself, deleted and
    replaced facts left out).
@@ -409,6 +410,11 @@ customer (`POST /facts`) or the chat (`add_fact`), is checked by `consistency.py
    carrying its changes: the added fact applies (the existing one is kept, flagged
    `replaced`, with a note), the existing fact stands (the added one is deleted), or both
    are true (no change). Nothing is resolved automatically.
+
+For an edit, the options are: the other fact is out of date (it is flagged `replaced`), or
+both are true. In the chat, an edit raises no conflict: the facts found go back to the agent
+in `may_be_out_of_date`, and its rules say a changed value applies to every fact stating it,
+so it updates them in the same turn (or raises a conflict when it is unclear).
 
 A missing key or failed call skips the check; the fact stays added. `POST /facts` returns
 the fact with `check` (`checked_against`, `conflicts_raised`, `check_skipped`); the chat's

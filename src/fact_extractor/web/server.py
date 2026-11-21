@@ -28,7 +28,7 @@ from pydantic import BaseModel
 from .. import stability
 from . import has_api_key, model_name
 from . import runs as R
-from .agent import ChatModel, OpenAIChatModel, chat, check_added
+from .agent import ChatModel, OpenAIChatModel, chat, check_fact
 from .consistency import ConsistencyChecker
 from .planning import Planning, planning_from_env
 from .runs import find_runs, render_page
@@ -324,7 +324,7 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
     async def add_fact(run: str, body: FactIn) -> dict:
         ws = ws_for(run)
         f = ws.add(body.model_dump(exclude_none=True), source="ui")
-        check = await check_added(ws, app.state.checker, f, "ui")
+        check = await check_fact(ws, app.state.checker, f, "ui")
         changed(ws)
         return {**f, **({"check": check} if check else {})}
 
@@ -334,8 +334,9 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         fields = body.model_dump(exclude_unset=True)
         reason = fields.pop("reason", None) or ""
         f = ws.edit(fact_id, fields, reason, source="ui")
+        check = await check_fact(ws, app.state.checker, f, "ui", kind="edited") if "text" in fields else {}
         changed(ws)
-        return f
+        return {**f, **({"check": check} if check else {})}
 
     @app.delete("/api/facts/{fact_id}")
     async def delete_fact(fact_id: str, run: str, body: Reason | None = None) -> dict:
