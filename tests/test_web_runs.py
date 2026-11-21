@@ -1,4 +1,4 @@
-"""The review app's non-Streamlit half (UI_SPEC.md section 10). No model call."""
+"""Run discovery, loading, filtering, summaries, CSV, page rendering, run comparison and starting a run. No model call."""
 
 import csv
 import io
@@ -9,7 +9,7 @@ import pytest
 from conftest import ScriptedClient
 
 from fact_extractor.pipeline import Config
-from fact_extractor.ui import data as D
+from fact_extractor.web import runs as D
 
 
 def fact(cat, text, cites=(), flags=(), status="valid", **kw):
@@ -214,17 +214,6 @@ def test_run_extraction_writes_nothing_on_error(tmp_path):
     assert client.requests == []
 
 
-def test_ui_command_without_streamlit(monkeypatch, capsys):
-    import importlib.util
-
-    from fact_extractor import cli
-
-    real = importlib.util.find_spec
-    monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a: None if name == "streamlit" else real(name, *a))
-    assert cli.main(["ui"]) == 1
-    assert "uv sync --extra ui" in capsys.readouterr().err
-
-
 def test_bid_and_after_award_views():
     def rec(text, *flags, cat="C"):
         return D.normalize([{"category": cat, "text": text, "citations": [], "flags": list(flags)}])[0]
@@ -243,19 +232,6 @@ def test_bid_and_after_award_views():
     assert s["price_or_risk"][1]["flags"] == "risk"
     # A run made before the flag existed: the bid view hides nothing.
     assert D.filter_facts(RECORDS, view="Bid") == RECORDS and D.filter_facts(RECORDS, view="After award") == []
-
-
-def test_style_fragments_escape_document_text():
-    from fact_extractor.ui import style as S
-
-    evil = "<script>alert(1)</script> **bold**"
-    r = D.normalize([{"category": "C", "text": evil, "flags": ["risk"], "note": evil, "citations": [
-        {"id": "p1.1", "page": 1, "page_label": "1", "section": evil, "text": evil, "bbox": None}]}])[0]
-    for html in (S.fact_card(r), S.citations(r["citations"]), S.list_card(evil, "C", [{"text": evil, "page": "1"}]),
-                 S.header(evil, evil, 1, 1, evil), S.stats([(evil, evil, evil, "")]), S.bars(evil, {evil: 1})):
-        assert "<script>" not in html and "&lt;script&gt;" in html
-    many = S.list_card("Dates", "D", [{"text": f"d{i}", "page": "1"} for i in range(12)])
-    assert "Show all 12" in many and many.count("<li>") == 12
 
 
 def test_run_list_carries_timings(tmp_path):
@@ -343,3 +319,12 @@ def test_overview_sections():
     assert cal["dated"][0]["label"] == "Wed 10 Feb 2027"
     assert [u["text"] for u in cal["undated"]] == ["Award: 30 days after presentations"]
     assert D.overview(recs)["buyer"] == [] and len(D.overview(recs)["buyer_facts"]) == 2
+
+
+def test_load_run_finds_the_pdf_beside_or_above(tmp_path):
+    write(tmp_path / "doc" / "run1" / "facts.json", [fact("B", "x", [("p2.1", 2, "x")])])
+    assert D.load_run(tmp_path / "doc" / "run1" / "facts.json").pdf is None
+    make_pdf(tmp_path / "doc" / "source.pdf")  # shared by the document's runs
+    run = D.load_run(tmp_path / "doc" / "run1" / "facts.json")
+    assert run.pdf == tmp_path / "doc" / "source.pdf" and run.pages == 2
+    assert (run.doc_id, run.run_id) == ("rfp-1", "run_x")

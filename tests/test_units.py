@@ -228,7 +228,7 @@ async def test_result_is_stored_and_found_by_pdf_content(doc, tmp_path):
 def test_cli_shows_the_stored_result_without_a_model_call(tmp_path, monkeypatch, capsys):
     import fact_extractor.llm as llm
     from fact_extractor import cli
-    from test_ui_data import make_pdf
+    from test_web_runs import make_pdf
 
     pdf = make_pdf(tmp_path / "rfp.pdf")
     made = []

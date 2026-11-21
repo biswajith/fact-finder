@@ -112,12 +112,13 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--codes", default="BCGXDSER", help="categories to build, a subset of BCGXDSER (Q is not supported)")
     g.add_argument("--cases", type=int, default=30, help="checked cases to aim for per category")
     g.add_argument("--config", default="goldset.yaml", help="goldset settings; case budgets are raised to fit --cases")
-    ui = sub.add_parser("ui", help="open the fact review app in a browser (needs the ui extra)")
-    ui.add_argument("--port", type=int, default=None)
+    web = sub.add_parser("web", help="open the chat workspace (corrections, summaries) in a browser (needs the web extra)")
+    web.add_argument("--runs", default="runs", help="folder that holds the runs (default: runs)")
+    web.add_argument("--port", type=int, default=8765)
     args = ap.parse_args(argv)
 
-    if args.cmd == "ui":
-        return _ui(args)
+    if args.cmd == "web":
+        return _web(args)
     if args.cmd == "golden":
         return _golden(args)
     if args.cmd == "compare":
@@ -301,21 +302,20 @@ def _golden(args) -> int:
     return 0
 
 
-def _ui(args) -> int:
+def _web(args) -> int:
     import importlib.util
-    import subprocess
 
-    if importlib.util.find_spec("streamlit") is None:
-        print("Streamlit is not installed. Install the UI extra: uv sync --extra ui", file=sys.stderr)
+    missing = [m for m in ("fastapi", "uvicorn") if importlib.util.find_spec(m) is None]
+    if missing:
+        print(f"The web UI needs the web extra ({missing[0]} is missing): uv sync --extra web", file=sys.stderr)
         return 1
-    app = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui", "app.py")
-    cmd = [sys.executable, "-m", "streamlit", "run", app]
-    if args.port:
-        cmd += ["--server.port", str(args.port)]
+    from .web.server import serve
+
     try:
-        return subprocess.call(cmd)
+        serve(args.runs, args.port)
     except KeyboardInterrupt:
-        return 0
+        pass
+    return 0
 
 
 def hit_rate(result) -> float:

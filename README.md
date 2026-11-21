@@ -70,11 +70,11 @@ uv run pytest                # sanity check
 ```
 
 The core dependencies are still `pymupdf` and `openai`. Two optional extras
-hold the rest: `ui` (Streamlit, for the review app) and `evals` (the
+hold the rest: `web` (FastAPI and uvicorn, for the chat workspace) and `evals` (the
 golden-dataset builder's dependencies, LangGraph and LangChain among them, plus
 `deepeval`). The dev group installs both, so a plain `uv sync` gives everything.
 Without the dev group, ask for what you need: `uv sync --extra evals`,
-`uv sync --extra ui`. `uv run pyright` type-checks `src/goldset` and
+`uv sync --extra web`. `uv run pyright` type-checks `src/goldset` and
 `tests/goldset_builder` only.
 
 `.env` (real environment variables win over it):
@@ -210,36 +210,53 @@ on. Any object with `async complete(request, on_text) -> Response` can replace
 `async submit(conflict: dict)` can replace `RecordingDecisions`, which stands in
 for the Decisions API.
 
-## UI
+## Use as a library
 
-A Streamlit app for reading a run: check any fact against its PDF page, and take
-the lists a bid manager acts on out as CSV. It reads what `extract` writes and
-never changes a run it opens.
+The typed API in `fact_extractor.api` labels units of text you already have, with your own keys and
+your own model client. It imports no PDF or model library. The agent harness uses it. Facts come back
+citing your keys; nothing is read or written.
 
-```bash
-uv sync --extra ui          # Streamlit is an optional extra
-uv run fact-extractor ui    # [--port 8501]
+```python
+from fact_extractor.api import SourceUnit, label_units
+
+units = [
+    SourceUnit("u1", "Proposals are due March 3, 2027.", "sentence", 1, "1", "Schedule"),
+    SourceUnit("u2", "The vendor must provide 24/7 support.", "list_item", 1, "1", "Requirements"),
+]
+result = await label_units("rfp-1", units, my_client, votes=3)  # my_client implements llm.LLMClient
+for fact in result.facts:
+    print(fact.category, fact.unit_keys, fact.flags, fact.status, fact.text)
 ```
 
-The app reads runs from one folder, `runs/`, laid out as
-`runs/<doc_id>/<run>/facts.json`, and lists them newest first. That is where
-`extract` and the New run tab store results. The earlier pipeline's runs from
-`poc/ablation/` were moved there on 2026-11-18 and are marked "earlier
-pipeline" in the list. The PDF is `source.pdf` beside the run, or one level up
-in the document's folder; otherwise pick one from the working directory or
-upload it. Start the app from the project folder.
+`failed_calls` lists model calls that failed twice (they do not raise); check it before trusting a
+sparse result. `document_from_units` gives the tagged document and the short-ID to key map alone.
 
-| Tab | For |
-| --- | --- |
-| Summary | Six sections for a bid manager, each a short summary in fixed rows that the model writes at extraction from that section's facts: **buyer information**, **submission instructions**, **go/no-go gates**, **scoring criteria** and **clarifications**, plus a **calendar** table built in code from the date facts. Every row cites the facts it rests on; a row with a number that is not in those facts is replaced by the facts themselves, and a row with nothing says so. The facts behind a section are folded under it. Built from the stored result; opening it calls no model. |
-| Facts | A reading list of clickable fact cards beside the source: a Bid / After award View switch, type chips with counts, search, and more filters (status, flag, pages); open a fact to see its citations highlighted on the PDF page; download the filtered list as CSV (UTF-8 with BOM, opens in Excel). |
-| Run report | Engineer: stage timings, tokens, cache hit rate, and each call's log and raw output. |
-| Compare runs | `stability` for two runs of the same document, plus the source IDs filed under different codes. |
-| New run | Starts `extract` from the app, after a confirmation that it spends tokens. Writes `runs/<doc_id>/<run_id>/` (`facts.json`, `report.json`, `source.pdf`). |
+## Chat workspace (web UI)
 
-No other tab calls the model. The layout is in `src/fact_extractor/ui/app.py`;
-loading, filtering, CSV and page rendering are in `ui/data.py` (no Streamlit
-import), and the screens are specified in `UI_SPEC.md`.
+The UI, in React with React Spectrum, where a bid manager corrects facts by
+chatting or clicking, reads summaries built from the facts, sees what is in the
+facts but not in a summary, and chooses between conflicts. The plan and the API are
+in [WEB_UI_SPEC.md](WEB_UI_SPEC.md).
+
+```bash
+uv sync --extra web
+npm --prefix web install
+npm --prefix web run build
+uv run fact-extractor web --runs runs      # http://127.0.0.1:8765
+```
+
+It has seven tabs: Summary (an at-a-glance block and the written sections), Facts
+(filters, grouping, CSV download, the cited PDF page), Conflicts, Changes, Run
+report, Compare and New run. New run starts an extraction and asks for
+confirmation first, because it spends API tokens.
+
+- Corrections never change `facts.json`. They are appended to
+  `<run>/workspace/corrections.jsonl`, and every one can be undone on the Changes tab.
+- A summary section is written by one model call when you press Generate. After
+  that, a change to one of its facts rebuilds it without asking.
+- Chat and summaries need `OPENAI_API_KEY`. Everything else works without it.
+- For frontend work: `npm --prefix web run dev` (port 5173, proxies `/api` to 8765),
+  or `npm --prefix web run dev:mock` to run against the mock API in `web/mock/`.
 
 ## Reference lists from goldset
 
@@ -512,8 +529,8 @@ counts as the same code.
 
 **Development**
 
-- `uv run pytest` makes no network calls. It runs 174 tests (113 for the
-  extractor, 19 for goldset, 31 for `golden.py`, 11 for `evalsuite.py`), all
+- `uv run pytest` makes no network calls. It runs 281 tests (89 for the
+  extractor, 131 for the web workspace, 19 for goldset, 31 for `golden.py`, 11 for `evalsuite.py`), all
   offline; goldset's pass on Python 3.11, 3.12 and 3.13.
 - `.env` holds a real key. `.gitignore` excludes it; confirm `git status` never
   lists `.env`.

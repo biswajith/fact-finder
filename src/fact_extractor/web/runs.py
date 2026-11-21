@@ -1,7 +1,8 @@
-"""Everything the review app does that is not layout: find and load runs, filter,
+"""Everything the workspace does with runs that is not layout: find and load runs, filter,
 summarise, export CSV, render a PDF page with highlights, compare runs, start a run.
 
-No Streamlit import here (UI_SPEC.md section 8), so all of it is tested with plain pytest.
+Moved from the removed Streamlit review app. No Streamlit or FastAPI import here, so all of
+it is tested with plain pytest.
 """
 
 from __future__ import annotations
@@ -482,7 +483,7 @@ def _obligation(r: dict) -> dict:
 
 
 def summary(records: list[dict]) -> dict:
-    """Counts and lists for the Summary tab (UI_SPEC.md 6.1), in document order."""
+    """Counts and lists for the Summary tab in document order."""
     ordered = document_order(records)
 
     def rows(pick) -> list[dict]:

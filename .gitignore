@@ -16,7 +16,7 @@ build/
 dist/
 
 # --- run data: never committed ---
-# Results stored by `extract` and the review app (fact-extractor ui).
+# Results stored by `extract` and the web workspace (fact-extractor web).
 runs/
 # Anything a run writes, wherever it lands.
 facts*.json
@@ -50,3 +50,8 @@ tagged.txt
 .deepeval_temp/
 .temp_test_run_data.json
 .latest_test_run.json
+
+# --- web UI: built frontend and its node install ---
+src/fact_extractor/web/static/
+web/node_modules/
+web/dist/
