@@ -482,7 +482,7 @@ async def test_search_rows_are_slim(ws, svc):
     ctx = A.Ctx(ws, svc, [])
     fact_row = next(h for h in (await A.t_search(ctx, {"query": "bids due March"}))["hits"] if h.get("fact_id") == "f_d1")
     # the fact line only: no source text, no default status, no unanimous votes, no edited/deleted
-    assert set(fact_row) <= {"fact_id", "category", "text", "page", "flags", "status"}
+    assert set(fact_row) <= {"fact_id", "category", "text", "page", "section", "flags", "status"}
     assert "unit_text" not in fact_row and "votes" not in fact_row and "edited" not in fact_row
     unit_row = (await A.t_search(A.Ctx(ws, svc, []), {"query": "living wage"}))["hits"][0]
     assert unit_row["votes"] == ["-", "-", "S"]  # split votes are kept
@@ -520,3 +520,31 @@ async def test_search_defaults(ws, svc):
         ws.add({"category": "B", "text": f"Bids note {i}"}, source="chat")
     assert len((await A.t_search(A.Ctx(ws, svc, []), {"query": "bids note"}))["hits"]) == A.SEARCH_LIMIT
     assert len((await A.t_search(A.Ctx(ws, svc, []), {"query": "bids note", "limit": 25}))["hits"]) == 25
+
+
+async def test_section_headings_are_searched_and_filter(ws, svc):
+    (ws.facts_path.parent / "labels.json").write_text(json.dumps([
+        {"id": "u40.1", "page": "40", "section": "5.2 Insurance", "text": "General liability of at least $1,000,000.", "label": "C", "flags": [], "votes": ["C"] * 3},
+        {"id": "u40.2", "page": "40", "section": "5.2 Insurance", "text": "Auto liability of at least $500,000.", "label": "C", "flags": [], "votes": ["C"] * 3},
+        {"id": "u50.1", "page": "50", "section": "6 Pricing", "text": "Prices stay valid for 90 days.", "label": "C", "flags": [], "votes": ["C"] * 3}]),
+        encoding="utf-8")
+    hits = (await A.t_search(A.Ctx(ws, svc, []), {"query": "insurance"}))["hits"]
+    # neither sentence says "insurance"; their section heading does
+    assert {h["unit_id"] for h in hits} == {"u40.1", "u40.2"} and all(h["section"] == "5.2 Insurance" for h in hits)
+    sec = (await A.t_search(A.Ctx(ws, svc, []), {"section": "insurance"}))["hits"]
+    assert [h["unit_id"] for h in sec] == ["u40.1", "u40.2"]
+    r = await A.t_search(A.Ctx(ws, svc, []), {"queries": ["liability"], "limit": 1})
+    assert r["results"][0]["count"] == 2 and r["results"][0]["more"] == 1  # more: matched but not shown
+
+
+async def test_get_fact_reads_several_and_leaves_out_empty_fields(ws, svc):
+    ctx = A.Ctx(ws, svc, [])
+    one = await A.t_get_fact(ctx, {"fact_id": "f_d1"})
+    assert "problems" not in one and "deleted" not in one and one["citations"]
+    many = await A.t_get_fact(ctx, {"fact_ids": ["f_d1", "f_d2", "f_d1", "nope"]})
+    assert [f["fact_id"] for f in many["facts"]] == ["f_d1", "f_d2"] and many["not_found"] == ["nope"]
+    assert A._summary(many) == "f_d1, f_d2; not found: ['nope']"
+    with pytest.raises(A.WorkspaceError):
+        await A.t_get_fact(ctx, {"fact_ids": []})
+    events = await run_chat(ws, svc, ScriptedChat([call("get_fact", fact_ids=["f_d1", "f_d2"]), call("get_fact", "c2", fact_id="f_d1")], ["ok"]))
+    assert [e["label"] for e in events if e["type"] == "tool"] == ["Read 2 facts", "Read fact f_d1"]

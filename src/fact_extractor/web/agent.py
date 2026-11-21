@@ -235,12 +235,22 @@ MIN_RELATIVE_SCORE = 0.25  # with a query, rows scoring under this share of the 
 UNIT_TEXT_CHARS = 400
 
 
+def _section(u: dict | None, f: dict | None) -> str:
+    if u and u.get("section"):
+        return str(u["section"])
+    if f and f["citations"]:
+        return str(f["citations"][0].get("section") or "")
+    return ""
+
+
 def _row(u: dict | None, f: dict | None) -> dict:
     """One search hit, as small as it can be: a fact row gives the fact line (get_fact has its source
     text); a unit row (no fact) gives the source text. Fields at their usual value are left out."""
     if f is not None:
         row: dict = {"fact_id": f["fact_id"], "category": f["category"], "text": f["text"],
                      "page": f["citations"][0]["page_label"] if f["citations"] else (u or {}).get("page")}
+        if _section(u, f):
+            row["section"] = _section(u, f)
         if f["flags"]:
             row["flags"] = f["flags"]
         if f["status"] != "valid":
@@ -250,8 +260,10 @@ def _row(u: dict | None, f: dict | None) -> dict:
     else:
         assert u is not None
         text = u.get("text", "")
-        row = {"unit_id": u["id"], "label": u.get("label"), "page": u.get("page"),
-               "unit_text": text if len(text) <= UNIT_TEXT_CHARS else text[:UNIT_TEXT_CHARS] + "..."}
+        row = {"unit_id": u["id"], "label": u.get("label"), "page": u.get("page")}
+        if _section(u, None):
+            row["section"] = _section(u, None)
+        row["unit_text"] = text if len(text) <= UNIT_TEXT_CHARS else text[:UNIT_TEXT_CHARS] + "..."
     votes = (u or {}).get("votes")
     if votes and len(set(votes)) > 1:  # only when the extraction's votes disagreed
         row["votes"] = votes
@@ -291,7 +303,8 @@ async def t_search(ctx: Ctx, a: dict) -> dict:
     results = []
     for q in queries[:10]:
         r = await _search_one(ctx, {**base, "query": q})
-        results.append({"query": q, "count": r["count"], "hits": _dedupe(ctx, r["hits"])})
+        results.append({"query": q, "count": r["count"], "hits": _dedupe(ctx, r["hits"]),
+                        **({"more": r["more"]} if r.get("more") else {})})
     out: dict = {"results": results}
     if len(queries) > 10:
         out["note"] = "Only the first 10 queries were run."
@@ -314,8 +327,11 @@ async def _search_one(ctx: Ctx, a: dict) -> dict:
     rows += [(None, f) for f in facts if f["fact_id"] not in placed]
     q = _tokens(str(a.get("query") or ""))
     kept = []
+    want_section = str(a.get("section") or "").strip().lower()
     for i, (u, f) in enumerate(rows):
         if a.get("label") and (u or {}).get("label") != a["label"]:
+            continue
+        if want_section and want_section not in _section(u, f).lower():
             continue
         if any(a.get(k) is not None for k in ("category", "flag", "status", "edited")) and f is None:
             continue
@@ -333,8 +349,9 @@ async def _search_one(ctx: Ctx, a: dict) -> dict:
     if not q:
         scored = [(0, 0, i, u, f) for i, u, f in kept]
     else:
-        # per row: terms of the unit text, of the fact line (counts double), of its cited texts
-        parts = [(_tokens((u or {}).get("text", "")), _tokens(f["text"]) if f else set(),
+        # per row: terms of the unit text, of the fact line, of its cited texts, and of its section heading
+        # (a section's sentences often do not repeat the topic its heading names)
+        parts = [(_tokens((u or {}).get("text", "")) | _tokens(_section(u, f)), _tokens(f["text"]) if f else set(),
                   set().union(*(_tokens(c["text"]) for c in f["citations"])) if f else set()) for _, u, f in kept]
         w = _weights(q, [p[0] | p[1] | p[2] for p in parts])
         for (i, u, f), (ut, ft, ct) in zip(kept, parts):
@@ -350,20 +367,52 @@ async def _search_one(ctx: Ctx, a: dict) -> dict:
     if q and scored:  # leave out the weak tail: rows far below the best match add tokens, not answers
         floor = -scored[0][0] * MIN_RELATIVE_SCORE
         scored = [t for t in scored if -t[0] >= floor]
-    res = {"count": len(scored), "hits": [_row(u, f) for _, _, _, u, f in scored[: _limit(a, SEARCH_LIMIT)]]}
+    shown = scored[: _limit(a, SEARCH_LIMIT)]
+    res: dict = {"count": len(scored), "hits": [_row(u, f) for _, _, _, u, f in shown]}
+    if len(scored) > len(shown):
+        res["more"] = len(scored) - len(shown)  # matched but not shown: raise limit, or filter by section
     if not labels:
         res["note"] = "This run has no labelled text, so only facts were searched."
     return res
 
 
-async def t_get_fact(ctx: Ctx, a: dict) -> dict:
-    f = ctx.ws.state().get(str(a.get("fact_id", "")))
-    if f is None:
-        raise WorkspaceError(f"no fact {a.get('fact_id')}")
-    keep = ("fact_id", "category", "text", "flags", "note", "status", "problems", "conflicts", "origin", "edited",
-            "deleted", "original", "resolution", "corrections", "unresolved_ids")
-    out = {k: f[k] for k in keep}
+MAX_FACTS_PER_GET = 20
+_FACT_FIELDS = ("fact_id", "category", "text", "flags", "note", "status", "problems", "conflicts", "origin", "edited",
+                "deleted", "original", "resolution", "corrections", "unresolved_ids")
+
+
+def _fact_full(f: dict) -> dict:
+    """A fact in full, without the fields that are empty or at their usual value."""
+    out = {k: f[k] for k in _FACT_FIELDS if f.get(k) not in (None, "", [], {}, False)}
+    if out.get("status") == "valid":
+        del out["status"]
     out["citations"] = [{k: c[k] for k in ("id", "page_label", "section", "text")} for c in f["citations"]]
+    return out
+
+
+async def t_get_fact(ctx: Ctx, a: dict) -> dict:
+    """One fact (`fact_id`), or several in one call (`fact_ids`, up to 20)."""
+    ids = a.get("fact_ids")
+    if ids is None:
+        f = ctx.ws.state().get(str(a.get("fact_id", "")))
+        if f is None:
+            raise WorkspaceError(f"no fact {a.get('fact_id')}")
+        return _fact_full(f)
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+        raise WorkspaceError("fact_ids must be a non-empty list of fact IDs")
+    state = ctx.ws.state()
+    out: dict = {"facts": []}
+    missing = []
+    for i in dict.fromkeys(ids[:MAX_FACTS_PER_GET]):
+        f = state.get(i)
+        if f is None:
+            missing.append(i)
+        else:
+            out["facts"].append(_fact_full(f))
+    if missing:
+        out["not_found"] = missing
+    if len(ids) > MAX_FACTS_PER_GET:
+        out["note"] = f"Only the first {MAX_FACTS_PER_GET} IDs were read."
     return out
 
 
@@ -461,18 +510,19 @@ class Tool:
     parameters: dict
     run: Callable[[Ctx, dict], Awaitable[dict]]
     changes: tuple[str, ...] = ()  # what the interface must reload after a successful call
-    label: str = ""  # "{fact_id}" and "{conflict_id}" are filled from the arguments or result
+    label: str | Callable[[dict], str] = ""  # "{fact_id}" and "{conflict_id}" are filled from the arguments or result
 
 
 _FACTS = ("facts", "conflicts", "summaries")
 TOOLS: tuple[Tool, ...] = (
-    Tool("search", "Search the labelled text of the whole document. Each hit is either a fact row (fact_id, category, the fact line, page, and flags or status when set; get_fact gives its source text) or a unit row: source text the extraction made no fact from (unit_id, its label: a category code, '=' continues the unit above, '-' is not a fact). votes appear only when the extraction's votes disagreed. Hits are ranked by the rare words of the query, and weak matches are left out, so put the distinctive words first and leave out words found everywhere (the buyer's name, 'requirements'). Give one query, or several in queries (up to 10, 6 hits each) to look up different things in one call; the filters apply to every query. A row already returned this turn comes back as its ID with sent_before. Optional filters: label (unit label), category, flag, status, edited (these four apply to facts).",
-         _schema({"query": _S, "queries": {"type": "array", "items": _S, "description": "several searches in one call"},
+    Tool("search", "Search the labelled text of the whole document. Each hit is either a fact row (fact_id, category, the fact line, page, section, and flags or status when set; get_fact gives its source text) or a unit row: source text the extraction made no fact from (unit_id, its label: a category code, '=' continues the unit above, '-' is not a fact). votes appear only when the extraction's votes disagreed. Hits are ranked by the rare words of the query, and weak matches are left out, so put the distinctive words first and leave out words found everywhere (the buyer's name, 'requirements'). Give one query, or several in queries (up to 10, 6 hits each) to look up different things in one call; the filters apply to every query. A row already returned this turn comes back as its ID with sent_before. more says how many matches were not shown: when the answer may be among them, raise limit or filter by section. Section headings are searched too, and section (part of a heading, as a hit shows it) keeps only that section's rows: use it to read every row of the section that answers the question, such as all the terms under one heading. Optional filters: section, label (unit label), category, flag, status, edited (these four apply to facts).",
+         _schema({"query": _S, "section": {"type": "string", "description": "part of a section heading"}, "queries": {"type": "array", "items": _S, "description": "several searches in one call"},
                   "label": _S, "category": _CATEGORY, "flag": {"type": "string", "enum": list(FLAGS)},
                   "status": {"type": "string", "enum": ["valid", "needs_review", "conflict"]},
                   "edited": {"type": "boolean"}, "limit": {"type": "integer"}}), t_search, (), "Searched the document"),
-    Tool("get_fact", "Get one fact in full: text, flags, note, cited source text, its original values if it was changed.",
-         _schema({"fact_id": _ID}, ["fact_id"]), t_get_fact, (), "Read fact {fact_id}"),
+    Tool("get_fact", "Get facts in full: text, flags, note, cited source text and section, their original values if changed. Give one fact_id, or several in fact_ids (up to 20) to read them in one call; empty fields are left out.",
+         _schema({"fact_id": _ID, "fact_ids": {"type": "array", "items": _ID, "description": "several facts in one call"}}),
+         t_get_fact, (), lambda a: f"Read {len(a['fact_ids'])} facts" if isinstance(a.get("fact_ids"), list) else "Read fact {fact_id}"),
     Tool("edit_fact", "Correct a fact: overwrite its text, category, flags or note. The extracted value is kept for undo.",
          _schema({"fact_id": _ID, "text": _S, "category": _CATEGORY, "flags": _FLAGS, "note": _S,
                   "reason": {"type": "string", "description": "what the customer said"}}, ["fact_id", "reason"]),
@@ -559,7 +609,8 @@ async def run_tool(ctx: Ctx, call: ToolCall) -> tuple[dict, dict, bool]:
         if not isinstance(args, dict):
             raise WorkspaceError("arguments must be a JSON object")
         result = await tool.run(ctx, args)
-        label = tool.label.format_map(_Fill({**args, **{k: v for k, v in result.items() if isinstance(v, str)}}))
+        template = tool.label(args) if callable(tool.label) else tool.label
+        label = template.format_map(_Fill({**args, **{k: v for k, v in result.items() if isinstance(v, str)}}))
         return result, {"type": "tool", "name": call.name, "label": label, "ok": True}, bool(tool.changes)
     except Exception as e:  # bad arguments of any shape go back to the model, not up the stack
         return {"error": str(e)}, {"type": "tool", "name": call.name, "label": f"{call.name} failed: {e}", "ok": False}, False
@@ -598,6 +649,8 @@ def _summary(result: dict) -> str:
         return f"{result.get('count', len(result['hits']))} hits"
     if result.get("fact_id"):
         return str(result["fact_id"])
+    if isinstance(result.get("facts"), list):
+        return ", ".join(f["fact_id"] for f in result["facts"])[:200] + (f"; not found: {result['not_found']}" if result.get("not_found") else "")
     if isinstance(result.get("fact"), dict):
         return str(result["fact"].get("fact_id", "ok"))
     for key in ("conflict_id", "conflicts", "sections"):
