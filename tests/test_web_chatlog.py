@@ -179,3 +179,26 @@ def test_events_logged_before_costs_are_priced_when_read():
     assert filled[4]["totals"] == {"cost_usd": 0.5} and "cost_added_later" not in filled[4]
     assert "cost_usd" not in filled[5] and "cost_usd" not in filled[6]["totals"]
     assert "cost_usd" not in old[1]  # the input is not changed
+
+
+async def test_deleting_sessions(ws, svc):
+    await run(ws, svc, ScriptedChat(["one"]))
+    old = ws.chat_session()
+    ws.clear_chat()
+    await run(ws, svc, ScriptedChat(["two"]))
+    cur = ws.chat_session()
+    # an old session: only its log goes; the chat stays
+    assert ws.delete_chat_session(old) == {"ok": True, "deleted": [old], "chat_cleared": False}
+    assert [s["session_id"] for s in ws.chat_sessions()] == [cur] and len(ws.chat()) == 2
+    with pytest.raises(NotFound):
+        ws.chat_events(old)
+    # the current session: the chat is cleared too, and the next message starts a new session
+    assert ws.delete_chat_session(cur)["chat_cleared"] is True
+    assert ws.chat() == [] and ws.chat_sessions() == []
+    await run(ws, svc, ScriptedChat(["three"]))
+    assert ws.chat_session() not in (old, cur)
+    with pytest.raises(NotFound):
+        ws.delete_chat_session("../../facts")
+    r = ws.delete_chat_sessions()
+    assert r["chat_cleared"] and len(r["deleted"]) == 1 and ws.chat_sessions() == [] and ws.chat() == []
+    assert ws.facts_path.exists() and ws.delete_chat_sessions()["deleted"] == []  # facts untouched; deleting none is fine

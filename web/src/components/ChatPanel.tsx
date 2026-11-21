@@ -60,7 +60,7 @@ function Message({ m }: { m: ChatMessage }) {
 interface Pending { text: string; tools: ToolStep[]; conflictIds: string[] }
 
 export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { run, status, reloadAll, chatDraft, setChatDraft, setSummaries } = useRun();
+  const { run, status, reloadAll, chatDraft, setChatDraft, setSummaries, chatEpoch } = useRun();
   const [history, setHistory] = useState<ChatMessage[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -87,7 +87,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
     setStreamError(null);
     void loadHistory();
     return () => abortRef.current?.abort();
-  }, [loadHistory]);
+  }, [loadHistory, chatEpoch]);
 
   // "Ask in chat" puts a draft here.
   useEffect(() => {

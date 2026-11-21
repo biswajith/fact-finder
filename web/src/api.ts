@@ -119,6 +119,10 @@ export const clearChat = (run: string) => request<{ ok: true }>('DELETE', `/chat
 export const getChatSessions = (run: string) => request<ChatSession[]>('GET', `/chat/sessions?${q({ run })}`);
 export const getChatSession = (run: string, sessionId: string) =>
   request<ChatSessionDetail>('GET', `/chat/sessions/${enc(sessionId)}?${q({ run })}`);
+export interface DeletedSessions { ok: true; deleted: string[]; chat_cleared: boolean }
+export const deleteChatSession = (run: string, sessionId: string) =>
+  request<DeletedSessions>('DELETE', `/chat/sessions/${enc(sessionId)}?${q({ run })}`);
+export const deleteChatSessions = (run: string) => request<DeletedSessions>('DELETE', `/chat/sessions?${q({ run })}`);
 
 /**
  * Send a chat message and read the text/event-stream response. `onEvent` is called for

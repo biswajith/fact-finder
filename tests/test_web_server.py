@@ -315,3 +315,16 @@ async def test_chat_sessions_api(c):
     assert [e["event"] for e in r["events"]] == ["user_message", "llm_call", "assistant_message", "turn_end"]
     assert (await c.get("/api/chat/sessions/s_000000000000", params={"run": RUN})).status_code == 404
     assert (await c.get("/api/chat/sessions/..%2F..", params={"run": RUN})).status_code == 404
+
+
+async def test_delete_chat_sessions_api(c):
+    await c.post("/api/chat", params={"run": RUN}, json={"message": "hi"})
+    sid = (await c.get("/api/chat/sessions", params={"run": RUN})).json()[0]["session_id"]
+    r = await c.delete(f"/api/chat/sessions/{sid}", params={"run": RUN})
+    assert r.json() == {"ok": True, "deleted": [sid], "chat_cleared": True}
+    assert (await c.get("/api/chat", params={"run": RUN})).json() == []
+    assert (await c.delete(f"/api/chat/sessions/{sid}", params={"run": RUN})).status_code == 404
+    await c.post("/api/chat", params={"run": RUN}, json={"message": "again"})
+    r = await c.delete("/api/chat/sessions", params={"run": RUN})
+    assert r.status_code == 200 and len(r.json()["deleted"]) == 1
+    assert (await c.get("/api/chat/sessions", params={"run": RUN})).json() == []

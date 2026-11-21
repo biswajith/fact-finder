@@ -38,6 +38,9 @@ interface RunCtx {
   openFact: (id: string | null) => void;
   chatDraft: string;
   setChatDraft: (s: string) => void;
+  /** Goes up when the chat history was cleared elsewhere (a chat session deleted); the Assistant reloads. */
+  chatEpoch: number;
+  chatCleared: () => void;
   /** Navigation. The current page lives in the URL hash (#/overview ...); back and forward work. */
   page: PageName;
   goTo: (page: PageName) => void;
@@ -65,6 +68,8 @@ export function RunProvider({ run, runs, refreshRuns, selectRun, status, childre
   const [summaries, setSummariesRes] = useState<Resource<SummariesResponse>>(empty);
   const [openFactId, openFact] = useState<string | null>(null);
   const [chatDraft, setChatDraft] = useState('');
+  const [chatEpoch, setChatEpoch] = useState(0);
+  const chatCleared = useCallback(() => setChatEpoch((n) => n + 1), []);
   const gen = useRef(0);
   const [page, setPage] = useState<PageName>(() => pageFromHash(window.location.hash));
   const [factsPreset, setFactsPreset] = useState<Partial<FactsListFilters> | null>(null);
@@ -150,7 +155,7 @@ export function RunProvider({ run, runs, refreshRuns, selectRun, status, childre
 
   const value: RunCtx = {
     run, runs, runInfo: runs.find((r) => r.run === run), refreshRuns, selectRun, status, facts, conflicts, corrections, summaries, factById, liveFacts, reloadAll, setSummaries, act,
-    openFactId, openFact, chatDraft, setChatDraft, page, goTo, factsPreset, showFacts, clearFactsPreset,
+    openFactId, openFact, chatDraft, setChatDraft, chatEpoch, chatCleared, page, goTo, factsPreset, showFacts, clearFactsPreset,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

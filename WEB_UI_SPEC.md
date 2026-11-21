@@ -252,6 +252,8 @@ folder that holds `facts.json`), as a query parameter. JSON in and out. Errors:
 | `POST /chat?run=` | `{"message": "..."}` | `text/event-stream` (6.1) |
 | `GET /chat/sessions?run=` | | `[session]` newest first: `session_id`, `started`, `turns`, `last`, `current`, `totals` (7.2) |
 | `GET /chat/sessions/{session_id}?run=` | | `{"session": session, "events": [event]}`; 404 for an unknown id |
+| `DELETE /chat/sessions/{session_id}?run=` | | `{"ok": true, "deleted": [id], "chat_cleared": bool}`: deletes the session's log; deleting the current session also clears the chat |
+| `DELETE /chat/sessions?run=` | | the same shape: deletes every session log of the run and clears the chat |
 
 Every write is logged with `source: "ui"` except those the agent makes.
 
@@ -423,7 +425,9 @@ One screen:
     with its cost: the customer's
     message, the feedback on a plan, the planning mode and why, the plan and its
     status, a table of the LLM calls (purpose, round, tokens, time) with the tool runs
-    each asked for under it, and the reply (folded).
+    each asked for under it, and the reply (folded). "Delete session" and "Delete all"
+    remove session logs after a confirmation; when the current session goes, the
+    Assistant's history is cleared too. Facts and changes are not touched.
 - **Chat panel** on the right, always visible on wide screens, a toggle on narrow
   ones. Messages stream in. Tool steps show as small status lines. A conflict the
   agent raised shows inline as the same choice card as on the Conflicts tab. Fact

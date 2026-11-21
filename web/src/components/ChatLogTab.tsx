@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button } from '@adobe/react-spectrum';
+import { AlertDialog, Button, DialogTrigger, ToastQueue } from '@adobe/react-spectrum';
 import * as api from '../api';
 import { argsText, cacheShare, fmtNum, fmtSecs, fmtUsd, groupTurns, purposeLabel, turnTotals, type Turn } from '../chatLog';
 import { errorText, useRun } from '../store';
@@ -222,8 +222,23 @@ function TurnCard({ turn, n }: { turn: Turn; n: number }) {
   );
 }
 
+/** A button that asks before deleting. */
+function ConfirmDelete({ label, title, children, onConfirm, disabled }: {
+  label: string; title: string; children: React.ReactNode; onConfirm: () => void; disabled?: boolean;
+}) {
+  return (
+    <DialogTrigger>
+      <Button variant="negative" style="outline" isDisabled={disabled}>{label}</Button>
+      <AlertDialog variant="destructive" title={title} primaryActionLabel="Delete" cancelLabel="Cancel" onPrimaryAction={onConfirm}>
+        {children}
+      </AlertDialog>
+    </DialogTrigger>
+  );
+}
+
 export function ChatLogTab() {
-  const { run } = useRun();
+  const { run, chatCleared } = useRun();
+  const [deleting, setDeleting] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<ChatSessionDetail | null>(null);
@@ -268,6 +283,24 @@ export function ChatLogTab() {
     if (selected) void loadDetail(selected);
   };
 
+  const remove = async (fn: () => Promise<api.DeletedSessions>) => {
+    setDeleting(true);
+    setError(null);
+    try {
+      const r = await fn();
+      if (r.chat_cleared) chatCleared();
+      setSelected(null);
+      setDetail(null);
+      await loadSessions();
+      const n = r.deleted.length;
+      ToastQueue.positive(`Deleted ${n} session${n === 1 ? '' : 's'}${r.chat_cleared ? ' and cleared the chat' : ''}`, { timeout: 3000 });
+    } catch (e) {
+      ToastQueue.negative(errorText(e), { timeout: 8000 });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (error && !sessions) return <ErrorBox message={error} onRetry={refresh} />;
   if (!sessions) return <Loading label="Loading chat sessions" />;
   const turns = detail ? groupTurns(detail.events) : [];
@@ -277,7 +310,18 @@ export function ChatLogTab() {
       <PageHeader
         title="Chat log"
         subtitle={sessions.length ? `${sessions.length} session${sessions.length === 1 ? '' : 's'} · what each message cost and what the assistant did` : undefined}
-        actions={<Button variant="secondary" onPress={refresh}>Refresh</Button>}
+        actions={
+          <>
+            <Button variant="secondary" onPress={refresh}>Refresh</Button>
+            {sessions.length > 0 && (
+              <ConfirmDelete label="Delete all" title="Delete all chat sessions?" disabled={deleting}
+                onConfirm={() => void remove(() => api.deleteChatSessions(run))}>
+                This deletes the logs of all {sessions.length} chat session{sessions.length === 1 ? '' : 's'} of this run and
+                clears the Assistant's chat history. It cannot be undone. Facts and changes are not affected.
+              </ConfirmDelete>
+            )}
+          </>
+        }
       />
       <div className="pg-stack">
         {error && <ErrorBox message={error} onRetry={refresh} />}
@@ -292,10 +336,20 @@ export function ChatLogTab() {
             <SessionList sessions={sessions} selected={selected} onSelect={setSelected} />
             {session && (
               <section className="cl-detail" aria-label={`Session ${session.session_id}`}>
-                <h2 className="pg-h2">
-                  Session <code>{session.session_id}</code>
-                  {session.started && <span className="muted cl-started"> · started {formatTime(session.started)}</span>}
-                </h2>
+                <div className="cl-detail-head">
+                  <h2 className="pg-h2">
+                    Session <code>{session.session_id}</code>
+                    {session.started && <span className="muted cl-started"> · started {formatTime(session.started)}</span>}
+                  </h2>
+                  <ConfirmDelete label="Delete session" title="Delete this chat session?" disabled={deleting}
+                    onConfirm={() => void remove(() => api.deleteChatSession(run, session.session_id))}>
+                    This deletes the log of session {session.session_id}. It cannot be undone.
+                    {session.current
+                      ? " It is the current conversation, so the Assistant's chat history is cleared too and your next message starts a new session."
+                      : ' The Assistant’s current conversation is not affected.'}{' '}
+                    Facts and changes are not affected.
+                  </ConfirmDelete>
+                </div>
                 <Totals totals={session.totals} turns={session.turns} />
                 <p className="pg-note">
                   Costs are estimates from the model price list at the time each turn was logged (GPT-6 Luna: $0.10 per

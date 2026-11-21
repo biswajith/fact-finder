@@ -74,3 +74,5 @@
   .cl-stat .v { font-size: 18px; }
 }
 .cl-cost { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cl-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.cl-detail-head .pg-h2 { margin: 0; }

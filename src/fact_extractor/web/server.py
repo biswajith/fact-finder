@@ -570,6 +570,16 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         meta = next((s for s in ws.chat_sessions() if s["session_id"] == session_id), None)
         return {"session": meta, "events": ws.chat_events(session_id)}
 
+    @app.delete("/api/chat/sessions/{session_id}")
+    async def delete_chat_session(run: str, session_id: str) -> dict:
+        """Delete one session's log; deleting the current session also clears the chat."""
+        return ws_for(run).delete_chat_session(session_id)
+
+    @app.delete("/api/chat/sessions")
+    async def delete_chat_sessions(run: str) -> dict:
+        """Delete every session log of the run and clear the chat."""
+        return ws_for(run).delete_chat_sessions()
+
     @app.delete("/api/chat")
     async def clear_chat(run: str) -> dict:
         ws_for(run).clear_chat()

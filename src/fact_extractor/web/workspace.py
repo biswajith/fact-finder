@@ -16,6 +16,7 @@ import copy
 import json
 import os
 import re
+import shutil
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -673,6 +674,33 @@ class Workspace:
             raise NotFound(f"no chat session {sid}")
         return self.chat_dir / sid
 
+    def _current_session(self) -> str | None:
+        try:
+            return json.loads((self.chat_dir / "current.json").read_text(encoding="utf-8")).get("session_id")
+        except (FileNotFoundError, ValueError, AttributeError):
+            return None
+
+    def delete_chat_session(self, sid: str) -> dict:
+        """Delete one session's log folder. Deleting the current session also clears the chat, so the
+        next message starts a new session rather than continuing a conversation with no log."""
+        with self.lock:
+            folder = self._session_dir(sid)
+            was_current = self._current_session() == sid
+            shutil.rmtree(folder)
+            if was_current:
+                self.clear_chat()
+            return {"ok": True, "deleted": [sid], "chat_cleared": was_current}
+
+    def delete_chat_sessions(self) -> dict:
+        """Delete every session log of this run and clear the chat."""
+        with self.lock:
+            ids = [d.name for d in self.chat_dir.glob("s_*") if SESSION_ID.match(d.name) and d.is_dir()] \
+                if self.chat_dir.is_dir() else []
+            for sid in ids:
+                shutil.rmtree(self.chat_dir / sid)
+            self.clear_chat()
+            return {"ok": True, "deleted": sorted(ids), "chat_cleared": True}
+
     def append_chat_events(self, sid: str, events: list[dict]) -> None:
         with self.lock:
             append_jsonl(self._session_dir(sid) / "events.jsonl", events)
@@ -697,7 +725,7 @@ class Workspace:
                     if isinstance(v, (int, float)) and not isinstance(v, bool):
                         totals[k] = totals.get(k, 0) + v
             totals = {k: round(v, 8) if isinstance(v, float) else v for k, v in totals.items()}
-            out.append({**meta, "turns": len(ends), "last": ends[-1]["at"] if ends else meta.get("started"),
+            out.append({**meta, "session_id": d.name, "turns": len(ends),  # the folder name is the ID the API uses "last": ends[-1]["at"] if ends else meta.get("started"),
                         "totals": totals, "_order": (meta.get("started") or "", _mtime(d / "session.json"))})
         current = self.chat_dir / "current.json"
         cur = json.loads(current.read_text(encoding="utf-8")).get("session_id") if current.is_file() else None
