@@ -368,3 +368,88 @@ export interface ExtractJob {
   run: string | null;
   error: string | null;
 }
+
+// ---- Chat sessions and their event log (WEB_UI_SPEC.md 7.2) --------------------------------
+
+export interface ChatTotals {
+  llm_calls?: number;
+  tool_calls?: number;
+  decisions_calls?: number;
+  input_tokens?: number;
+  cached_tokens?: number;
+  output_tokens?: number;
+  decisions_input_tokens?: number;
+  llm_seconds?: number;
+  decisions_seconds?: number;
+  seconds?: number;
+}
+
+export interface ChatSession {
+  session_id: string;
+  started?: string;
+  run?: string;
+  turns: number;
+  last?: string;
+  current: boolean;
+  totals: ChatTotals;
+}
+
+export interface DecisionsCall {
+  model?: string;
+  seconds?: number;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  error?: string;
+}
+
+export interface PlanStep { step: string; done: boolean }
+
+/** One line of events.jsonl. Fields beyond the common ones depend on `event`. */
+export interface ChatLogEvent {
+  at: string;
+  session_id: string;
+  turn_id: string;
+  seq: number;
+  event: 'user_message' | 'route' | 'feedback' | 'plan' | 'llm_call' | 'tool' | 'assistant_message' | 'turn_end' | string;
+  text?: string;
+  // route, feedback, plan
+  mode?: string;
+  source?: string;
+  confidence?: number;
+  probabilities?: Record<string, number>;
+  note?: string;
+  call?: DecisionsCall | null;
+  verdict?: string;
+  plan?: string;
+  steps?: PlanStep[];
+  plan_text?: string;
+  status?: string;
+  // llm_call
+  purpose?: string;
+  round?: number | null;
+  messages?: number;
+  tools_offered?: number;
+  tools_allowed?: boolean;
+  tool_calls?: { name: string; args: unknown }[];
+  text_chars?: number;
+  input_tokens?: number | null;
+  cached_tokens?: number | null;
+  output_tokens?: number | null;
+  seconds?: number;
+  model?: string;
+  error?: string;
+  // tool
+  name?: string;
+  args?: unknown;
+  ok?: boolean;
+  summary?: string;
+  // assistant_message, turn_end
+  tools?: number;
+  conflict_ids?: string[];
+  totals?: ChatTotals;
+}
+
+export interface ChatSessionDetail {
+  session: ChatSession | null;
+  events: ChatLogEvent[];
+}

@@ -1,7 +1,7 @@
 // Page names and their URL hashes (#/overview ...). Shared by the store, the shell and the pages.
-export type PageName = 'overview' | 'facts' | 'conflicts' | 'changes' | 'report' | 'compare' | 'new';
+export type PageName = 'overview' | 'facts' | 'conflicts' | 'changes' | 'report' | 'compare' | 'chatlog' | 'new';
 
-export const PAGE_NAMES: PageName[] = ['overview', 'facts', 'conflicts', 'changes', 'report', 'compare', 'new'];
+export const PAGE_NAMES: PageName[] = ['overview', 'facts', 'conflicts', 'changes', 'report', 'compare', 'chatlog', 'new'];
 
 export const PAGE_TITLES: Record<PageName, string> = {
   overview: 'Overview',
@@ -10,6 +10,7 @@ export const PAGE_TITLES: Record<PageName, string> = {
   changes: 'Changes',
   report: 'Run report',
   compare: 'Compare',
+  chatlog: 'Chat log',
   new: 'New run',
 };
 

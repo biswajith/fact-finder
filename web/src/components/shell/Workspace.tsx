@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ChangesTab } from '../ChangesTab';
+import { ChatLogTab } from '../ChatLogTab';
 import { ChatPanel } from '../ChatPanel';
 import { CompareTab } from '../CompareTab';
 import { ConflictsTab } from '../ConflictsTab';
@@ -57,6 +58,7 @@ export function Workspace() {
             {page === 'changes' && <ChangesTab />}
             {page === 'report' && <ReportTab />}
             {page === 'compare' && <CompareTab />}
+            {page === 'chatlog' && <ChatLogTab />}
             {page === 'new' && <NewRunTab n={newRun} />}
           </div>
         </main>

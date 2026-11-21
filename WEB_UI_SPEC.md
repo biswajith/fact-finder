@@ -250,6 +250,8 @@ folder that holds `facts.json`), as a query parameter. JSON in and out. Errors:
 | `GET /chat?run=` | | `[chat message]` oldest first |
 | `DELETE /chat?run=` | | `{"ok": true}` (clears the history, not the corrections) |
 | `POST /chat?run=` | `{"message": "..."}` | `text/event-stream` (6.1) |
+| `GET /chat/sessions?run=` | | `[session]` newest first: `session_id`, `started`, `turns`, `last`, `current`, `totals` (7.2) |
+| `GET /chat/sessions/{session_id}?run=` | | `{"session": session, "events": [event]}`; 404 for an unknown id |
 
 Every write is logged with `source: "ui"` except those the agent makes.
 
@@ -280,6 +282,9 @@ Chat message:
  "conflict_ids": ["k_1a2b3c4d"],
  "planning": {"mode": "light", "source": "router", "status": "awaiting_approval", "plan_text": "Plan: 1) ..."}}
 ```
+
+Every message also carries `session_id` and `turn_id` (7.2); a reply has the turn id of
+the customer message it answers.
 
 `planning` is on assistant messages only when planning is on; it is the `plan` event's
 content at the end of the turn, and how the next turn finds a plan waiting for approval.
@@ -353,6 +358,29 @@ Anything but a confident `approve` counts as `revise`, so no plan runs without a
 Without an approval mode, `light` plans inline in the loop and `heavy` shows its steps and
 carries them out in the same turn.
 
+### 7.2 Chat sessions and their log
+
+A chat session runs from the first message to the next "clear chat" (`DELETE /chat`), and
+has an id `s_` + 12 hex. Each customer message is a turn, with an id `t_` + 10 hex. Every
+turn is written to `<run>/workspace/chat/<session_id>/events.jsonl` (append-only; the
+folder also holds `session.json`, and `workspace/chat/current.json` names the current
+session). Clearing the chat ends the session but keeps its folder. Each event has `at`,
+`session_id`, `turn_id`, `seq` and `event`:
+
+| Event | Fields |
+| --- | --- |
+| `user_message` | `text` |
+| `feedback` | the plan shown, `verdict`, `source`, `confidence`, `note`, and `call` (the Decisions call: `model`, `input_tokens`, `seconds`, `error`) |
+| `route` | `mode`, `source`, `confidence`, `probabilities`, `note`, `call` as above |
+| `plan` | the plan record (`steps` or `plan_text`, `status`); again after each `update_plan` |
+| `llm_call` | `purpose` (`plan_heavy`, `plan_light`, `loop`, `final`), `round`, `messages`, `tools_offered`, `tools_allowed`, `tool_calls` (name and clipped arguments), `text_chars`, `input_tokens`, `cached_tokens`, `output_tokens`, `seconds`, `error` |
+| `tool` | `name`, `round`, `args`, `ok`, `summary`, `seconds` |
+| `assistant_message` | `text`, `tools` (count), `conflict_ids`, `planning` |
+| `turn_end` | `totals`: `llm_calls`, `tool_calls`, `decisions_calls`, `input_tokens`, `cached_tokens`, `output_tokens`, `decisions_input_tokens`, the seconds spent in each, and the turn's `seconds`; `error` |
+
+Tokens come from the API's usage report (`stream_options.include_usage`). A failed write to
+the log is counted on `turn_end` (`write_errors`) and never stops the chat.
+
 ## 8. Frontend
 
 `web/`: Vite, React, TypeScript, `@adobe/react-spectrum` (Provider with the default
@@ -382,6 +410,12 @@ One screen:
     "Use this choice". Resolved conflicts show the choice and "Reopen".
   - **Changes**: the correction log, newest first: what changed (before and after),
     when, from chat or UI, and "Undo".
+  - **Chat log** (`#/chatlog`, under Run): the chat sessions of the run (7.2), newest
+    first; for the selected one, its totals (turns, LLM, tool and Decisions calls,
+    input tokens and the cached share, output tokens) and each turn: the customer's
+    message, the feedback on a plan, the planning mode and why, the plan and its
+    status, a table of the LLM calls (purpose, round, tokens, time) with the tool runs
+    each asked for under it, and the reply (folded).
 - **Chat panel** on the right, always visible on wide screens, a toggle on narrow
   ones. Messages stream in. Tool steps show as small status lines. A conflict the
   agent raised shows inline as the same choice card as on the Conflicts tab. Fact

@@ -13,6 +13,7 @@ import inspect
 import json
 import math
 import re
+import time
 import unicodedata
 from collections import Counter
 from dataclasses import dataclass
@@ -21,6 +22,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Protocol
 from ..models import CATEGORIES, FLAGS
 from . import ModelUnavailable, model_name, require_api_key
 from . import planning as P
+from .chatlog import CallUsage, TurnLog
 from .summaries import BY_KEY, SECTIONS, SummaryService
 from .workspace import Workspace, WorkspaceError, new_id, now
 
@@ -53,7 +55,8 @@ class ToolCall:
 
 class ChatModel(Protocol):
     def stream(self, messages: list[dict], tools: list[dict]) -> AsyncIterator[str | ToolCall]:
-        """One model turn. Yield text deltas (str) as they arrive, then each complete ToolCall.
+        """One model turn. Yield text deltas (str) as they arrive, then each complete ToolCall, then
+        optionally a CallUsage with the call's token counts (for the session log).
         A model whose `stream` also takes a `cache_key` keyword is given a stable per-run key.
         A model whose `stream` takes `allow_tools` is sent the tool list even on calls that must not
         use tools, with allow_tools=False, so the request starts the same and stays cached; any
@@ -69,7 +72,7 @@ class OpenAIChatModel:
         self._client = None
 
     async def stream(self, messages: list[dict], tools: list[dict], cache_key: str | None = None,
-                     allow_tools: bool = True) -> AsyncIterator[str | ToolCall]:
+                     allow_tools: bool = True) -> AsyncIterator[str | ToolCall | CallUsage]:
         require_api_key()
         if self._client is None:
             import openai
@@ -83,10 +86,13 @@ class OpenAIChatModel:
             extra["prompt_cache_key"] = cache_key
         stream = await self._client.chat.completions.create(
             model=model_name(), messages=messages, reasoning_effort=CHAT_EFFORT,
-            max_completion_tokens=8000, stream=True, **extra,
+            max_completion_tokens=8000, stream=True, stream_options={"include_usage": True}, **extra,
         )
         calls: dict[int, dict] = {}  # tool-call deltas arrive in pieces, keyed by index
+        usage = None
         async for chunk in stream:
+            if getattr(chunk, "usage", None):  # the last chunk, with no choices
+                usage = chunk.usage
             for choice in chunk.choices:
                 delta = choice.delta
                 if delta is None:
@@ -102,6 +108,10 @@ class OpenAIChatModel:
         for i in sorted(calls):
             c = calls[i]
             yield ToolCall(c["id"] or new_id("call_"), c["name"], c["arguments"])
+        if usage is not None:
+            details = getattr(usage, "prompt_tokens_details", None)
+            yield CallUsage(usage.prompt_tokens, getattr(details, "cached_tokens", None), usage.completion_tokens,
+                            model_name())
 
 
 # --- the prompt ---------------------------------------------------------------------------------
@@ -579,28 +589,57 @@ def _no_tools(model: ChatModel, tools: list[dict], extra: dict) -> tuple[list[di
     return [], extra
 
 
-async def _plan_call(model: ChatModel, messages: list[dict], extra: dict, prompt: str,
-                     tools: list[dict] = TOOL_SPECS) -> str:
+async def _stream(model: ChatModel, messages: list[dict], specs: list[dict], kw: dict, tlog: TurnLog,
+                  purpose: str, round_no: int | None = None) -> AsyncIterator[str | ToolCall]:
+    """One model call, as `model.stream`, written to the session log when it ends: what it was for,
+    the tool calls it asked for, its tokens (when the model reports them) and how long it took."""
+    started = time.monotonic()
+    calls: list[ToolCall] = []
+    chars = 0
+    usage: CallUsage | None = None
+    error: str | None = None
+    try:
+        async for item in model.stream(messages, specs, **kw):
+            if isinstance(item, CallUsage):
+                usage = item
+                continue
+            if isinstance(item, ToolCall):
+                calls.append(item)
+            else:
+                chars += len(item)
+            yield item
+    except Exception as e:
+        error = f"{type(e).__name__}: {e}"[:300]
+        raise
+    finally:
+        tlog.llm_call(purpose=purpose, round_no=round_no, messages=len(messages), tools_offered=len(specs),
+                      tools_allowed=bool(specs) and kw.get("allow_tools", True),
+                      tool_calls=[{"name": c.name, "args": _clip(_parsed_args(c))} for c in calls],
+                      text_chars=chars, seconds=time.monotonic() - started, usage=usage, error=error)
+
+
+async def _plan_call(model: ChatModel, messages: list[dict], extra: dict, prompt: str, tlog: TurnLog,
+                     purpose: str, tools: list[dict] = TOOL_SPECS) -> str:
     """A planning call: the same context plus `prompt`, no tool calls allowed, text back. `tools` is the
     list the calls that carry the plan out will send."""
     ask = [*messages, {"role": "system", "content": prompt}]
     specs, kw = _no_tools(model, tools, extra)
-    return "".join([item async for item in model.stream(ask, specs, **kw) if isinstance(item, str)])
+    return "".join([item async for item in _stream(model, ask, specs, kw, tlog, purpose) if isinstance(item, str)])
 
 
-async def _write_plan(model: ChatModel, messages: list[dict], extra: dict, route: P.Route) -> None:
+async def _write_plan(model: ChatModel, messages: list[dict], extra: dict, route: P.Route, tlog: TurnLog) -> None:
     """Fill `route.steps` (heavy: a JSON list of steps) or `route.plan_text` (light: one line).
     Heavy with no usable steps becomes light, so the work is still planned."""
     route.steps, route.plan_text = [], ""
     if route.mode == "heavy":
-        steps = P.parse_plan(await _plan_call(model, messages, extra, P.plan_prompt([t.name for t in TOOLS]),
-                                              HEAVY_TOOL_SPECS))
+        steps = P.parse_plan(await _plan_call(model, messages, extra, P.plan_prompt([t.name for t in TOOLS]), tlog,
+                                              "plan_heavy", HEAVY_TOOL_SPECS))
         if steps:
             route.steps = [{"step": s, "done": False} for s in steps]
             return
         route.mode = "light"
         route.add_note("planning call gave no steps, planned light")
-    text = " ".join((await _plan_call(model, messages, extra, P.LIGHT_PLAN_PROMPT)).split())
+    text = " ".join((await _plan_call(model, messages, extra, P.LIGHT_PLAN_PROMPT, tlog, "plan_light")).split())
     route.plan_text = text if not text or text.lower().startswith("plan") else f"Plan: {text}"
 
 
@@ -624,12 +663,18 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
     In a mode that needs approval the turn ends with the plan and a question; the next message is
     the customer's answer to it. Without `planning`, the message runs direct, as the loop always
     did, and the stored message has no `planning`.
+
+    Every turn is written to the chat session's log (chatlog.py): the message, the mode and why,
+    the feedback on a plan, the plan, each model call with its tokens, each tool run, the reply.
     """
     log = ws.chat()
     stored = [{"role": m["role"], "content": m["text"]} for m in log if m.get("role") in ("user", "assistant")]
     history = stored[_history_start(stored):]
     pending = P.pending_plan(log) if planning is not None and planning.judge is not None else None
-    ws.append_chat(_message("user", user_text))
+    tlog = TurnLog(ws, ws.chat_session())
+    ids = {"session_id": tlog.session_id, "turn_id": tlog.turn_id}
+    ws.append_chat({**_message("user", user_text), **ids})
+    tlog.log("user_message", text=user_text)
     state = state_message(ws)
     extra = {"cache_key": _cache_key(ws)} if "cache_key" in inspect.signature(model.stream).parameters else {}
     ctx = Ctx(ws, summaries, [])
@@ -642,6 +687,11 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
         text_parts.append(text)
         return {"type": "text", "delta": text}
 
+    def plan_event(r: P.Route) -> dict:
+        rec = r.record()
+        tlog.log("plan", **rec)
+        return {"type": "plan", **rec}
+
     try:
         # static prefix (system prompt, then history) first, volatile state and the new message last
         messages: list[dict] = [{"role": "system", "content": system_prompt(ws)}, *history,
@@ -652,10 +702,16 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
             feedback: P.Feedback | None = None
             if pending is not None and planning.judge is not None:
                 feedback = await planning.judge.judge(context, P.shown_plan(pending), user_text)
+                tlog.log("feedback", plan=P.shown_plan(pending), **feedback.record(),
+                         call=tlog.decisions_call(feedback.call))
                 if feedback.verdict != "new_request":
                     route = pending
             if route is None:
                 route = await _route(planning.router, context, user_text)
+                tlog.log("route", **{k: v for k, v in route.record().items() if k not in ("steps", "plan_text")},
+                         call=tlog.decisions_call(route.call))
+            else:
+                tlog.log("route", mode=route.mode, source="plan", note="the reply answers the plan that was waiting")
             if feedback is not None:
                 route.feedback = feedback.record()
 
@@ -673,14 +729,14 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
                         messages.append({"role": "system", "content": P.APPROVED_LIGHT_PROMPT})
                 else:  # revise: write the plan again with the changes, and ask again
                     messages.append({"role": "system", "content": P.REVISE_PROMPT})
-                    await _write_plan(model, messages, extra, route)
+                    await _write_plan(model, messages, extra, route, tlog)
                     action = "ask"
             elif planning.needs_approval(route.mode):
-                await _write_plan(model, messages, extra, route)
+                await _write_plan(model, messages, extra, route, tlog)
                 action = "ask"
             elif route.mode == "heavy":  # plan, show it, and carry it out in the same turn
                 plan = P.parse_plan(await _plan_call(model, messages, extra, P.plan_prompt([t.name for t in TOOLS]),
-                                                     HEAVY_TOOL_SPECS))
+                                                     tlog, "plan_heavy", HEAVY_TOOL_SPECS))
                 if plan:
                     ctx.plan = route.steps = [{"step": s, "done": False} for s in plan]
                     shown = P.shown_plan(route)
@@ -705,7 +761,7 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
                     yield say(P.NO_PLAN)
             elif action == "cancel":
                 yield say(P.CANCELLED)
-            yield {"type": "plan", **route.record()}
+            yield plan_event(route)
         if action == "run":
             mode = route.mode if route else "direct"
             rounds = HEAVY_ROUNDS if mode == "heavy" and ctx.plan else MAX_ROUNDS
@@ -717,7 +773,7 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
                 if last:  # out of tool rounds: no tools, so the model must answer with what it has found
                     messages.append({"role": "system", "content": WRAP_UP})
                 specs, kw = _no_tools(model, tool_specs, extra) if last else (tool_specs, extra)
-                async for item in model.stream(messages, specs, **kw):
+                async for item in _stream(model, messages, specs, kw, tlog, "final" if last else "loop", round_no + 1):
                     if isinstance(item, ToolCall):
                         calls.append(item)
                     else:
@@ -734,15 +790,18 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
                                                 for c in calls]})
                 for c in calls:
                     before = len(ctx.conflict_ids)
+                    tool_started = time.monotonic()
                     result, event, changed = await run_tool(ctx, c)
                     if event["ok"] and c.name != PLAN_TOOL.name:
                         ctx.tools_run += 1
                     steps.append({**{k: event[k] for k in ("name", "label", "ok")}, "args": _clip(_parsed_args(c)),
                                   "summary": _summary(result)})
+                    tlog.tool(name=c.name, round_no=round_no + 1, args=steps[-1]["args"], ok=event["ok"],
+                              summary=steps[-1]["summary"], seconds=time.monotonic() - tool_started)
                     messages.append({"role": "tool", "tool_call_id": c.id, "content": json.dumps(result, ensure_ascii=False)})
                     yield event
                     if route is not None and c.name == PLAN_TOOL.name and event["ok"]:
-                        yield {"type": "plan", **route.record()}
+                        yield plan_event(route)
                     if changed:
                         summaries.notify_change(ws)
                         yield {"type": "changed", "what": list(BY_NAME[c.name].changes)}
@@ -754,8 +813,11 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
         error = f"{type(e).__name__}: {e}"
     if error:
         yield {"type": "error", "message": error}
-    reply = _message("assistant", "".join(text_parts) or (error or ""), steps, ctx.conflict_ids)
+    reply = {**_message("assistant", "".join(text_parts) or (error or ""), steps, ctx.conflict_ids), **ids}
     if route is not None:
         reply["planning"] = route.record()
     ws.append_chat(reply)
+    tlog.log("assistant_message", text=reply["text"], tools=len(steps), conflict_ids=ctx.conflict_ids,
+             planning=reply.get("planning"))
+    tlog.end(error)
     yield {"type": "done", "message": reply}

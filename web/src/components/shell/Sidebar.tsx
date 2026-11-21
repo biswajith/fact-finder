@@ -51,6 +51,7 @@ export function Sidebar({ open, onNavigate, newRunning }: { open: boolean; onNav
     { name: 'Run', items: [
       { page: 'report', label: 'Report' },
       { page: 'compare', label: 'Compare' },
+      { page: 'chatlog', label: 'Chat log' },
       { page: 'new', label: 'New run', pill: newRunning ? <span className="pill info">running</span> : null },
     ] },
   ];

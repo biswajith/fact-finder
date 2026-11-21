@@ -558,6 +558,18 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
     async def get_chat(run: str) -> list[dict]:
         return ws_for(run).chat()
 
+    @app.get("/api/chat/sessions")
+    async def chat_sessions(run: str) -> list[dict]:
+        """Every chat session of the run, newest first, with its totals (chatlog.py)."""
+        return ws_for(run).chat_sessions()
+
+    @app.get("/api/chat/sessions/{session_id}")
+    async def chat_session_events(run: str, session_id: str) -> dict:
+        """One session's metadata and its full event log."""
+        ws = ws_for(run)
+        meta = next((s for s in ws.chat_sessions() if s["session_id"] == session_id), None)
+        return {"session": meta, "events": ws.chat_events(session_id)}
+
     @app.delete("/api/chat")
     async def clear_chat(run: str) -> dict:
         ws_for(run).clear_chat()

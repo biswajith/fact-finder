@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -53,6 +54,7 @@ class Route:
     plan_text: str = ""  # light mode: the one-line plan
     status: str = ""  # "", AWAITING, "approved", "cancelled"
     feedback: dict | None = None  # the judge's verdict on the customer's reply to the plan
+    call: dict | None = None  # the Decisions call that chose the mode, for the session log (not stored on messages)
 
     def add_note(self, text: str) -> None:
         self.note = f"{self.note}; {text}" if self.note else text
@@ -89,6 +91,7 @@ class Feedback:
     source: str  # "judge", "forced", "fallback"
     confidence: float | None = None
     note: str = ""
+    call: dict | None = None  # the Decisions call, for the session log
 
     def record(self) -> dict:
         out: dict[str, Any] = {"verdict": self.verdict, "source": self.source}
@@ -197,8 +200,19 @@ class DecisionsRouter:
         self.min_confidence = min_confidence
         self._client = client  # anything with `async ainvoke(request) -> DecisionResponse`; built on first use
 
-    async def _ask(self, inputs: list[str], instructions: str, choices: dict) -> Any:
-        """One Choice question; returns the ChoiceAnswer. Raises on any failure or a non-choice answer."""
+    def _call(self, started: float, usage: Any = None, error: str = "") -> dict:
+        """What the session log keeps about one Decisions call."""
+        out: dict[str, Any] = {"model": self.model, "seconds": round(time.monotonic() - started, 3)}
+        if usage is not None:
+            out["input_tokens"] = getattr(usage, "input_tokens", None)
+            out["output_tokens"] = getattr(usage, "output_tokens", None)
+        if error:
+            out["error"] = error[:300]
+        return out
+
+    async def _ask(self, inputs: list[str], instructions: str, choices: dict) -> tuple[Any, Any]:
+        """One Choice question; returns the ChoiceAnswer and the usage. Raises on any failure or a
+        non-choice answer."""
         from langchain_core.messages import HumanMessage
         from langchain_openai.decisions import Choice, ChoiceAnswer
 
@@ -213,33 +227,40 @@ class DecisionsRouter:
         answer = response.answers.get("q")
         if not isinstance(answer, ChoiceAnswer) or answer.choice not in choices:
             raise ValueError(f"no usable choice ({getattr(answer, 'type', 'missing')})")
-        return answer
+        return answer, response.usage
 
     async def route(self, context: str, user_text: str) -> Route:
         if self._client is None:
             require_api_key()
+        started = time.monotonic()
         try:
-            a = await self._ask([context, f"LATEST CUSTOMER MESSAGE\n{user_text}"], ROUTE_INSTRUCTIONS, ROUTE_CHOICES)
+            a, usage = await self._ask([context, f"LATEST CUSTOMER MESSAGE\n{user_text}"], ROUTE_INSTRUCTIONS,
+                                       ROUTE_CHOICES)
         except Exception as e:  # the chat must still answer: fall back to the plain loop
-            return Route("direct", "fallback", note=f"router failed: {type(e).__name__}: {e}"[:300])
+            note = f"router failed: {type(e).__name__}: {e}"[:300]
+            return Route("direct", "fallback", note=note, call=self._call(started, error=note))
+        call = self._call(started, usage)
         probs = {str(k): float(v) for k, v in (a.probabilities or {}).items()}
         if a.confidence < self.min_confidence:
             return Route("light", "fallback", a.confidence, probs,
-                         note=f"router unsure (picked {a.choice} at confidence {a.confidence:.2f})")
-        return Route(str(a.choice), "router", a.confidence, probs)
+                         note=f"router unsure (picked {a.choice} at confidence {a.confidence:.2f})", call=call)
+        return Route(str(a.choice), "router", a.confidence, probs, call=call)
 
     async def judge(self, context: str, plan: str, reply: str) -> Feedback:
         if self._client is None:
             require_api_key()
+        started = time.monotonic()
         try:
-            a = await self._ask([context, f"PLAN\n{plan}", f"CUSTOMER REPLY\n{reply}"], FEEDBACK_INSTRUCTIONS,
-                                FEEDBACK_CHOICES)
+            a, usage = await self._ask([context, f"PLAN\n{plan}", f"CUSTOMER REPLY\n{reply}"], FEEDBACK_INSTRUCTIONS,
+                                       FEEDBACK_CHOICES)
         except Exception as e:
-            return Feedback("revise", "fallback", note=f"judge failed: {type(e).__name__}: {e}"[:300])
+            note = f"judge failed: {type(e).__name__}: {e}"[:300]
+            return Feedback("revise", "fallback", note=note, call=self._call(started, error=note))
+        call = self._call(started, usage)
         if a.confidence < self.min_confidence:
             return Feedback("revise", "fallback", a.confidence,
-                            note=f"judge unsure (picked {a.choice} at confidence {a.confidence:.2f})")
-        return Feedback(str(a.choice), "judge", a.confidence)
+                            note=f"judge unsure (picked {a.choice} at confidence {a.confidence:.2f})", call=call)
+        return Feedback(str(a.choice), "judge", a.confidence, call=call)
 
 
 def planning_from_env() -> Planning:

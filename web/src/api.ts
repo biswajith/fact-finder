@@ -1,7 +1,7 @@
 import { SseParser } from './sse';
 import { factsListQuery } from './factsQuery';
 import type {
-  ChatEvent, ChatMessage, CompareResponse, Conflict, CorrectionEntry, ExtractJob, ExtractPlan, ExtractRequest, Fact,
+  ChatEvent, ChatMessage, ChatSession, ChatSessionDetail, CompareResponse, Conflict, CorrectionEntry, ExtractJob, ExtractPlan, ExtractRequest, Fact,
   FactPatch, FactsListFilters, FactsListResponse, FactsResponse, NewFact, OverviewResponse, PdfChoice, PdfSource,
   PdfState, Report, ResolveBody, RunInfo, RunsTableRow, Status, SummariesResponse, UploadInfo, ViewName,
 } from './types';
@@ -116,6 +116,9 @@ export const pageImageUrl = (run: string, page: number, factId: string) =>
 
 export const getChat = (run: string) => request<ChatMessage[]>('GET', `/chat?${q({ run })}`);
 export const clearChat = (run: string) => request<{ ok: true }>('DELETE', `/chat?${q({ run })}`);
+export const getChatSessions = (run: string) => request<ChatSession[]>('GET', `/chat/sessions?${q({ run })}`);
+export const getChatSession = (run: string, sessionId: string) =>
+  request<ChatSessionDetail>('GET', `/chat/sessions/${enc(sessionId)}?${q({ run })}`);
 
 /**
  * Send a chat message and read the text/event-stream response. `onEvent` is called for

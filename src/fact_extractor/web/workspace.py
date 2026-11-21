@@ -1,8 +1,9 @@
 """Corrections on top of an extraction run: the log, the effective facts, the conflicts.
 
 The run's own files are never touched (WEB_UI_SPEC.md section 2). Everything the customer
-changes goes to `<run folder>/workspace/`: `corrections.jsonl` (append-only), `summaries.json`
-and `chat.jsonl`. The effective state is always recomputed by replaying the log over the base
+changes goes to `<run folder>/workspace/`: `corrections.jsonl` (append-only), `summaries.json`,
+`chat.jsonl`, and `chat/<session id>/` (one folder per chat session: `session.json` and the
+append-only `events.jsonl` that agent.py writes for every turn). The effective state is always recomputed by replaying the log over the base
 facts, which is what makes undo exact: cancelling an entry just removes it from the replay.
 
 `replay` is pure (no files, no model). `Workspace` wraps one run folder with a lock.
@@ -14,6 +15,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -24,6 +26,7 @@ from ..models import CATEGORIES, FLAGS
 from .runs import Run, document_order, load_run, normalize
 
 EDITABLE = ("text", "category", "flags", "note")
+SESSION_ID = re.compile(r"^s_[0-9a-f]{12}$")
 OPS = ("edit", "delete", "add", "raise", "resolve", "undo")
 CUSTOM_LABEL = "Custom answer"
 
@@ -56,6 +59,13 @@ def now() -> str:
 
 def new_id(prefix: str, hex_len: int = 8) -> str:
     return f"{prefix}{uuid.uuid4().hex[:hex_len]}"
+
+
+def _mtime(path: Path) -> int:
+    try:
+        return path.stat().st_mtime_ns
+    except FileNotFoundError:
+        return 0
 
 
 def atomic_write(path: Path, text: str) -> None:
@@ -630,5 +640,68 @@ class Workspace:
             append_jsonl(self.chat_path, [message])
 
     def clear_chat(self) -> None:
+        """Clears the history and ends the chat session; the next message starts a new one.
+        The session's log folder is kept."""
         with self.lock:
             self.chat_path.unlink(missing_ok=True)
+            (self.chat_dir / "current.json").unlink(missing_ok=True)
+
+    # chat sessions: one id from the first message to the next clear, a folder of logs per id
+    @property
+    def chat_dir(self) -> Path:
+        return self.dir / "chat"
+
+    def chat_session(self) -> str:
+        """The current session's id; the first call after a clear (or ever) starts a new session."""
+        with self.lock:
+            current = self.chat_dir / "current.json"
+            try:
+                sid = json.loads(current.read_text(encoding="utf-8"))["session_id"]
+                if SESSION_ID.match(sid) and (self.chat_dir / sid).is_dir():
+                    return sid
+            except (FileNotFoundError, ValueError, KeyError, TypeError):
+                pass
+            sid = new_id("s_", 12)
+            meta = {"session_id": sid, "started": now(), "run": str(self.facts_path.parent)}
+            atomic_write(self.chat_dir / sid / "session.json", json.dumps(meta, ensure_ascii=False, indent=1))
+            atomic_write(current, json.dumps({"session_id": sid}))
+            return sid
+
+    def _session_dir(self, sid: str) -> Path:
+        if not SESSION_ID.match(sid or "") or not (self.chat_dir / sid).is_dir():
+            raise NotFound(f"no chat session {sid}")
+        return self.chat_dir / sid
+
+    def append_chat_events(self, sid: str, events: list[dict]) -> None:
+        with self.lock:
+            append_jsonl(self._session_dir(sid) / "events.jsonl", events)
+
+    def chat_events(self, sid: str) -> list[dict]:
+        return read_jsonl(self._session_dir(sid) / "events.jsonl")
+
+    def chat_sessions(self) -> list[dict]:
+        """Every session of this run, newest first, with totals summed from its turn_end events."""
+        out = []
+        for d in sorted(self.chat_dir.glob("s_*")) if self.chat_dir.is_dir() else []:
+            if not SESSION_ID.match(d.name) or not d.is_dir():
+                continue
+            try:
+                meta = json.loads((d / "session.json").read_text(encoding="utf-8"))
+            except (FileNotFoundError, ValueError):
+                meta = {"session_id": d.name}
+            ends = [e for e in read_jsonl(d / "events.jsonl") if e.get("event") == "turn_end"]
+            totals: dict[str, int] = {}
+            for e in ends:
+                for k, v in (e.get("totals") or {}).items():
+                    if isinstance(v, (int, float)) and not isinstance(v, bool):
+                        totals[k] = totals.get(k, 0) + v
+            out.append({**meta, "turns": len(ends), "last": ends[-1]["at"] if ends else meta.get("started"),
+                        "totals": totals, "_order": (meta.get("started") or "", _mtime(d / "session.json"))})
+        current = self.chat_dir / "current.json"
+        cur = json.loads(current.read_text(encoding="utf-8")).get("session_id") if current.is_file() else None
+        for s in out:
+            s["current"] = s["session_id"] == cur
+        out.sort(key=lambda s: s["_order"], reverse=True)  # started is to the second; session.json's write time breaks ties
+        for s in out:
+            del s["_order"]
+        return out

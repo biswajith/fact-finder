@@ -1,0 +1,75 @@
+/* Chat log page (ChatLogTab). Tokens only. */
+
+.cl-sessions { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.cl-session { display: flex; flex-direction: column; gap: 4px; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 10px 12px; min-width: 0; }
+.cl-session:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.cl-session:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cl-session[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent); }
+.cl-session .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cl-session .when { font-weight: 600; }
+.cl-session .id, .cl-detail code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.cl-session .id { color: var(--text-muted); overflow-wrap: anywhere; }
+.cl-session .meta { font-size: 12px; color: var(--text-muted); }
+
+.cl-detail { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cl-started { font-weight: 400; font-size: 13px; }
+
+.cl-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.cl-stat { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); padding: 10px 12px; min-width: 0; }
+.cl-stat .l { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.cl-stat .v { font-size: 22px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.cl-stat .h { font-size: 12px; color: var(--text-muted); }
+
+.cl-turns { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.cl-turn { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cl-turn.failed { border-left: 4px solid var(--danger); }
+.cl-turn-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; font-size: 13px; }
+.cl-turn-n { font-weight: 700; font-size: 14px; }
+
+.cl-msg { display: flex; flex-direction: column; gap: 2px; }
+.cl-msg p, .cl-reply p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cl-msg.user p { background: var(--surface-2); border-radius: var(--radius); padding: 8px 10px; }
+.cl-turn .k { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+
+.cl-decisions { display: flex; flex-direction: column; gap: 6px; }
+.cl-decision { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 13px; }
+.cl-decision .k { min-width: 150px; }
+.cl-note { flex-basis: 100%; color: var(--text-muted); font-size: 12px; padding-left: 158px; }
+.cl-err { color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
+
+.cl-plan { border-left: 3px solid var(--accent); padding: 2px 0 2px 10px; display: flex; flex-direction: column; gap: 4px; }
+.cl-plan-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.cl-plan-text { margin: 0; overflow-wrap: anywhere; }
+.cl-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.cl-steps li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 4px; overflow-wrap: anywhere; }
+.cl-steps .mark { color: var(--text-muted); }
+.cl-steps li.done .mark { color: var(--ok); font-weight: 700; }
+
+.cl-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.cl-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cl-table th { background: var(--surface-2); color: var(--text-muted); font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; text-align: left; padding: 6px 10px; white-space: nowrap; }
+.cl-table td { padding: 6px 10px; border-top: 1px solid var(--border); vertical-align: top; }
+.cl-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cl-call td { font-weight: 500; }
+.cl-call.failed td { background: var(--danger-soft); }
+.cl-purpose { font-weight: 600; }
+.cl-tool td { border-top: 1px dashed var(--border); color: var(--text); font-size: 12px; }
+.cl-tool td:nth-child(2) { padding-left: 22px; }
+.cl-tool-name { font-weight: 600; color: var(--ok); }
+.cl-tool-name.bad { color: var(--danger); }
+.cl-args { color: var(--text); overflow-wrap: anywhere; }
+.cl-summary { overflow-wrap: anywhere; }
+
+.cl-reply summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.cl-reply summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cl-reply[open] summary { margin-bottom: 6px; }
+
+@media (max-width: 600px) {
+  .cl-decision .k { min-width: 0; flex-basis: 100%; }
+  .cl-note { padding-left: 0; }
+  .cl-stat .v { font-size: 18px; }
+}

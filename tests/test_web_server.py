@@ -302,3 +302,16 @@ def test_cli_web_reports_a_missing_extra(monkeypatch, capsys):
     monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a: None if name == "uvicorn" else real(name, *a))
     assert cli.main(["web"]) == 1
     assert "uv sync --extra web" in capsys.readouterr().err
+
+
+async def test_chat_sessions_api(c):
+    assert (await c.get("/api/chat/sessions", params={"run": RUN})).json() == []
+    await c.post("/api/chat", params={"run": RUN}, json={"message": "hi"})
+    sessions = (await c.get("/api/chat/sessions", params={"run": RUN})).json()
+    assert len(sessions) == 1 and sessions[0]["current"] and sessions[0]["turns"] == 1
+    sid = sessions[0]["session_id"]
+    r = (await c.get(f"/api/chat/sessions/{sid}", params={"run": RUN})).json()
+    assert r["session"]["session_id"] == sid
+    assert [e["event"] for e in r["events"]] == ["user_message", "llm_call", "assistant_message", "turn_end"]
+    assert (await c.get("/api/chat/sessions/s_000000000000", params={"run": RUN})).status_code == 404
+    assert (await c.get("/api/chat/sessions/..%2F..", params={"run": RUN})).status_code == 404
