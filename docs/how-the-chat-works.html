@@ -151,7 +151,7 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
   <h1>How the chat works</h1>
   <p class="lede">The chat lets a bid manager correct and question the facts extracted from an RFP in plain language. The model behind it holds no facts. It looks them up with tools, changes them through tools, and every change is written to a log that can be undone.</p>
   <nav aria-label="Sections">
-    <a href="#words">Words</a><a href="#turn">One message</a><a href="#planning">Planning</a><a href="#prompt">What the model is sent</a><a href="#try">Try it</a><a href="#tools">The 13 tools</a><a href="#search">Search</a><a href="#rules">Rules</a><a href="#store">Corrections</a><a href="#checks">Checks</a><a href="#conflicts">Conflicts</a><a href="#summ">Summaries</a><a href="#log">Chat log and cost</a><a href="#fail">When it fails</a><a href="#code">Code map</a>
+    <a href="#words">Words</a><a href="#turn">One message</a><a href="#planning">Planning</a><a href="#prompt">What the model is sent</a><a href="#try">Try it</a><a href="#tools">The 13 tools</a><a href="#search">Search</a><a href="#rules">Rules</a><a href="#store">Change history</a><a href="#checks">Checks</a><a href="#conflicts">Conflicts</a><a href="#summ">Summaries</a><a href="#log">Chat log and cost</a><a href="#fail">When it fails</a><a href="#code">Code map</a>
   </nav>
 
   <section class="news" aria-labelledby="newsTitle">
@@ -347,8 +347,8 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
     <tr><td>10</td><td>Be brief and concrete.</td><td>The customer is a bid manager, not an engineer.</td></tr>
   </table></div>
 
-  <h2 id="store">How corrections are stored and undone</h2>
-  <p>The extraction run is never edited. Everything you or the chat change is added to an add-only log, and the facts you see are recomputed by replaying that log over the extracted originals.</p>
+  <h2 id="store">How the change history is kept</h2>
+  <p>The extraction run is never edited. Every change, from you on screen or from the chat, is added to one log that only grows: <code>workspace/corrections.jsonl</code>. The facts you see are not stored anywhere; they are worked out again from the extracted originals and that log every time anything reads them.</p>
   <div class="scroll"><svg class="qpic" viewBox="0 0 680 340" role="img" aria-label="Extracted facts and an add-only corrections log are replayed into effective facts; undo adds a new log entry"><defs><marker id="qb" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
     <g class="g"><rect x="40" y="40" width="240" height="56" rx="8"/><text class="t" x="160" y="64" text-anchor="middle">Extracted facts</text><text class="s" x="160" y="83" text-anchor="middle">the run files, never changed</text></g>
     <g class="c"><rect x="40" y="140" width="240" height="56" rx="8"/><text class="t" x="160" y="164" text-anchor="middle">Corrections log</text><text class="s" x="160" y="183" text-anchor="middle">corrections.jsonl, add-only</text></g>
@@ -358,15 +358,61 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
     <g class="g"><rect x="330" y="240" width="330" height="56" rx="8"/><text class="t" x="495" y="264" text-anchor="middle">Edits from chat or the screen</text><text class="s" x="495" y="283" text-anchor="middle">each entry records its source</text></g>
     <g class="ar"><path d="M280 68H310V105H328" marker-end="url(#qb)"/><path d="M280 168H310V130H328" marker-end="url(#qb)"/><line x1="480" y1="118" x2="508" y2="118" marker-end="url(#qb)"/><line x1="160" y1="240" x2="160" y2="198" marker-end="url(#qb)"/><path d="M330 268H300V182H282" marker-end="url(#qb)"/></g>
     <text class="s" x="40" y="326">Teal: ordinary code. Plain: stored data and what you see.</text></svg></div>
-  <h3>Example log, replayed</h3>
+  <h3>What one log entry holds</h3>
   <div class="scroll"><table>
-    <tr><th>Entry</th><th>Source</th><th>What it does</th><th>Effective fact afterwards</th></tr>
-    <tr><td>(none)</td><td>extraction</td><td>The original</td><td>Proposals due: 2026-08-28 16:00</td></tr>
-    <tr><td><code>c_1</code> edit</td><td>chat</td><td>Sets the text to “Proposals due: 2026-08-30 16:00” with a reason</td><td>Proposals due: 2026-08-30 16:00 (marked edited)</td></tr>
-    <tr><td><code>c_2</code> undo of <code>c_1</code></td><td>screen</td><td>Cancels <code>c_1</code></td><td>Proposals due: 2026-08-28 16:00 (original again)</td></tr>
-    <tr><td><code>c_3</code> undo of <code>c_2</code></td><td>screen</td><td>Cancels the undo</td><td>Proposals due: 2026-08-30 16:00 (the edit is back)</td></tr>
+    <tr><th>Field</th><th>What it holds</th><th>Example</th></tr>
+    <tr><td><code>id</code></td><td>A unique ID for the entry</td><td><code>c_9d45ef42</code></td></tr>
+    <tr><td><code>at</code></td><td>When it was written</td><td><code>2026-11-21T10:55:48Z</code></td></tr>
+    <tr><td><code>source</code></td><td>Who made it: <code>chat</code> or <code>ui</code> (you, on screen)</td><td><code>chat</code></td></tr>
+    <tr><td><code>op</code></td><td>What kind of change (table below)</td><td><code>edit</code></td></tr>
+    <tr><td><code>fact_id</code></td><td>The fact it changes</td><td><code>f_a01e70e2f7</code></td></tr>
+    <tr><td><code>fields</code></td><td>Only the values that change, as they are after the change</td><td><code>{"text": "Proposals due: 2024-07-03 14:00 ET."}</code></td></tr>
+    <tr><td><code>reason</code></td><td>Why, in the customer’s words (the chat must give one)</td><td>“Customer says the due date moved to July 3”</td></tr>
+    <tr><td><code>conflict_id</code></td><td>The conflict it belongs to, when it came from choosing an option</td><td><code>k_1cb97918</code></td></tr>
+    <tr><td><code>target</code></td><td>For an undo: the entry it cancels</td><td><code>c_9d45ef42</code></td></tr>
   </table></div>
-  <p>Because nothing is overwritten, undo is exact, and the original value is always known. Files for each run sit in a <code>workspace/</code> folder next to it: <code>corrections.jsonl</code>, <code>summaries.json</code>, <code>chat.jsonl</code>, and a <code>chat/</code> folder with one log per chat session.</p>
+  <div class="scroll"><table>
+    <tr><th>Operation</th><th>Written when</th></tr>
+    <tr><td><code>edit</code></td><td>A fact’s text, category, flags or note is changed</td></tr>
+    <tr><td><code>delete</code></td><td>A fact is rejected. It stays in the log and can be brought back</td></tr>
+    <tr><td><code>add</code></td><td>A new fact is added; it gets an ID starting <code>u_</code></td></tr>
+    <tr><td><code>raise</code></td><td>The chat or a check records a conflict, with its options and their changes</td></tr>
+    <tr><td><code>resolve</code></td><td>A conflict is settled: the option chosen or your own answer</td></tr>
+    <tr><td><code>undo</code></td><td>An earlier entry is cancelled</td></tr>
+  </table></div>
+  <h3>How the facts are worked out from the log</h3>
+  <ol class="steps-list">
+    <li>Start from the facts as extracted.</li>
+    <li>Drop every entry that a later <code>undo</code> cancels, and every edit or delete that came from a conflict whose <code>resolve</code> is no longer in effect.</li>
+    <li>Apply the rest in order: adds create facts, edits overwrite the fields they name, deletes mark the fact deleted.</li>
+    <li>Compare each extracted fact with its original. Every field that differs is kept as the fact’s <i>original value</i>, and the fact is marked <i>edited</i>. That is how the screen and the chat can always show what the RFP said.</li>
+  </ol>
+  <p>Because nothing is overwritten, the original value is always known and every change can be traced to who made it, when and why.</p>
+  <h3>Undo, restore and reopen</h3>
+  <div class="scroll"><table>
+    <tr><th>Action</th><th>What is written</th><th>Effect</th></tr>
+    <tr><td><b>Undo</b> one change (Changes page)</td><td>One <code>undo</code> entry pointing at it</td><td>That change stops counting. It stays in the log, shown as undone. An undo cannot itself be undone; to bring a change back, make it again.</td></tr>
+    <tr><td><b>Restore</b> a fact (<code>restore_fact</code>, or on screen)</td><td>One <code>undo</code> for every change still in effect on that fact</td><td>The fact is back to its extracted value. For a fact that was added, the add itself is kept.</td></tr>
+    <tr><td><b>Choose</b> an option on a conflict</td><td>A <code>resolve</code> entry, then one edit or delete per change in that option, all tagged with the conflict</td><td>The option’s changes are applied, together.</td></tr>
+    <tr><td><b>Reopen</b> a conflict</td><td>An <code>undo</code> of its <code>resolve</code> entry</td><td>The conflict is open again, and the changes tagged with it stop counting with it.</td></tr>
+  </table></div>
+  <h3>Example log, worked out</h3>
+  <div class="scroll"><table>
+    <tr><th>Entry</th><th>Source</th><th>What it does</th><th>Facts afterwards</th></tr>
+    <tr><td>(none)</td><td>extraction</td><td>The originals</td><td><code>f_a1</code> Proposals due: 2026-08-28 16:00<br><code>f_e5</code> Email proposals by 2026-08-28 4:00 pm …</td></tr>
+    <tr><td><code>c_1</code> edit <code>f_a1</code></td><td>chat</td><td>Date to August 30, reason “Customer: due date moved to Aug 30”</td><td><code>f_a1</code> … 2026-08-30 (edited; original kept)</td></tr>
+    <tr><td><code>c_2</code> edit <code>f_e5</code></td><td>chat</td><td>The same date in the second fact, found by the check</td><td><code>f_e5</code> … 2026-08-30 (edited)</td></tr>
+    <tr><td><code>c_3</code> undo of <code>c_2</code></td><td>ui</td><td>You cancel the second change on the Changes page</td><td><code>f_e5</code> back to 2026-08-28; <code>c_2</code> shown as undone</td></tr>
+  </table></div>
+  <h3>Where each part of the history lives</h3>
+  <div class="scroll"><table>
+    <tr><th>File, in <code>workspace/</code> next to the run</th><th>What it records</th><th>Kept until</th></tr>
+    <tr><td><code>corrections.jsonl</code></td><td>Every change to facts and conflicts, as above. This is the record that counts.</td><td>Always; entries are never removed</td></tr>
+    <tr><td><code>chat.jsonl</code></td><td>The conversation shown in the Assistant panel, with each answer’s tool steps</td><td>“Clear chat”</td></tr>
+    <tr><td><code>chat/&lt;session&gt;/events.jsonl</code></td><td>Every turn in detail: model calls, tool arguments and results, checks, costs (see <a href="#log">Chat log</a>)</td><td>You delete the session</td></tr>
+    <tr><td><code>summaries.json</code></td><td>The current summary rows of each section and the fingerprint of what they were written from</td><td>The next rebuild overwrites them; earlier versions of a summary are not kept</td></tr>
+  </table></div>
+  <p>The <b>Changes</b> page lists the log newest first: what changed (before and after), when, whether it came from the chat or the screen, the reason, and an Undo button for each change still in effect.</p>
 
   <h2 id="checks">Checks on new and changed facts</h2>
   <p>The extraction compares its facts with each other and turns disagreements into conflicts. Facts that you or the chat add or change later used to skip that step, so a moved deadline could sit next to the RFP’s date unnoticed. Three checks cover them now.</p>
@@ -402,14 +448,42 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
     <li>The model may call <code>resolve_conflict</code> itself only when you stated the choice in the chat.</li>
   </ol>
 
-  <h2 id="summ">After a change: summaries</h2>
-  <p>Each Overview section has one summary in fixed rows, such as Deadline, How to submit and Format. A new run starts with the rows written during extraction. Each section remembers a fingerprint of what it was written from: its facts and your choices on conflicts that touch them. When either changes, the section is marked out of date and rewritten in the background, one section at a time, so the screen can show “Updating” without blocking the chat. Contract terms and Requirements are written only when someone asks.</p>
+  <h2 id="summ">How summaries regenerate after a change</h2>
+  <p>Each Overview section (Buyer, Submission, Go/no-go gates, Scoring, Questions, Contract terms, Requirements) has one summary in fixed rows, such as Deadline, How to submit and Format. A section’s facts are the facts of its categories, without deleted ones and without ones flagged “replaced”. A new run starts with the rows written during extraction; Contract terms and Requirements are written only when someone asks for them.</p>
+  <div class="scroll"><svg class="qpic" viewBox="0 0 680 430" role="img" aria-label="A change is logged, sections whose fingerprint differs are queued, one background worker rebuilds them one at a time, the screen polls until done"><defs><marker id="qs" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+    <g class="g"><rect x="40" y="30" width="270" height="56" rx="8"/><text class="t" x="175" y="54" text-anchor="middle">A change is logged</text><text class="s" x="175" y="73" text-anchor="middle">from the chat or the screen</text></g>
+    <g class="c"><rect x="370" y="30" width="270" height="56" rx="8"/><text class="t" x="505" y="54" text-anchor="middle">Which sections are out of date?</text><text class="s" x="505" y="73" text-anchor="middle">fingerprint now vs when written</text></g>
+    <g class="c"><rect x="370" y="130" width="270" height="56" rx="8"/><text class="t" x="505" y="154" text-anchor="middle">Queue those that have rows</text><text class="s" x="505" y="173" text-anchor="middle">never-written sections are skipped</text></g>
+    <g class="c"><rect x="370" y="230" width="270" height="56" rx="8"/><text class="t" x="505" y="254" text-anchor="middle">Background worker, one per run</text><text class="s" x="505" y="273" text-anchor="middle">one section at a time</text></g>
+    <g class="m"><rect x="370" y="330" width="270" height="56" rx="8"/><text class="t" x="505" y="354" text-anchor="middle">One model call per section</text><text class="s" x="505" y="373" text-anchor="middle">rows checked, then saved</text></g>
+    <g class="g"><rect x="40" y="230" width="270" height="56" rx="8"/><text class="t" x="175" y="254" text-anchor="middle">Screen shows “Updating…”</text><text class="s" x="175" y="273" text-anchor="middle">asks again every 2 seconds</text></g>
+    <g class="g"><rect x="40" y="330" width="270" height="56" rx="8"/><text class="t" x="175" y="354" text-anchor="middle">New rows appear</text><text class="s" x="175" y="373" text-anchor="middle">the chat never waited</text></g>
+    <g class="ar"><line x1="310" y1="58" x2="368" y2="58" marker-end="url(#qs)"/><line x1="505" y1="86" x2="505" y2="128" marker-end="url(#qs)"/><line x1="505" y1="186" x2="505" y2="228" marker-end="url(#qs)"/><line x1="505" y1="286" x2="505" y2="328" marker-end="url(#qs)"/><line x1="370" y1="258" x2="312" y2="258" marker-end="url(#qs)"/><line x1="370" y1="358" x2="312" y2="358" marker-end="url(#qs)"/></g>
+    <text class="s" x="40" y="415">Amber: a model call. Teal: ordinary code. Plain: the screen.</text></svg></div>
+  <ol class="steps-list">
+    <li><b>Every change asks the question.</b> Each chat tool that changes something (edit, delete, add, restore, raise or resolve a conflict) and each change on screen (edit, add, delete, undo, choose, reopen) ends by asking the summary service which sections are now out of date. A chat answer that only reads changes nothing and starts nothing.</li>
+    <li><b>A fingerprint decides.</b> When a section’s rows are written, a fingerprint of what they were written from is saved with them: for every fact of the section its ID, category, flags, text and resolution, plus your choices on conflicts that touch those facts. Rows from the extraction get the fingerprint of the facts as extracted. A section is out of date when today’s fingerprint differs. Changing a Submission fact therefore affects only the Submission summary; a section none of whose facts changed is left alone.</li>
+    <li><b>Only sections that already have rows are rebuilt.</b> A section nobody has summarised yet is not written by a change; the first summary of it is always asked for.</li>
+    <li><b>One worker per run rebuilds them, one at a time,</b> in a fixed order, in the background. The chat reply does not wait for it, and two runs never share a worker.</li>
+    <li><b>Rebuilding one section is one model call.</b> The worker reads the section’s facts and your decisions as they are now, numbers the facts, and asks for the fixed rows: under 60 words each, figures copied exactly and kept before anything else, each row citing the numbers of the facts it rests on, decisions given as data. The rows are checked (every figure must be in the facts a row cites; see below), then saved to <code>summaries.json</code> with the new fingerprint and the time.</li>
+    <li><b>The screen follows along.</b> A section waiting or being rebuilt shows “Updating…”, and while any is, the screen asks the server for the summaries every 2 seconds. A section that is out of date but not queued shows “Out of date” with an Update button.</li>
+  </ol>
+  <div class="scroll"><table>
+    <tr><th>Situation</th><th>What happens</th></tr>
+    <tr><td>A second change arrives while a section is being rebuilt</td><td>The rebuild in progress uses the facts it read when it started. The new change finds the section out of date again (its saved fingerprint is still the old one) and queues it, so it is rebuilt once more afterwards. Three edits in one chat turn can mean two passes over the same section; the last one always reflects all three.</td></tr>
+    <tr><td>The model call fails</td><td>The old rows stay on screen, the error is shown on the section, and the next change or a press of Update tries again.</td></tr>
+    <tr><td>The server restarts</td><td>The queue is kept in memory only. A section that was out of date stays marked “Out of date” until the next change or a press of Update.</td></tr>
+    <tr><td>You choose an option on a conflict that changes no fact</td><td>Your choice is part of the fingerprint, so the sections whose facts the conflict touches still rebuild, and their rows say what you chose.</td></tr>
+    <tr><td>You delete a chat session or clear the chat</td><td>Nothing: summaries depend on facts and decisions, not on the conversation.</td></tr>
+  </table></div>
+  <h3>What a rebuilt row may and may not say</h3>
   <ul>
-    <li><b>Figures are kept.</b> A row has under 60 words. When it cannot hold every item, it keeps the amounts, limits, dates and durations and shortens the words around them; it may not replace a figure with a word such as “specified”.</li>
+    <li><b>Figures are kept.</b> When a row cannot hold every item in 60 words, it keeps the amounts, limits, dates and durations and shortens the words around them; it may not replace a figure with a word such as “specified”.</li>
     <li><b>Your choices are included.</b> Each decision on a conflict that touches the section goes in as “conflict title → your choice”, including conflicts the chat raised.</li>
     <li><b>Rows are checked against their facts.</b> Every figure in a row must appear in the facts it cites. When one does not, or the row cites no facts, the row’s wording is not shown: the screen shows the facts it cites instead, marked <b>Not verified</b>, and names the figure that failed. Meaning is not checked, only figures.</li>
-    <li><b>Summaries follow your facts, not the RFP.</b> After you change a date, a row with the new date passes the check because the facts say so. The RFP’s original wording stays visible on the Changes page.</li>
+    <li><b>Summaries follow your facts, not the RFP.</b> After you change a date, a row with the new date passes the check because the facts say so. The RFP’s wording stays visible on the Changes page and in each edited fact’s original value.</li>
   </ul>
+  <p class="hint">Cost: a rebuild is one model call per section, roughly the size of the section’s facts. These calls are not part of a chat turn, so they do not appear in the Chat log or its costs.</p>
 
   <h2 id="log">Chat log and cost</h2>
   <p>Every turn is written to a log, one folder per chat session: <code>workspace/chat/&lt;session id&gt;/events.jsonl</code>. The <b>Chat log</b> page (under Run in the sidebar) shows it.</p>
