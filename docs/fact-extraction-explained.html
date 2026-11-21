@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fact Extraction Explained</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: one reading column, a wide interactive workbench in the middle.
+   Palette: cool paper, ink, one teal accent for "the code decides", one amber for "look here / split vote". */
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef1f5; --fg: #17202a; --muted: #5b6776; --line: #d9dee6;
+  --accent: #14667f; --accent-soft: #dcecf1; --warn: #9a5b00; --warn-soft: #fbeccd; --ok: #1d6b3f; --ok-soft: #dcf0e3;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11161c; --surface: #1a212a; --surface-2: #232c37; --fg: #e8edf3; --muted: #9aa7b6; --line: #2f3a47;
+  --accent: #6cc3dc; --accent-soft: #1c3640; --warn: #f0b861; --warn-soft: #3b2f17; --ok: #7fd3a2; --ok-soft: #1b3326; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11161c; --surface: #1a212a; --surface-2: #232c37; --fg: #e8edf3; --muted: #9aa7b6; --line: #2f3a47;
+  --accent: #6cc3dc; --accent-soft: #1c3640; --warn: #f0b861; --warn-soft: #3b2f17; --ok: #7fd3a2; --ok-soft: #1b3326; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 400 16px/1.65 var(--font-body); padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 64px; }
+.wrap { max-width: 880px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--font-head); font-weight: 600; line-height: 1.2; text-wrap: balance; margin: 0; }
+h1 { font-size: 2rem; }
+h2 { font-size: 1.45rem; margin-top: 56px; padding-top: 8px; }
+h3 { font-size: 1.05rem; margin-top: 24px; }
+p { margin: 12px 0; max-width: 68ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; background: var(--surface-2); padding: 1px 6px; border-radius: 4px; }
+.lede { font-size: 1.12rem; color: var(--muted); max-width: 62ch; }
+nav { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 20px 0 0; font-size: 0.9rem; }
+nav a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; }
+nav a:hover, nav a:focus-visible { border-bottom-color: var(--accent); outline: none; }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+.chip { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 8px; border-radius: 6px; font: 500 0.82rem var(--font-mono); background: var(--accent-soft); color: var(--accent); }
+.chip.none { background: var(--surface-2); color: var(--muted); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.tag { display: inline-block; font: 500 0.75rem var(--font-mono); padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); margin-right: 4px; }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.box b { font-family: var(--font-head); display: block; margin-bottom: 4px; }
+.box p { margin: 4px 0; font-size: 0.93rem; color: var(--muted); }
+
+/* workbench */
+.bench { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
+.bench-top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; }
+.steps button, .btn { font: 500 0.88rem var(--font-body); color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+.steps button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+:root[data-theme="dark"] .steps button[aria-pressed="true"] { color: #08222b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .steps button[aria-pressed="true"] { color: #08222b; } }
+.steps button:focus-visible, .btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:hover { border-color: var(--accent); }
+.urow { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.urow:first-of-type { border-top: 0; }
+.uid { font: 500 0.82rem var(--font-mono); color: var(--muted); }
+.urow input[type="text"] { width: 100%; font: 400 0.93rem var(--font-body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; min-width: 0; }
+.votes { display: flex; gap: 4px; }
+select { font: 500 0.85rem var(--font-mono); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 4px; }
+.verdict { display: flex; align-items: center; gap: 8px; min-width: 150px; font-size: 0.8rem; color: var(--muted); }
+.hint { font-size: 0.88rem; color: var(--muted); margin: 8px 0 0; }
+.facts { display: grid; gap: 10px; margin-top: 8px; }
+.fact { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 10px 14px; background: var(--bg); }
+.fact.split { border-left-color: var(--warn); }
+.fact .ftext { margin: 6px 0; font-size: 0.97rem; max-width: none; }
+.fact .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.8rem; color: var(--muted); }
+.fhead { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.93rem; }
+.empty { color: var(--muted); font-size: 0.93rem; padding: 8px 0; }
+.dropped { color: var(--warn); font-size: 0.88rem; margin-top: 8px; }
+.panel-title { font: 600 0.78rem var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 18px 0 4px; }
+@media (max-width: 640px) {
+  .urow { grid-template-columns: 46px minmax(0, 1fr); }
+  .urow .votes, .urow .verdict { grid-column: 2; }
+  .verdict { min-width: 0; }
+}
+
+/* pipeline */
+.pipe { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 16px 0; }
+.stage { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 12px 14px; position: relative; }
+.stage .n { font: 500 0.75rem var(--font-mono); color: var(--accent); }
+.stage b { display: block; font-family: var(--font-head); margin: 2px 0; }
+.stage span { font-size: 0.85rem; color: var(--muted); }
+.stage.code { border-color: var(--accent); background: var(--accent-soft); }
+details { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 0 16px; margin: 10px 0; }
+summary { cursor: pointer; padding: 12px 0; font-weight: 500; }
+summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+details p, details ul { margin-top: 0; font-size: 0.95rem; }
+.why { color: var(--muted); }
+.toggle { float: right; }
+@media (prefers-reduced-motion: no-preference) { .fact { transition: border-color .2s; } }
+
+pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 10px 0; overflow-x: auto; white-space: pre; color: var(--fg); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin: 8px 0; }
+.two > div { min-width: 0; }
+.cap { font: 600 0.75rem var(--font-body); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-top: 8px; }
+details h3 { margin-top: 18px; font-size: 0.98rem; }
+details > p.why { margin-bottom: 14px; }
+
+.qpic { display: block; width: 100%; min-width: 600px; height: auto; }
+.qpic rect { fill: var(--surface); stroke: var(--line); stroke-width: 1; }
+.qpic .m rect { fill: var(--warn-soft); stroke: var(--warn); }
+.qpic .c rect { fill: var(--accent-soft); stroke: var(--accent); }
+.qpic .t { fill: var(--fg); font: 600 14px var(--font-body); }
+.qpic .s { fill: var(--muted); font: 400 12px var(--font-body); }
+.qpic .l { fill: var(--fg); font: 400 12px var(--font-mono); }
+.qpic .h { fill: var(--muted); font: 600 11px var(--font-body); letter-spacing: .06em; text-transform: uppercase; }
+.qpic .ar { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.qpic .ar * { marker-end: url(#qa); }
+html { color-scheme: light; }
+body { margin: 0; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <button class="btn toggle" id="themeBtn" type="button" aria-label="Switch colour theme">Theme</button>
+  <h1>How the fact extraction phase works</h1>
+  <p class="lede">An RFP is a long document a buyer publishes to ask companies to bid. This phase reads one RFP and produces a list of cited facts for the bid manager: what is due when, what disqualifies a bid, what the package must hold. The model never writes that list. It answers one fixed question per sentence, and code builds the facts from its answers.</p>
+  <nav aria-label="Sections">
+    <a href="#words">Words you will see</a><a href="#categories">Categories, = and -</a><a href="#example">Worked example</a><a href="#steps">Step by step</a><a href="#why">Why this design</a><a href="#failure">When calls fail</a><a href="#code">Where in the code</a>
+  </nav>
+
+  <h2 id="words">Words you will see</h2>
+  <div class="scroll"><table>
+    <tr><th>Term</th><th>Meaning</th></tr>
+    <tr><td><b>Unit</b></td><td>One sentence, heading, list item or table row. IDs look like <code>p12.4</code> (page 12, sentence 4) or <code>p12.t1r3</code> (page 12, table 1, row 3).</td></tr>
+    <tr><td><b>Label</b></td><td>The model's answer for one unit: a category code, <code>=</code> or <code>-</code>.</td></tr>
+    <tr><td><code>-</code> no point</td><td>The unit states nothing the bid team must know, do or decide: most headings, page footers, form blanks.</td></tr>
+    <tr><td><code>=</code> continuation</td><td>The unit only continues, qualifies or repeats the point of a unit just before it, so it joins that unit's fact.</td></tr>
+    <tr><td><b>Vote</b></td><td>Labelling runs three times independently. The label most runs agree on wins.</td></tr>
+    <tr><td><b>Fact</b></td><td>One coded unit plus the continuation units after it, with a category, text, flags and citations.</td></tr>
+    <tr><td><b>Statement</b></td><td>A one-line plain-words version of a unit, under 30 words, written by the model in a separate call.</td></tr>
+    <tr><td><b>Flag</b></td><td><code>mandatory</code> and <code>desirable</code> are read from the wording by code ("must", "should"). <code>post-award</code>, <code>risk</code> and <code>unclear</code> are judged by the model.</td></tr>
+    <tr><td><b>Citation</b></td><td>Page, section heading, exact source text and position of each unit in a fact.</td></tr>
+    <tr><td><b>Cached prefix</b></td><td>The system prompt plus the whole RFP. The provider remembers it, so the many parallel calls that begin with it are faster and cheaper.</td></tr>
+  </table></div>
+
+  <h2 id="categories">The nine categories, and two other answers</h2>
+  <p>For each unit the model answers with one of eight category codes, or with <code>=</code> or <code>-</code> (see the second table). Q is the ninth category and is found separately. Every fact has exactly one category. Examples are made up. When a point fits several, the first in this order wins: <span class="mono">X, G, D, S, E, C, R, B</span>.</p>
+  <div class="scroll"><table>
+    <tr><th>Code</th><th>Category</th><th>What belongs in it</th><th>Example</th></tr>
+    <tr><td><span class="chip">B</span></td><td>Buyer information</td><td>Who is buying, contacts, goals, numbers that size the work</td><td>The county has about 4,000 employees</td></tr>
+    <tr><td><span class="chip">C</span></td><td>Contract details</td><td>Type, term, value, payment, insurance, liability, governing law</td><td>Initial term is three years with two one-year renewals</td></tr>
+    <tr><td><span class="chip">G</span></td><td>Go/no-go gates</td><td>What a bidder must already be or have by the deadline</td><td>Bidder must hold an active state license</td></tr>
+    <tr><td><span class="chip">X</span></td><td>Disqualification</td><td>Anything that gets a proposal rejected or not opened</td><td>Late proposals will not be opened</td></tr>
+    <tr><td><span class="chip">D</span></td><td>Dates</td><td>Every deadline and event, including relative ones</td><td>Proposals due: 2026-08-28 16:00</td></tr>
+    <tr><td><span class="chip">S</span></td><td>Submission package</td><td>How to submit and what the package holds: copies, format, page limits, each form</td><td>Submit one original and three copies</td></tr>
+    <tr><td><span class="chip">E</span></td><td>Evaluation</td><td>Criteria, points, weights, who decides</td><td>Technical approach is worth 40 points</td></tr>
+    <tr><td><span class="chip">R</span></td><td>Requirement</td><td>What the bidder's product, service or proposal must do or include</td><td>The vendor must provide monthly status reports</td></tr>
+    <tr><td><span class="chip warn">Q</span></td><td>Contradiction</td><td>Two parts of the RFP disagree. Found by a separate call over the whole document, not by labelling units.</td><td>Cover page says due Aug 28; Section 2 says Aug 30</td></tr>
+  </table></div>
+  <h3>The two answers that are not categories</h3>
+  <p>Many units state no point of their own. For those the model writes one of two symbols instead of a category.</p>
+  <div class="scroll"><table>
+    <tr><th>Symbol</th><th>Name</th><th>Meaning</th><th>Effect</th><th>Example</th></tr>
+    <tr><td><span class="chip none">-</span></td><td>No point</td><td>The unit states nothing the bid team must know, do or decide.</td><td>No fact is made. The unit is dropped.</td><td>"Section 3: Submission" (a heading), a page footer, a blank form field</td></tr>
+    <tr><td><span class="chip none">=</span></td><td>Continuation</td><td>The unit has no point of its own. It continues, qualifies or repeats the unit just before it.</td><td>Joins the previous fact, which then cites both units. Only if a coded unit is within 3 units before it.</td><td>"The license must be current on the due date." after "Bidders must hold an active state license."</td></tr>
+  </table></div>
+
+  <h2 id="example">Worked example</h2>
+  <p>Six units from a made-up RFP. Each unit has three votes. Change any vote or any sentence and the winning label and the facts update using the same rules as the real code. Try making a vote split three ways, or turning a <code>=</code> into a <code>-</code>.</p>
+  <div class="bench" id="bench">
+    <div class="bench-top">
+      <div class="steps" role="group" aria-label="Stage">
+        <button type="button" data-step="1" aria-pressed="false">1 · Units</button>
+        <button type="button" data-step="2" aria-pressed="false">2 · Votes</button>
+        <button type="button" data-step="3" aria-pressed="true">3 · Facts</button>
+      </div>
+      <div class="steps"><button type="button" class="btn" id="add">Add unit</button><button type="button" class="btn" id="reset">Reset example</button></div>
+    </div>
+    <div id="stepNote" class="hint"></div>
+    <div id="units"></div>
+    <div id="factsWrap">
+      <div class="panel-title">Facts built by code</div>
+      <div id="facts" class="facts"></div>
+      <div id="dropped" class="dropped" hidden></div>
+    </div>
+    <p class="hint">In a real run the fact text is the model's one-line statement (kept only if its numbers match the source). Here the fact shows the source words so you can see what was joined.</p>
+  </div>
+  <div class="cols">
+    <div class="box"><b>Majority vote</b><p>The label most of the three runs gave wins. A split is kept on the fact as <code>2/3</code>.</p></div>
+    <div class="box"><b>No majority</b><p>The category earliest in X, G, D, S, E, C, R, B wins, because a missed fact costs more than an extra one.</p></div>
+    <div class="box"><b>Continuation reach</b><p>A <code>=</code> joins the previous fact only if it is within 3 units of the last unit attached to it.</p></div>
+    <div class="box"><b>Flags from wording</b><p>For R, S, G, C and X, "must", "shall", "will not be opened" give <code>mandatory</code>; "should", "preferred" give <code>desirable</code>.</p></div>
+  </div>
+
+  <h2 id="steps">Step by step</h2>
+  <div class="pipe" aria-label="Pipeline">
+    <div class="stage"><span class="n">1</span><b>Cut</b><span>Code splits the RFP into units</span></div>
+    <div class="stage"><span class="n">2</span><b>Ask, in parallel</b><span>LABEL ×3, STATE, CHECK</span></div>
+    <div class="stage code"><span class="n">3</span><b>Vote</b><span>Code, no model</span></div>
+    <div class="stage code"><span class="n">4</span><b>Build facts</b><span>Code, no model</span></div>
+    <div class="stage"><span class="n">5</span><b>Contradictions</b><span>CHECK plus a code check</span></div>
+    <div class="stage"><span class="n">6</span><b>Second round</b><span>GROUP, BRIEF, no PDF</span></div>
+    <div class="stage"><span class="n">7</span><b>Return</b><span>Facts and a report</span></div>
+  </div>
+  <p>Every step below uses the same made-up excerpt as the worked example, so you can follow one sentence all the way through. Page 3 of a made-up RFP has six units:</p>
+  <pre class="ex" aria-label="The six units">[p3.1] Section 3: Submission
+[p3.2] Proposals are due by 4:00 p.m. on August 28, 2026.
+[p3.3] Late proposals will not be opened.
+[p3.4] Bidders must hold an active state license.
+[p3.5] The license must be current on the due date.
+[p3.6] Submit one original and three copies.</pre>
+
+  <details open><summary>1. Cut the document into units</summary>
+    <p>Done before any model call, by code, the same way every time. A sentence, a heading, a list item and a table row each become a unit with an ID: <code>p3.2</code> is page 3, sentence 2; <code>p3.t1r3</code> would be page 3, table 1, row 3. A sentence over 60 words is split. The result is the tagged text above, and every model call gets the whole document in this form. The units are also grouped by whole pages into chunks, which step 2 explains.</p>
+    <p class="why">Why: the set of possible facts, and each fact's identity, must not depend on the model.</p></details>
+
+  <details open><summary>2. Send one round of calls at once</summary>
+    <p>Every call starts with the same system prompt and the whole tagged RFP, so the provider can cache it. The first call goes alone until it starts streaming (at most 10 seconds), then the rest are released together. Each call adds only a short task message.</p>
+    <p>Every call reads the whole RFP, so the model always has the surrounding context. What differs is how much of it the call is asked about:</p>
+    <div class="scroll"><table>
+      <tr><th>Call</th><th>Reads</th><th>Asked about</th><th>Runs</th></tr>
+      <tr><td><b>LABEL</b></td><td>Whole RFP</td><td>One chunk of about 60 units (whole pages)</td><td>3 times, once per vote, for every chunk</td></tr>
+      <tr><td><b>STATE</b></td><td>Whole RFP</td><td>One chunk of about 40 units (whole pages)</td><td>Once for every chunk</td></tr>
+      <tr><td><b>CHECK</b></td><td>Whole RFP</td><td>The whole document at once, no chunks</td><td>Once</td></tr>
+    </table></div>
+    <p>Example: an RFP cut into about 600 units gives roughly 10 label chunks and 15 state chunks. That is 10 × 3 = 30 LABEL calls, 15 STATE calls and 1 CHECK call, so about 46 calls, all started together. Chunks follow page boundaries, so the sizes are approximate.</p>
+    <p class="why">Why chunks for LABEL and STATE: each unit needs one output line, so a long document in one call would hit the output limit and run slowly. Why no chunks for CHECK: a contradiction compares two places that may be far apart, so the call must look at everything at once.</p>
+    <h3>LABEL (three runs, about 60 units per call). One line per unit: ID, label, flags</h3>
+    <div class="two">
+      <div><div class="cap">Run 1 answer</div><pre class="ex">p3.1|-|
+p3.2|D|
+p3.3|X|
+p3.4|G|
+p3.5|=|
+p3.6|S|
+END|6</pre></div>
+      <div><div class="cap">Run 2 answer (differs on one unit)</div><pre class="ex">p3.1|-|
+p3.2|D|
+p3.3|X|
+p3.4|R|
+p3.5|=|
+p3.6|S|
+END|6</pre></div>
+    </div>
+    <p>Run 3 answered like run 1. Each run judged the units independently, so run 2 filed the licence rule as a requirement (<code>R</code>) instead of a gate (<code>G</code>). The next step settles that.</p>
+    <h3>STATE (once per chunk, about 40 units per call). One plain-words sentence per unit</h3>
+    <pre class="ex">p3.1|-
+p3.2|Proposals due: 2026-08-28 16:00
+p3.3|Late proposals will not be opened.
+p3.4|Bidder must hold an active state license that is current on the proposal due date.
+p3.5|Bidder must hold an active state license that is current on the proposal due date.
+p3.6|Submit one original and three copies.</pre>
+    <p>For a continuation unit (p3.5) the model states the whole point the two units make together. Dates are written <code>YYYY-MM-DD</code> with the time, and numbers are copied exactly.</p>
+    <h3>CHECK (once for the whole document, not per unit). Where the RFP disagrees with itself</h3>
+    <pre class="ex">Q|Cover page gives Aug 28 as the due date; Section 2 gives Aug 30|p1.2,p2.6|
+END|1</pre>
+    <p class="why">Why three kinds of call: labelling, wording and contradiction-hunting are separate questions. Mixing them lets one answer bend another.</p></details>
+
+  <details open><summary>3. Vote</summary>
+    <p>Code reads the three label answers and picks a winner for each unit. Most units are unanimous. The interesting ones are splits.</p>
+    <div class="scroll"><table>
+      <tr><th>Unit</th><th>Votes</th><th>Winner</th><th>Why</th></tr>
+      <tr><td><code>p3.2</code></td><td>D, D, D</td><td><span class="chip">D</span></td><td>All agree. Recorded as <code>3/3</code>.</td></tr>
+      <tr><td><code>p3.4</code></td><td>G, G, R</td><td><span class="chip">G</span></td><td>Two of three. Recorded as <code>2/3</code>, so a reviewer can see it was a closer call.</td></tr>
+      <tr><td>an unseen unit</td><td>X, D, R</td><td><span class="chip">X</span></td><td>No majority. The category earliest in X, G, D, S, E, C, R, B wins.</td></tr>
+    </table></div>
+    <p class="why">Why break ties by precedence: a missed fact costs the bid manager more than an extra one, and X (disqualification) and G (gate) are the costliest to miss. Model flags (<code>post-award</code>, <code>risk</code>, <code>unclear</code>) are kept only if most of the agreeing runs set them.</p></details>
+
+  <details open><summary>4. Build the facts</summary>
+    <p>A coded unit starts a fact. A <code>=</code> unit within 3 units of the last attached unit joins it. A <code>-</code> unit makes nothing. Applied to the excerpt, p3.1 makes nothing, p3.2, p3.3 and p3.6 each start a fact, and p3.5 joins p3.4:</p>
+    <div class="scroll"><table>
+      <tr><th>Key</th><th>What it means</th><th>Example</th></tr>
+      <tr><td><code>fact_id</code></td><td><span class="tag ok">Code</span> A hash of the document and the fact’s first unit. Same on every run, whatever the model says.</td><td><code>f_3a9c10b2e4</code></td></tr>
+      <tr><td><code>category</code></td><td><span class="tag ok">Code</span> The winner of the vote over the model’s three labels.</td><td><code>G</code> (go/no-go gate)</td></tr>
+      <tr><td><code>votes</code></td><td><span class="tag warn">Model</span> The three labels the model gave this unit, one per LABEL run, kept exactly as given.</td><td><code>G, G, R</code></td></tr>
+      <tr><td><code>agreement</code></td><td><span class="tag ok">Code</span> How many of the three votes match the winning category.</td><td><code>2/3</code></td></tr>
+      <tr><td><code>text</code></td><td><span class="tag warn">Model or RFP</span> What the fact says. Code shows the model’s STATE statement when every number and date in it is in the source. If one is missing, it shows the RFP’s own words instead.</td><td>Bidder must hold an active state license that is current on the proposal due date.</td></tr>
+      <tr><td><code>text_from</code></td><td><span class="tag ok">Code</span> Records which one <code>text</code> is: <code>statement</code> (written by the model) or <code>source</code> (the RFP’s words).</td><td><code>statement</code></td></tr>
+      <tr><td><code>source_text</code></td><td><span class="tag ">RFP</span> The exact sentences of the fact’s units, joined. No model involved.</td><td>Bidders must hold an active state license. The license must be current on the due date.</td></tr>
+      <tr><td><code>citations</code></td><td><span class="tag ">RFP</span> Each unit in the fact, with page, section heading, exact text and position on the page, copied from the unit map. No model involved.</td><td><code>p3.4</code>, <code>p3.5</code></td></tr>
+      <tr><td><code>flags</code></td><td><span class="tag warn">Code and model</span> <code>mandatory</code> and <code>desirable</code> are set by code from the first unit’s wording (“must”, “should”). <code>post-award</code>, <code>risk</code> and <code>unclear</code> come from the model and are kept if most votes set them.</td><td><code>mandatory</code> (from “must” in p3.4)</td></tr>
+      <tr><td><code>status</code></td><td><span class="tag ok">Code</span> <code>valid</code>, or <code>conflict</code> when the fact cites a unit that a Q fact also cites.</td><td><code>valid</code></td></tr>
+    </table></div>
+    <p class="hint">Tags: <span class="tag ok">Code</span> computed by ordinary code, <span class="tag warn">Model</span> comes from a model call (possibly checked by code), <span class="tag">RFP</span> copied from the document.</p>
+    <h3>Which text is shown: the statement or the RFP's words</h3>
+    <p>Code compares every number and date in the model's statement with the cited text. If all appear, the statement is shown. If one does not, the RFP's own words are shown instead.</p>
+    <div class="two">
+      <div><div class="cap">Statement passes</div><pre class="ex">Statement: Proposals due: 2026-08-28 16:00
+Source:    ...4:00 p.m. on August 28, 2026.
+Shown:     the statement</pre></div>
+      <div><div class="cap">Statement fails</div><pre class="ex">Statement: Proposals due: 2026-08-29 16:00
+Source:    ...4:00 p.m. on August 28, 2026.
+Shown:     Proposals are due by 4:00 p.m.
+           on August 28, 2026.</pre></div>
+    </div>
+    <p class="why">Why: a wrong figure is never shown as the RFP's. The fact ID comes from the first unit, so it survives changes to the wording, the category or the run.</p></details>
+
+  <details open><summary>5. Add contradictions (Q facts)</summary>
+    <div class="scroll"><svg class="qpic" viewBox="0 0 680 540" role="img" aria-label="Two examples of how a Q fact is found, what it becomes, and what it changes"><defs><marker id="qa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs><text class="h" x="20" y="24">Two places in the RFP</text><g class="g"><rect x="20" y="36" width="310" height="62" rx="8"/><text class="l" x="34" y="62">[p1.2] Proposals due August 28.</text><text class="l" x="34" y="83">[p2.6] Proposals due August 30.</text></g><g class="g"><rect x="350" y="36" width="310" height="62" rx="8"/><text class="l" x="364" y="62">[p4.3] See Article 17 for indemnity.</text><text class="l" x="364" y="83">[p9.1] Article 17: Left blank.</text></g><text class="h" x="20" y="132">Who notices</text><g class="m"><rect x="20" y="144" width="310" height="60" rx="8"/><text class="t" x="175" y="168" text-anchor="middle">CHECK call (model)</text><text class="s" x="175" y="187" text-anchor="middle">reads the whole RFP, sees two due dates</text></g><g class="c"><rect x="350" y="144" width="310" height="60" rx="8"/><text class="t" x="505" y="168" text-anchor="middle">Cross-reference check (code)</text><text class="s" x="505" y="187" text-anchor="middle">reference points at a blank heading</text></g><text class="h" x="20" y="238">What it becomes</text><g class="g"><rect x="20" y="250" width="310" height="92" rx="8" stroke-width="1.5"/><text class="t" x="175" y="274" text-anchor="middle">Q fact</text><text class="s" x="175" y="293" text-anchor="middle">Due date is Aug 28 in one place</text><text class="s" x="175" y="310" text-anchor="middle">and Aug 30 in another</text><text class="s" x="175" y="327" text-anchor="middle">cites p1.2, p2.6</text></g><g class="g"><rect x="350" y="250" width="310" height="92" rx="8" stroke-width="1.5"/><text class="t" x="505" y="274" text-anchor="middle">Q fact</text><text class="s" x="505" y="293" text-anchor="middle">Article 17 is referenced but is</text><text class="s" x="505" y="310" text-anchor="middle">left blank</text><text class="s" x="505" y="327" text-anchor="middle">cites p4.3, p9.1</text></g><text class="h" x="20" y="374">What it changes</text><g class="g"><rect x="20" y="386" width="310" height="56" rx="8"/><text class="t" x="175" y="410" text-anchor="middle">Fact on p1.2 becomes conflict</text><text class="s" x="175" y="429" text-anchor="middle">its status goes from valid to conflict</text></g><g class="g"><rect x="350" y="386" width="310" height="56" rx="8"/><text class="t" x="505" y="410" text-anchor="middle">Facts on p4.3, p9.1 become conflict</text><text class="s" x="505" y="429" text-anchor="middle">same rule: they cite the Q fact units</text></g><g class="g"><rect x="190" y="470" width="300" height="52" rx="8"/><text class="t" x="340" y="494" text-anchor="middle">Clarifications summary</text><text class="s" x="340" y="513" text-anchor="middle">one question for the buyer per Q fact</text></g><g class="ar"><line x1="175" y1="98" x2="175" y2="142"/><line x1="505" y1="98" x2="505" y2="142"/><line x1="175" y1="204" x2="175" y2="248"/><line x1="505" y1="204" x2="505" y2="248"/><line x1="175" y1="342" x2="175" y2="384"/><line x1="505" y1="342" x2="505" y2="384"/><path d="M175 442V456H260V468"/><path d="M505 442V456H420V468"/></g></svg></div>
+    <p class="hint">Amber: a model call. Teal: ordinary code. Two finders feed Q facts; if both report the same cited units they merge into one Q fact. The code check only catches reference mismatches. Every other kind of contradiction comes from the CHECK call.</p></details>
+
+  <details open><summary>6. Second round, without the PDF (GROUP and BRIEF)</summary>
+    <p>These calls see only the finished facts, never the document, so they are small and fast. They never remove or change a fact. They only add structure around the facts. Two kinds run at the same time: GROUP, one call per category, and BRIEF, one call per summary section.</p>
+
+    <h3>GROUP: tidy repeats and lists, one call per category</h3>
+    <p>A category is only sent if it has at least 4 facts. The model sees numbered lines of <code>number|page|fact</code> and answers with groups of line numbers:</p>
+    <div class="two">
+      <div><div class="cap">Sent (category D)</div><pre class="ex">1|p1|Proposals due: 2026-08-28 16:00
+2|p3|Proposals due: 2026-08-28 16:00
+3|p5|Questions due: 2026-08-14</pre></div>
+      <div><div class="cap">Answer</div><pre class="ex">SAME|1,2
+END|1</pre></div>
+    </div>
+    <div class="scroll"><table>
+      <tr><th>Answer</th><th>Meaning</th><th>Example</th></tr>
+      <tr><td><code>SAME|1,2</code></td><td>The lines state one and the same point: same parties, dates, amounts and conditions. Any one could stand for the others.</td><td>The due date stated on page 1 and again on page 3</td></tr>
+      <tr><td><code>LIST|title|4,5,6</code></td><td>The lines are items of one list that differ only in the item. The title says what the list is.</td><td><code>LIST|Required insurance coverages|4,5,6</code></td></tr>
+      <tr><td>no line written</td><td>The fact stands alone.</td><td>Fact 3 above</td></tr>
+    </table></div>
+    <p>Code then writes <code>group_id</code>, <code>group_kind</code> and <code>group_title</code> on the member facts. A line can be in at most one group, and a group of fewer than two facts is dropped. If a SAME group’s members hold different numbers or dates, code downgrades it to a list titled “Related statements”, so nothing hides behind another fact.</p>
+
+    <h3>BRIEF: one short summary per section, five in all</h3>
+    <p>Each BRIEF call gets only the facts of its section’s categories, numbered 1, 2, 3, and must answer with that section’s fixed rows in a fixed order. The five sections:</p>
+    <div class="scroll"><table>
+      <tr><th>Section</th><th>Built from</th><th>Fixed rows, in order</th></tr>
+      <tr><td><b>Buyer information</b></td><td>B facts</td><td>Buyer, Solicitation, What they are buying, Why, Scale, Current situation, Contacts</td></tr>
+      <tr><td><b>Submission instructions</b></td><td>S and D facts</td><td>Deadline, How to submit, Format, What to include, Required forms, Questions</td></tr>
+      <tr><td><b>Go/no-go gates</b></td><td>G and X facts</td><td>Who may bid, Experience required, Before the deadline, Rejected if</td></tr>
+      <tr><td><b>Scoring criteria</b></td><td>E facts</td><td>Method, Criteria, Price, Stages, Who decides</td></tr>
+      <tr><td><b>Clarifications</b></td><td>Q facts, and any fact flagged <code>unclear</code></td><td>Contradictions, Unclear points</td></tr>
+    </table></div>
+    <p>Because the rows are fixed, every RFP gets a summary of the same shape. The answer format is <code>Row|text|fact numbers</code>. The text is under 60 words with names, numbers and dates copied exactly. A row with no support is written as <code>not stated</code>. A section with no facts is not sent to the model at all, and its rows come back empty.</p>
+    <div class="two">
+      <div><div class="cap">Sent (Submission section)</div><pre class="ex">1|Proposals due: 2026-08-28 16:00
+2|Submit one original and three copies.
+3|Questions due: 2026-08-14</pre></div>
+      <div><div class="cap">Answer</div><pre class="ex">Deadline|Proposals due 2026-08-28 16:00|1
+How to submit|not stated|
+Format|One original and three copies|2
+What to include|not stated|
+Required forms|not stated|
+Questions|Questions due 2026-08-14|3
+END|6</pre></div>
+    </div>
+    <h3>The number check on every row</h3>
+    <p>Code marks a row <code>checked</code> only if it cites at least one fact and every number and date in its text appears in the cited facts or their source text. A row that fails is not trusted: the screen shows the cited facts themselves instead of the model’s sentence.</p>
+    <div class="two">
+      <div><div class="cap">Checked</div><pre class="ex">Deadline|Proposals due 2026-08-28 16:00|1
+fact 1 holds 2026-08-28 16:00  → shown</pre></div>
+      <div><div class="cap">Not checked</div><pre class="ex">Deadline|Proposals due 2026-08-29 16:00|1
+2026-08-29 is not in fact 1    → fact 1 shown</pre></div>
+    </div>
+    <p class="why">Why: a figure the model made up is never shown as the RFP’s. BRIEF waits for the first round to finish, so the Q facts already exist and the Clarifications summary can include them.</p>
+    <p class="hint">The five summaries are saved in the run report and appear on the Overview page. The web workspace also has its own, separate summaries (seven sections, such as Key dates and Requirements). Those are written by the web layer from the facts as you correct them and are not part of this phase.</p></details>
+
+  <details open><summary>7. Return</summary>
+    <p>The caller gets the facts, a label for every unit (so you can audit the units that made no fact), and a report. For the excerpt it would read:</p>
+    <pre class="ex">ids 6 | facts 4 | by_category  D 1, X 1, G 1, S 1
+units_coded 4 | units_continuing 1 | units_without_a_point 1
+facts_votes_agreed 3 | facts_votes_split 1
+facts_with_statement 4 | facts_in_rfp_words 0
+failed_calls []  incomplete_calls []  cut_calls []</pre>
+    <p>The report also holds timings, token use, the cache hit rate for calls 2 to N, and a record of every call, so a reviewer can tell a thin result from a complete one.</p></details>
+
+  <h2 id="why">Why it is built this way</h2>
+  <div class="cols">
+    <div class="box"><b>The model does not write the list</b><p>Asking for "the facts" gives a different list each time and can invent items. A closed question per unit means every fact is a real sentence, and code fixes the set of candidates.</p></div>
+    <div class="box"><b>Three votes</b><p>One labelling is unstable: two runs still differ on about one unit in ten. Votes smooth that out and the <code>2/3</code> record shows which facts were close calls.</p></div>
+    <div class="box"><b>Wording is asked separately</b><p>The statement call cannot influence the category, and a bad statement cannot change which facts exist.</p></div>
+    <div class="box"><b>Numbers checked in code</b><p>If a statement has a number or date not in the cited text, the fact shows the RFP's own words. A wrong figure is never shown as the RFP's.</p></div>
+    <div class="box"><b>Results are stored</b><p>Runs are not perfectly repeatable, so a finished result is saved under the PDF's content hash and shown again. Changing prompts or unit cutting bumps the pipeline version (<code>units-4</code> now).</p></div>
+  </div>
+
+  <h2 id="failure">When a model call goes wrong</h2>
+  <div class="scroll"><table>
+    <tr><th>Problem</th><th>What happens</th></tr>
+    <tr><td>Rate limit</td><td>Wait and retry with growing delays, up to 5 times.</td></tr>
+    <tr><td>Error or 120 s timeout</td><td>Retry once. If it fails again the call is marked <code>failed</code>: its units have one vote fewer, or no statement, so those facts show the RFP's words.</td></tr>
+    <tr><td>Answer skips units</td><td>The call is sent once more and the fuller answer is kept. Still short: marked <code>incomplete</code>.</td></tr>
+    <tr><td>Output cut at the length limit</td><td>Lines already written are kept; the call is marked <code>partial</code>.</td></tr>
+  </table></div>
+  <p>All of these are listed in the run report, so a reviewer can tell a thin result from a complete one.</p>
+
+  <h2 id="code">Where to find each part in the code</h2>
+  <p>Paths are under <code>src/fact_extractor/</code>. Start at <code>extract()</code> in <code>units.py</code>. Run it with <code>fact-extractor extract &lt;pdf&gt; --deal-id &lt;name&gt;</code> or the New run tab in the web workspace.</p>
+  <div class="scroll"><table>
+    <tr><th>File</th><th>What it holds</th></tr>
+    <tr><td><code>units.py</code></td><td>Prompts for LABEL, STATE, CHECK, GROUP; the round of calls; voting; building facts; groups and summaries</td></tr>
+    <tr><td><code>prompts.py</code></td><td>Category definitions and the precedence order</td></tr>
+    <tr><td><code>llm.py</code></td><td>The model client: one streamed request, with rate-limit and error types</td></tr>
+    <tr><td><code>normalize.py</code></td><td>Reads numbers and dates out of text to check a statement against its source</td></tr>
+    <tr><td><code>validate.py</code>, <code>xref.py</code></td><td>Checks CHECK's lines; the cross-reference check done in code</td></tr>
+    <tr><td><code>tagging.py</code>, <code>pdf.py</code></td><td>The earlier phase: cutting the PDF into numbered units</td></tr>
+    <tr><td><code>results.py</code></td><td>The later step: storing a finished run by PDF hash</td></tr>
+  </table></div>
+</div>
+
+<script>
+(function () {
+  var CODES = ["B","C","G","X","D","S","E","R"];
+  var PREC = ["X","G","D","S","E","C","R","B"];
+  var NAMES = {B:"Buyer information",C:"Contract details",G:"Go/no-go gate",X:"Disqualification",D:"Dates",S:"Submission package",E:"Evaluation",R:"Requirement"};
+  var OPTS = CODES.concat(["=","-"]);
+  var BINDS = ["R","S","G","C","X"];
+  var MAND = /\b(shall|must|required|requires?|mandatory|will not be (?:considered|accepted|opened))\b/i;
+  var DESI = /\b(should|preferred|preferably|prefers?|desires?|desired|desirable|encouraged?|optional|recommended)\b/i;
+  var REACH = 3;
+
+  function base() {
+    return [
+      {text:"Section 3: Submission", votes:["-","-","-"]},
+      {text:"Proposals are due by 4:00 p.m. on August 28, 2026.", votes:["D","D","D"]},
+      {text:"Late proposals will not be opened.", votes:["X","X","X"]},
+      {text:"Bidders must hold an active state license.", votes:["G","G","R"]},
+      {text:"The license must be current on the due date.", votes:["=","=","="]},
+      {text:"Submit one original and three copies.", votes:["S","S","S"]}
+    ];
+  }
+  var units = base(), step = 3;
+  var NOTES = {
+    1: "Stage 1. The RFP is already cut into units with IDs. Nothing has been labelled yet.",
+    2: "Stage 2. Each unit was labelled three times. Code takes the winner. Amber means the votes disagreed.",
+    3: "Stage 3. Code groups coded units with the continuation units after them into facts."
+  };
+
+  function rank(l) { var i = PREC.indexOf(l); return i >= 0 ? i : PREC.length + ["=","-"].indexOf(l); }
+  function vote(votes) {
+    var counts = {}; votes.forEach(function (v) { counts[v] = (counts[v] || 0) + 1; });
+    var top = Math.max.apply(null, Object.keys(counts).map(function (k) { return counts[k]; }));
+    var tied = Object.keys(counts).filter(function (k) { return counts[k] === top; });
+    tied.sort(function (a, b) { return rank(a) - rank(b); });
+    return { label: tied[0], n: top, tie: tied.length > 1, agreed: Object.keys(counts).length === 1 };
+  }
+  function uid(i) { return "p3." + (i + 1); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function chipFor(l) { return '<span class="chip' + (CODES.indexOf(l) < 0 ? " none" : "") + '">' + esc(l) + '</span>'; }
+
+  function build() {
+    var res = units.map(function (u) { return vote(u.votes); });
+    var facts = [], dropped = [], at = -REACH - 1;
+    units.forEach(function (u, i) {
+      var v = res[i];
+      if (CODES.indexOf(v.label) >= 0) { facts.push({main: i, ids: [i], v: v}); at = i; }
+      else if (v.label === "=") {
+        if (facts.length && i - at <= REACH) { facts[facts.length - 1].ids.push(i); at = i; }
+        else dropped.push(i);
+      }
+    });
+    return { res: res, facts: facts, dropped: dropped };
+  }
+
+  function render() {
+    var out = build(), host = document.getElementById("units");
+    host.innerHTML = "";
+    units.forEach(function (u, i) {
+      var v = out.res[i], row = document.createElement("div");
+      row.className = "urow";
+      var sels = "";
+      for (var k = 0; k < 3; k++) {
+        sels += '<select id="v' + i + '_' + k + '" data-u="' + i + '" data-k="' + k + '" aria-label="Vote ' + (k + 1) + ' for ' + uid(i) + '">' +
+          OPTS.map(function (o) { return '<option value="' + o + '"' + (u.votes[k] === o ? " selected" : "") + '>' + o + '</option>'; }).join("") + '</select>';
+      }
+      var verdict = "";
+      if (step >= 2) {
+        verdict = chipFor(v.label) + '<span>' + (v.agreed ? "3/3 agree" : v.tie ? "no majority, precedence picks " + esc(v.label) : v.n + "/3 agree") + '</span>';
+        if (!v.agreed) verdict = verdict.replace('class="chip', 'class="chip warn').replace('chip none warn', 'chip warn');
+      }
+      row.innerHTML = '<span class="uid">' + uid(i) + '</span>' +
+        '<input type="text" id="t' + i + '" data-t="' + i + '" value="' + esc(u.text) + '" aria-label="Text of ' + uid(i) + '">' +
+        (step >= 2 ? '<div class="votes">' + sels + '</div><div class="verdict">' + verdict + '</div>' : '');
+      host.appendChild(row);
+    });
+
+    var fw = document.getElementById("factsWrap"), fh = document.getElementById("facts"), dr = document.getElementById("dropped");
+    fw.hidden = step < 3;
+    fh.innerHTML = "";
+    if (!out.facts.length) fh.innerHTML = '<div class="empty">No unit is coded, so there are no facts.</div>';
+    out.facts.forEach(function (f) {
+      var v = f.v, main = units[f.main], cat = v.label;
+      var text = f.ids.map(function (i) { return units[i].text; }).join(" ");
+      var flags = [];
+      if (BINDS.indexOf(cat) >= 0) { if (MAND.test(main.text)) flags.push("mandatory"); else if (DESI.test(main.text)) flags.push("desirable"); }
+      var el = document.createElement("div");
+      el.className = "fact" + (v.agreed ? "" : " split");
+      el.innerHTML = '<div class="fhead">' + chipFor(cat) + '<span>' + NAMES[cat] + '</span></div>' +
+        '<p class="ftext">' + esc(text) + '</p>' +
+        '<div class="meta"><span>cites</span>' + f.ids.map(function (i) { return '<span class="tag">' + uid(i) + '</span>'; }).join("") +
+        flags.map(function (x) { return '<span class="tag ok">' + x + '</span>'; }).join("") +
+        '<span class="tag ' + (v.agreed ? "" : "warn") + '">agreement ' + v.n + '/3</span></div>';
+      fh.appendChild(el);
+    });
+    if (step >= 3 && out.dropped.length) {
+      dr.hidden = false;
+      dr.textContent = out.dropped.map(uid).join(", ") + (out.dropped.length > 1 ? " are" : " is") + " labelled = but there is no coded unit within " + REACH + " units before it to join, so it makes no fact.";
+    } else dr.hidden = true;
+
+    document.getElementById("stepNote").textContent = NOTES[step];
+    Array.prototype.forEach.call(document.querySelectorAll(".steps [data-step]"), function (b) { b.setAttribute("aria-pressed", String(+b.dataset.step === step)); });
+  }
+
+  document.getElementById("units").addEventListener("change", function (e) {
+    var d = e.target.dataset; if (d.u === undefined) return;
+    units[+d.u].votes[+d.k] = e.target.value; render();
+  });
+  document.getElementById("units").addEventListener("input", function (e) {
+    var d = e.target.dataset; if (d.t === undefined) return;
+    units[+d.t].text = e.target.value;
+    var keep = e.target.id, pos = e.target.selectionStart;
+    render(); var el = document.getElementById(keep); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (x) {} }
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".steps [data-step]"), function (b) {
+    b.addEventListener("click", function () { step = +b.dataset.step; render(); });
+  });
+  document.getElementById("add").addEventListener("click", function () { units.push({text:"New sentence from the RFP.", votes:["-","-","-"]}); render(); });
+  document.getElementById("reset").addEventListener("click", function () { units = base(); step = 3; render(); });
+
+  var themeBtn = document.getElementById("themeBtn");
+  themeBtn.addEventListener("click", function () {
+    var r = document.documentElement, cur = r.getAttribute("data-theme");
+    var dark = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    r.setAttribute("data-theme", dark ? "light" : "dark");
+  });
+  render();
+})();
+</script>
+</body>
+</html>
