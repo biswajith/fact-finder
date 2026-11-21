@@ -47,11 +47,6 @@ td.num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); font
 .tag.ok { background: var(--ok-soft); color: var(--ok); }
 .cite { display: inline-block; font: 500 0.74rem var(--font-body); padding: 0 7px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); vertical-align: 1px; white-space: nowrap; }
 
-.news { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin-top: 24px; }
-.news h2 { font-size: 1.05rem; margin: 0 0 6px; padding: 0; }
-.news ul { margin: 0; padding-left: 1.2rem; max-width: 74ch; }
-.news li { margin: 6px 0; font-size: 0.95rem; }
-.news .when { font: 500 0.78rem var(--font-mono); color: var(--muted); }
 
 /* workbench */
 .bench { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
@@ -153,24 +148,6 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
   <nav aria-label="Sections">
     <a href="#words">Words</a><a href="#turn">One message</a><a href="#planning">Planning</a><a href="#prompt">What the model is sent</a><a href="#try">Try it</a><a href="#tools">The 13 tools</a><a href="#search">Search</a><a href="#rules">Rules</a><a href="#store">Change history</a><a href="#checks">Checks</a><a href="#conflicts">Conflicts</a><a href="#summ">Summaries</a><a href="#log">Chat log and cost</a><a href="#fail">When it fails</a><a href="#code">Code map</a>
   </nav>
-
-  <section class="news" aria-labelledby="newsTitle">
-    <h2 id="newsTitle">What changed</h2>
-    <p class="when">21 November 2026, evening</p>
-    <ul>
-      <li><b>The chat plans bigger requests, and asks first.</b> Each message gets a planning mode: <i>direct</i>, <i>light</i> or <i>heavy</i>. In light and heavy mode the chat shows its plan and waits for your yes before it touches anything. <a href="#planning">Planning</a></li>
-      <li><b>Search is smaller and finds more.</b> One call can carry several queries. Rare words count far more than common ones, weak matches are left out, rows are about half the size, and a section’s heading counts as part of every sentence under it. <a href="#search">Search</a></li>
-      <li><b>A correction is not the same as new information.</b> A correction edits the fact and keeps everything else in it. New information from the buyer is added as its own fact, so the extracted facts stay true to the RFP. <a href="#rules">Rules</a></li>
-      <li><b>A changed value is changed everywhere.</b> When you move a date, every fact that states that date is updated in the same turn. <a href="#checks">Checks</a></li>
-      <li><b>New and edited facts are checked for contradictions.</b> A fact that clashes with an existing one becomes a conflict for you to settle. An edit that would drop an amount or date is refused. <a href="#checks">Checks</a></li>
-      <li><b>Summaries keep the figures, take in your choices, and flag what they cannot verify.</b> <a href="#summ">Summaries</a></li>
-      <li><b>Every chat turn is logged, with its cost.</b> The Chat log page shows each session, each model call, its tokens and its estimated cost in dollars. <a href="#log">Chat log and cost</a></li>
-    </ul>
-    <p class="when">21 November 2026, morning</p>
-    <ul>
-      <li><b>One search tool</b> replaced <code>search_facts</code> and <code>search_source</code>; spelling variants such as “infotech” and “Info-Tech” match; the prompt is laid out for caching; every tool call is recorded; answers cite facts with chips; each Overview section has a row summary.</li>
-    </ul>
-  </section>
 
   <h2 id="words">Words you will see</h2>
   <div class="scroll"><table>
