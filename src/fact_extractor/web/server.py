@@ -28,7 +28,8 @@ from pydantic import BaseModel
 from .. import stability
 from . import has_api_key, model_name
 from . import runs as R
-from .agent import ChatModel, OpenAIChatModel, chat
+from .agent import ChatModel, OpenAIChatModel, chat, check_added
+from .consistency import ConsistencyChecker
 from .planning import Planning, planning_from_env
 from .runs import find_runs, render_page
 from .summaries import SECTIONS, CompletionModel, SummaryService
@@ -196,7 +197,7 @@ def _pdf_of(facts_path: Path) -> tuple[bool, str | None]:
 
 def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                summary_model: CompletionModel | None = None, extractor: Callable | None = None,
-               chat_planning: Planning | None = None) -> FastAPI:
+               chat_planning: Planning | None = None, checker: ConsistencyChecker | None = None) -> FastAPI:
     """Build the app. Models are injected by tests; otherwise the OpenAI-backed ones are created
     on first use, and a missing OPENAI_API_KEY shows up as a chat error or a section error.
     `extractor` replaces `runs.run_extraction` (the one call that spends tokens) in tests.
@@ -208,6 +209,9 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
     app.state.summaries = summaries = SummaryService(summary_model)
     app.state.chat_model = chat_model or OpenAIChatModel()
     app.state.chat_planning = chat_planning if chat_planning is not None or chat_model is not None else planning_from_env()
+    # Added facts are checked against existing ones (consistency.py); like planning, only with the real chat model
+    # unless a checker is passed, so tests never call the API by accident.
+    app.state.checker = checker if checker is not None or chat_model is not None else ConsistencyChecker()
     workspaces: dict[Path, Workspace] = {}
     pages: OrderedDict[tuple, bytes] = OrderedDict()
     uploads: dict[str, tuple[Path, str]] = {}  # upload_id -> (file, name), in a folder the app owns
@@ -320,8 +324,9 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
     async def add_fact(run: str, body: FactIn) -> dict:
         ws = ws_for(run)
         f = ws.add(body.model_dump(exclude_none=True), source="ui")
+        check = await check_added(ws, app.state.checker, f, "ui")
         changed(ws)
-        return f
+        return {**f, **({"check": check} if check else {})}
 
     @app.patch("/api/facts/{fact_id}")
     async def patch_fact(fact_id: str, run: str, body: FactPatch) -> dict:
@@ -592,7 +597,8 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
             raise HTTPException(400, "message must not be empty")
 
         async def events() -> AsyncIterator[str]:
-            async for ev in chat(ws, summaries, app.state.chat_model, body.message.strip(), app.state.chat_planning):
+            async for ev in chat(ws, summaries, app.state.chat_model, body.message.strip(), app.state.chat_planning,
+                                 app.state.checker):
                 yield sse(ev)
 
         return StreamingResponse(events(), media_type="text/event-stream",

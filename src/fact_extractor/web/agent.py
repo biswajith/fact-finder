@@ -24,6 +24,7 @@ from ..normalize import missing_values
 from . import ModelUnavailable, model_name, require_api_key
 from . import planning as P
 from .chatlog import CallUsage, TurnLog
+from .consistency import MAX_RELATED, ConsistencyChecker
 from .summaries import BY_KEY, SECTIONS, SummaryService
 from .workspace import Workspace, WorkspaceError, new_id, now
 
@@ -182,6 +183,8 @@ class Ctx:
     conflict_ids: list[str]
     plan: list[dict] | None = None  # heavy mode only: [{"step": str, "done": bool}]
     sent: set[str] = field(default_factory=set)  # fact and unit IDs search already returned in full this turn
+    checker: ConsistencyChecker | None = None  # checks added facts against existing ones
+    tlog: TurnLog | None = None
     tools_run: int = 0  # successful tool calls this turn, other than update_plan
 
 
@@ -335,6 +338,8 @@ async def _search_one(ctx: Ctx, a: dict) -> dict:
             continue
         if want_section and want_section not in _section(u, f).lower():
             continue
+        if f is not None and f["fact_id"] == a.get("_exclude"):  # internal: related_facts leaves out the fact itself
+            continue
         if any(a.get(k) is not None for k in ("category", "flag", "status", "edited")) and f is None:
             continue
         if f is not None:
@@ -441,9 +446,47 @@ async def t_delete_fact(ctx: Ctx, a: dict) -> dict:
     return {"ok": True}
 
 
+async def related_facts(ws: Workspace, fact: dict, limit: int = MAX_RELATED) -> list[dict]:
+    """The existing facts closest to `fact`, by the chat's search ranking over its text (itself, deleted and
+    replaced facts left out): the ones an added fact is checked against."""
+    # The fact is left out before ranking: it matches its own text best and would push its neighbours under
+    # the relative score cut-off.
+    hits = (await _search_one(Ctx(ws, None, []), {"query": fact["text"], "limit": limit,
+                                                  "_exclude": fact["fact_id"]}))["hits"]  # type: ignore[arg-type]
+    state = ws.state()
+    out = []
+    for h in hits:
+        f = state.get(h["fact_id"]) if h.get("fact_id") and h["fact_id"] != fact["fact_id"] else None
+        if f is not None and not f.get("deleted") and "replaced" not in f["flags"]:
+            out.append(f)
+    return out[:limit]
+
+
+async def check_added(ws: Workspace, checker: ConsistencyChecker | None, fact: dict, source: str,
+                      tlog: TurnLog | None = None) -> dict:
+    """Check an added fact against the related existing facts; raise a conflict per likely contradiction."""
+    if checker is None:
+        return {}
+    result = await checker.check(ws, fact, await related_facts(ws, fact), source)
+    if tlog is not None:
+        tlog.log("consistency_check", fact_id=fact["fact_id"], checked_against=len(result.findings),
+                 findings=[{"fact_id": x.fact_id, "probability": round(x.probability, 3)} for x in result.findings],
+                 conflicts_raised=result.conflict_ids, skipped=result.skipped or None,
+                 call=tlog.decisions_call(result.call))
+    return result.record()
+
+
 async def t_add_fact(ctx: Ctx, a: dict) -> dict:
     fields = {k: a[k] for k in ("category", "text", "flags", "note", "citation_ids") if a.get(k) is not None}
-    return {"ok": True, "fact": _brief(ctx.ws.add(fields, source="chat"))}
+    f = ctx.ws.add(fields, source="chat")
+    out: dict = {"ok": True, "fact": _brief(f)}
+    check = await check_added(ctx.ws, ctx.checker, f, "chat", ctx.tlog)
+    if check.get("conflicts_raised"):
+        ctx.conflict_ids.extend(check["conflicts_raised"])
+        out["note"] = ("The added fact may contradict an existing one; a conflict was raised for the customer to "
+                       "choose. Tell the customer, and do not resolve it yourself.")
+    out.update(check)
+    return out
 
 
 async def t_restore_fact(ctx: Ctx, a: dict) -> dict:
@@ -544,7 +587,7 @@ TOOLS: tuple[Tool, ...] = (
          t_edit_fact, _FACTS, "Changed fact {fact_id}"),
     Tool("delete_fact", "Reject a fact the customer says is wrong or does not belong.",
          _schema({"fact_id": _ID, "reason": _S}, ["fact_id", "reason"]), t_delete_fact, _FACTS, "Deleted fact {fact_id}"),
-    Tool("add_fact", "Add a fact the customer states: something the extraction missed, or new information from the buyer (a clarification, an answer, an update) that does not make an existing fact wrong. Give citation_ids: the source unit IDs of the fact it relates to (from get_fact citations or search).",
+    Tool("add_fact", "Add a fact the customer states: something the extraction missed, or new information from the buyer (a clarification, an answer, an update) that does not make an existing fact wrong. Give citation_ids: the source unit IDs of the fact it relates to (from get_fact citations or search). The new fact is checked against the related existing facts, and a likely contradiction is raised as a conflict for the customer.",
          _schema({"category": _CATEGORY, "text": _S, "flags": _FLAGS, "note": _S,
                   "citation_ids": {"type": "array", "items": _S, "description": "source unit IDs, from search"}},
                  ["category", "text"]), t_add_fact, _FACTS, "Added a fact"),
@@ -758,7 +801,7 @@ async def _route(router: P.Router, context: str, user_text: str) -> P.Route:
 
 
 async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_text: str,
-               planning: P.Planning | None = None) -> AsyncIterator[dict]:
+               planning: P.Planning | None = None, checker: ConsistencyChecker | None = None) -> AsyncIterator[dict]:
     """Handle one customer message; yield the stream events of WEB_UI_SPEC.md 6.1.
 
     The user message is stored before the loop and the assistant message at the end, so a
@@ -782,7 +825,7 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
     tlog.log("user_message", text=user_text)
     state = state_message(ws)
     extra = {"cache_key": _cache_key(ws)} if "cache_key" in inspect.signature(model.stream).parameters else {}
-    ctx = Ctx(ws, summaries, [])
+    ctx = Ctx(ws, summaries, [], checker=checker, tlog=tlog)
     text_parts: list[str] = []
     steps: list[dict] = []
     error: str | None = None

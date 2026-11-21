@@ -328,3 +328,20 @@ async def test_delete_chat_sessions_api(c):
     r = await c.delete("/api/chat/sessions", params={"run": RUN})
     assert r.status_code == 200 and len(r.json()["deleted"]) == 1
     assert (await c.get("/api/chat/sessions", params={"run": RUN})).json() == []
+
+
+async def test_ui_added_fact_is_checked_when_a_checker_is_given(root):
+    from test_web_consistency import FakePredicates
+
+    from fact_extractor.web.consistency import ConsistencyChecker
+
+    app = create_app(root, chat_model=ScriptedChat(["hi"]), summary_model=Scripted(),
+                     checker=ConsistencyChecker(client=FakePredicates({"Bids due March 3": 0.9})))
+    async with client(app) as c:
+        r = (await c.post("/api/facts", params={"run": RUN}, json={"category": "D", "text": "Bids now due March 20"})).json()
+        assert r["check"]["conflicts_raised"]
+        conflicts = (await c.get("/api/conflicts", params={"run": RUN})).json()
+        assert any(x["id"] == r["check"]["conflicts_raised"][0] and x["status"] == "open" for x in conflicts)
+    async with client(create_app(root, chat_model=ScriptedChat(["hi"]), summary_model=Scripted())) as c:
+        r = (await c.post("/api/facts", params={"run": RUN}, json={"category": "D", "text": "Bids due March 21"})).json()
+        assert "check" not in r  # an injected chat model gets no checker unless one is passed

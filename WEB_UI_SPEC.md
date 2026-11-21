@@ -315,7 +315,7 @@ reads them with tools.
 | `get_fact(fact_id? , fact_ids?)` | Full effective fact with cited source text and section and its original values; `fact_ids` reads up to 20 in one call; empty fields are left out |
 | `edit_fact(fact_id, text?, category?, flags?, note?, reason, values_removed?)` | Correction of a fact that is wrong. A new text that drops more figures (amounts, dates, numbers) than it adds is refused unless `values_removed` is true |
 | `delete_fact(fact_id, reason)` | Correction |
-| `add_fact(category, text, flags?, citation_ids?, note?)` | New customer fact: something the extraction missed, or new information from the buyer (a clarification or update), cited to the related source unit. New information never rewrites an extracted fact |
+| `add_fact(category, text, flags?, citation_ids?, note?)` | New customer fact: something the extraction missed, or new information from the buyer (a clarification or update), cited to the related source unit. New information never rewrites an extracted fact. The new fact is checked for contradictions (7.3) |
 | `restore_fact(fact_id)` | Back to the extracted value |
 | `list_conflicts(status?)` | Conflicts with their options |
 | `raise_conflict(title, description, fact_ids, options)` | Record a conflict for the customer to choose; use when a correction could apply to several facts in ways that differ, or facts disagree |
@@ -380,6 +380,7 @@ session). Clearing the chat ends the session but keeps its folder. Each event ha
 | `plan` | the plan record (`steps` or `plan_text`, `status`); again after each `update_plan` |
 | `llm_call` | `purpose` (`plan_heavy`, `plan_light`, `loop`, `final`), `round`, `messages`, `tools_offered`, `tools_allowed`, `tool_calls` (name and clipped arguments), `text_chars`, `input_tokens`, `cached_tokens`, `output_tokens`, `seconds`, `error` |
 | `tool` | `name`, `round`, `args`, `ok`, `summary`, `seconds` |
+| `consistency_check` | `fact_id`, `checked_against`, `findings` (fact ID and probability each), `conflicts_raised`, `skipped`, `call` (the Decisions call) |
 | `assistant_message` | `text`, `tools` (count), `conflict_ids`, `planning` |
 | `turn_end` | `totals`: `llm_calls`, `tool_calls`, `decisions_calls`, `input_tokens`, `cached_tokens`, `output_tokens`, `decisions_input_tokens`, the seconds spent in each, and the turn's `seconds`; `error` |
 
@@ -392,6 +393,28 @@ the event is logged. Uncached input is priced at the input rate (the API may bil
 as a cache write, 1.25x), and Decisions input as uncached. Events logged before costs existed
 are priced when read, at today's prices, and their `turn_end` is marked `cost_added_later`.
 Summary rebuilds are separate model calls and are not in the chat log.
+
+### 7.3 Checking added facts
+
+Extracted facts are compared with each other during extraction; a fact added later, by the
+customer (`POST /facts`) or the chat (`add_fact`), is checked by `consistency.py`:
+
+1. The 8 existing facts closest to it by the chat's search ranking (itself, deleted and
+   replaced facts left out).
+2. One Decisions API request with a Predicate per fact: do the two give different values,
+   dates, amounts, counts or rules for the same thing, so that one must be wrong or out of
+   date? Different minimums or limits for the same thing count, even when meeting one meets
+   the other; added detail, a condition or a later possibility does not.
+3. Each fact at probability 0.7 or more gets a raised conflict with three options, each
+   carrying its changes: the added fact applies (the existing one is kept, flagged
+   `replaced`, with a note), the existing fact stands (the added one is deleted), or both
+   are true (no change). Nothing is resolved automatically.
+
+A missing key or failed call skips the check; the fact stays added. `POST /facts` returns
+the fact with `check` (`checked_against`, `conflicts_raised`, `check_skipped`); the chat's
+`add_fact` result carries the same and tells the agent not to resolve the conflict. Like
+planning, the check runs only with the real chat model unless a checker is passed to
+`create_app`.
 
 ## 8. Frontend
 
