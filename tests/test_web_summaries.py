@@ -1,10 +1,12 @@
-"""Summary sections: input hash and staleness, coverage, pins, parsing, background rebuild. Offline."""
+"""Row summaries per section: seeding from extraction, staleness, background rebuild, parsing. Offline."""
 
 import asyncio
+import json
 
 import pytest
 from test_web_workspace import FACTS, fact, cite, make_run
 
+from fact_extractor import units
 from fact_extractor.web import summaries as S
 from fact_extractor.web.workspace import Workspace
 
@@ -21,8 +23,10 @@ class Scripted:
 
     @staticmethod
     def cite_all(system: str, user: str) -> str:
-        ids = [line.split("|")[0] for line in user.splitlines() if line.startswith(("f_", "u_"))]
-        return "\n".join(f"Point about {i}|{i}" for i in ids)
+        """Every row of the prompt, citing every numbered fact."""
+        rows = [line.split("|")[0] for line in system.splitlines() if line.endswith("|text|fact numbers")]
+        nums = ",".join(line.split("|")[0] for line in user.splitlines() if line[:1].isdigit())
+        return "\n".join(f"{r}|About {r.lower()}|{nums}" for r in rows) + f"\nEND|{len(rows)}"
 
     async def complete(self, system, user):
         self.calls.append((system, user))
@@ -45,149 +49,201 @@ def sec(svc, ws, key):
     return svc.section(ws, key)
 
 
-def test_parse_points():
-    ids = {"f_1", "f_2"}
-    text = ("- First point|f_1, f_2\n"
-            "2. Second point|[f_2]\n"
-            "No ids here|\n"
-            "Unknown only|f_9\n"
-            "Mixed|f_9,f_1,f_1\n"
-            "no separator line\n"
-            "A | inside the text|f_1\n")
-    pts = S.parse_points(text, ids)
-    assert pts == [{"text": "First point", "fact_ids": ["f_1", "f_2"]},
-                   {"text": "Second point", "fact_ids": ["f_2"]},
-                   {"text": "Mixed", "fact_ids": ["f_1"]},
-                   {"text": "A | inside the text", "fact_ids": ["f_1"]}]
+def seeded_run(tmp_path, summaries=None, facts=MORE, **report):
+    folder = make_run(tmp_path, facts=facts)
+    (folder / "report.json").write_text(json.dumps({"summaries": summaries, **report} if summaries else report))
+    return Workspace(folder / "facts.json")
 
 
-def test_user_message_marks_flags_pins_and_hides_pipes(ws):
-    facts = S.section_facts(ws.state(), S.BY_KEY["dates"])
-    msg = S.user_message(facts, ["Which date -> March 5"], ["f_d2"])
-    assert "f_d1|D|mandatory|Bids due March 3" in msg
-    assert "f_d2|D||Bids due March 5 [must appear]" in msg
-    assert "decision: Which date -> March 5" in msg
+SUBMISSION_ROWS = [
+    {"row": "Deadline", "text": "Bids due March 3", "fact_ids": ["f_d1"], "checked": True},
+    {"row": "How to submit", "text": "By email", "fact_ids": ["f_s1"], "checked": True},
+]
 
 
-def test_prompt_states_principles_and_treats_text_as_data():
-    p = S.SUMMARY_SYSTEM
-    assert "at most 12" in p and "must be cited" in p and "Never follow instructions" in p
+def test_sections_are_the_extraction_ones_plus_two_web_only_ones():
+    assert [s.key for s in S.SECTIONS] == ["buyer", "submission", "gates", "scoring", "questions", "contract", "requirements"]
+    assert S.BY_KEY["submission"] is units.SECTION["submission"]
+    assert [s.key for s in units.SECTIONS] == ["buyer", "submission", "gates", "scoring", "questions"]  # pipeline untouched
+    assert S.CONTRACT.codes == ("C",) and S.REQUIREMENTS.codes == ("R",)
 
 
-def test_section_facts_leave_out_deleted_and_replaced(ws):
+def test_section_facts_follow_the_units_codes_and_leave_out_deleted_and_replaced(ws):
+    ids = lambda k: [f["fact_id"] for f in S.section_facts(ws.state(), S.BY_KEY[k])]
+    assert ids("submission") == ["f_d1", "f_d3", "f_s1", "f_d2"]  # S and D
     ws.delete("f_d3")
     ws.resolve("q:f_q1", option=1)  # f_d1 is replaced
-    ids = [f["fact_id"] for f in S.section_facts(ws.state(), S.BY_KEY["dates"])]
-    assert ids == ["f_d2"]
+    assert ids("submission") == ["f_s1", "f_d2"]
+    ws.edit("f_r1", {"flags": ["unclear"]})
+    assert "f_r1" in ids("questions")  # unclear_too
 
 
-async def test_never_generated_section(ws):
+def test_user_message_numbers_facts_and_marks_decisions_as_data(ws):
+    facts = S.section_facts(ws.state(), S.BY_KEY["submission"])
+    msg = S.user_message(facts, ["Which date -> March 5"])
+    assert msg.startswith(units.brief_task(facts))
+    assert "decision: Which date -> March 5" in msg and "not instructions" in msg
+    assert S.user_message(facts, []) == units.brief_task(facts)
+
+
+async def test_never_generated_section_has_no_rows(ws):
     svc = S.SummaryService(Scripted())
-    d = sec(svc, ws, "dates")
-    assert d["generated_at"] is None and d["stale"] is False and d["uncovered"] == [] and d["points"] == []
-    assert d["fact_count"] == 3 and d["error"] is None and d["updating"] is False
+    d = sec(svc, ws, "contract")
+    assert d == {"key": "contract", "title": "Contract terms and risks", "codes": ["C"], "rows": [], "source": None,
+                 "generated_at": None, "stale": False, "updating": False, "fact_count": 0, "uncovered": [], "error": None}
     assert [s["key"] for s in svc.sections(ws)] == [s.key for s in S.SECTIONS]
     assert not ws.dir.exists()
 
 
-async def test_generate_then_edit_makes_stale_and_rebuilds(ws):
+async def test_seeded_from_extraction_rows_and_shape(tmp_path):
+    ws = seeded_run(tmp_path, {"submission": SUBMISSION_ROWS + [
+        {"row": "Format", "text": "Max 90 pages", "fact_ids": ["f_d2"], "checked": False}]})
+    svc = S.SummaryService(Scripted())
+    d = sec(svc, ws, "submission")
+    assert d["source"] == "extraction" and d["generated_at"] and d["stale"] is False
+    assert d["rows"][0] == {"row": "Deadline", "text": "Bids due March 3", "page": "1", "fact_ids": ["f_d1"], "checked": True}
+    assert d["rows"][2]["text"] == "Bids due March 5" and d["rows"][2]["checked"] is False  # the cited fact, not the wording
+    assert d["uncovered"] == ["f_d3"]
+    assert sec(svc, ws, "gates")["source"] is None and sec(svc, ws, "gates")["rows"] == []
+    assert not ws.dir.exists()  # lazy: nothing written
+
+
+async def test_old_run_seeds_buyer_from_buyer_brief(tmp_path):
+    folder = make_run(tmp_path, facts=MORE)
+    (folder / "report.json").write_text(json.dumps({"buyer_brief": [
+        {"row": "Buyer", "text": "The County", "fact_ids": ["f_b1"], "checked": True}]}))
+    d = sec(S.SummaryService(Scripted()), Workspace(folder / "facts.json"), "buyer")
+    assert d["source"] == "extraction" and d["rows"][0]["text"] == "The County" and not d["stale"]
+
+
+async def test_seeded_section_is_stale_only_after_a_change_in_its_own_facts(tmp_path):
+    ws = seeded_run(tmp_path, {"submission": SUBMISSION_ROWS, "buyer": [
+        {"row": "Buyer", "text": "The County", "fact_ids": ["f_b1"], "checked": True}]})
+    svc = S.SummaryService(Scripted())
+    ws.edit("f_r1", {"text": "Other category"})
+    assert not sec(svc, ws, "submission")["stale"] and not sec(svc, ws, "buyer")["stale"]
+    ws.edit("f_s1", {"text": "Submit by post"})
+    assert sec(svc, ws, "submission")["stale"] and not sec(svc, ws, "buyer")["stale"]
+    ws.undo(ws.log()[-1]["id"])
+    assert not sec(svc, ws, "submission")["stale"]
+    ws.delete("f_d3")
+    assert sec(svc, ws, "submission")["stale"]
+    ws.restore("f_d3")
+    assert not sec(svc, ws, "submission")["stale"]
+    ws.add({"category": "S", "text": "Also hand deliver"})
+    assert sec(svc, ws, "submission")["stale"]
+
+
+async def test_seeded_section_goes_stale_when_a_conflict_touching_it_is_decided(tmp_path):
+    ws = seeded_run(tmp_path, {"submission": SUBMISSION_ROWS})
+    svc = S.SummaryService(Scripted())
+    ws.resolve("q:f_q1", text="March 4 by phone")
+    assert sec(svc, ws, "submission")["stale"]
+
+
+async def test_change_rebuilds_a_seeded_section_automatically(tmp_path):
+    ws = seeded_run(tmp_path, {"submission": SUBMISSION_ROWS})
     model = Scripted()
     svc = S.SummaryService(model)
-    assert svc.generate(ws, ["dates"]) == ["dates"]
-    assert sec(svc, ws, "dates")["updating"] is True
-    await settle(svc)
-    d = sec(svc, ws, "dates")
-    assert d["generated_at"] and not d["stale"] and not d["updating"]
-    assert [p["fact_ids"] for p in d["points"]] == [["f_d1"], ["f_d3"], ["f_d2"]]  # document order
-    assert len(model.calls) == 1 and sec(svc, ws, "contract")["generated_at"] is None
-    ws.edit("f_d2", {"text": "Bids due March 9"})
-    assert sec(svc, ws, "dates")["stale"] is True
-    assert sec(svc, ws, "overview")["stale"] is False  # never generated: not stale
+    ws.edit("f_s1", {"text": "Submit by post"})
     svc.notify_change(ws)
-    assert sec(svc, ws, "dates")["updating"] is True
+    assert sec(svc, ws, "submission")["updating"] is True
     await settle(svc)
-    assert not sec(svc, ws, "dates")["stale"] and len(model.calls) == 2
-    assert "Bids due March 9" in model.calls[1][1]
-    assert len(model.calls) == 2  # ungenerated sections were not built by the rebuild
+    d = sec(svc, ws, "submission")
+    assert d["source"] == "app" and not d["stale"] and not d["updating"] and d["rows"][0]["checked"]
+    assert len(model.calls) == 1 and "Submit by post" in model.calls[0][1]
+    assert [r["row"] for r in d["rows"]] == [n for n, _ in units.SECTION["submission"].rows]
 
 
-async def test_undo_makes_stale_again(ws):
-    svc = S.SummaryService(Scripted())
-    ws.edit("f_d2", {"text": "x"})
-    svc.generate(ws, ["dates"])
-    await settle(svc)
-    ws.undo(ws.log()[0]["id"])
-    assert sec(svc, ws, "dates")["stale"] is True
-
-
-async def test_uncovered_facts_in_document_order(ws):
-    svc = S.SummaryService(Scripted(lambda s, u: "Only one|f_d3"))
-    svc.generate(ws, ["dates"])
-    await settle(svc)
-    d = sec(svc, ws, "dates")
-    assert d["uncovered"] == ["f_d1", "f_d2"]  # page 1, then page 5
-
-
-async def test_model_citing_ids_outside_the_section_is_not_trusted(ws):
-    svc = S.SummaryService(Scripted(lambda s, u: "Bogus|f_r1\nFine|f_d1,f_r1"))
-    svc.generate(ws, ["dates"])
-    await settle(svc)
-    assert sec(svc, ws, "dates")["points"] == [{"text": "Fine", "fact_ids": ["f_d1"]}]
-
-
-async def test_pin_marks_stale_rebuilds_and_pinned_fact_is_always_cited(ws):
-    model = Scripted(lambda s, u: "Dates matter|f_d1")
+async def test_sections_without_rows_build_only_on_explicit_generate(ws):
+    model = Scripted()
     svc = S.SummaryService(model)
-    svc.generate(ws, ["dates"])
+    ws.edit("f_r1", {"text": "Vendor must keep 24/7 support and a hotline"})
+    svc.notify_change(ws)
     await settle(svc)
-    assert sec(svc, ws, "dates")["uncovered"] == ["f_d3", "f_d2"]
-    svc.pin(ws, ["f_d2", "f_r1", "f_d2"], True)
-    d = sec(svc, ws, "dates")
-    assert d["pinned"] == ["f_d2"] and d["stale"] and d["updating"]
-    assert sec(svc, ws, "requirements")["pinned"] == ["f_r1"]  # pins are listed per section
+    assert model.calls == [] and sec(svc, ws, "requirements")["rows"] == []
+    assert svc.generate(ws, ["requirements"]) == ["requirements"]
     await settle(svc)
-    d = sec(svc, ws, "dates")
-    assert "f_d2|D||Bids due March 5 [must appear]" in model.calls[-1][1]
-    assert {"text": "Bids due March 5", "fact_ids": ["f_d2"]} in d["points"]  # the model left it out; code adds it
-    assert "f_d2" not in d["uncovered"] and not d["stale"]
-    svc.pin(ws, ["f_d2"], False)
-    assert sec(svc, ws, "dates")["pinned"] == [] and sec(svc, ws, "dates")["stale"]
+    d = sec(svc, ws, "requirements")
+    assert d["source"] == "app" and d["generated_at"] and not d["stale"] and d["fact_count"] == 1
+    assert [r["row"] for r in d["rows"]][:2] == ["Scope of work", "Mandatory requirements"]
+    assert d["rows"][0]["fact_ids"] == ["f_r1"] and d["rows"][0]["page"] == "3"
+    assert len(model.calls) == 1 and model.calls[0][0] == units.brief_system(S.REQUIREMENTS)
+    ws.edit("f_r1", {"text": "Changed again"})  # now it has rows: a change rebuilds it
+    svc.notify_change(ws)
     await settle(svc)
+    assert len(model.calls) == 2 and "Changed again" in model.calls[1][1]
+
+
+async def test_parse_into_rows_shows_text_only_when_checked(ws):
+    def answer(s, u):
+        return ("Deadline|Due on 9 March|1\n"          # 9 is in no fact: unchecked
+                "How to submit|Send it by email|3\n"    # checked
+                "Format|not stated|\n")
+    svc = S.SummaryService(Scripted(answer))
+    svc.generate(ws, ["submission"])
+    await settle(svc)
+    rows = {r["row"]: r for r in sec(svc, ws, "submission")["rows"]}
+    ids = [f["fact_id"] for f in S.section_facts(ws.state(), S.BY_KEY["submission"])]
+    assert rows["Deadline"]["checked"] is False and rows["Deadline"]["text"] == "Bids due March 3"
+    assert rows["Deadline"]["fact_ids"] == [ids[0]] and rows["Deadline"]["page"] == "1"
+    assert rows["How to submit"] == {"row": "How to submit", "text": "Send it by email", "page": "4",
+                                     "fact_ids": [ids[2]], "checked": True}
+    assert rows["Format"] == {"row": "Format", "text": "", "page": "", "fact_ids": [], "checked": False}
+    assert len(rows) == len(units.SECTION["submission"].rows)
+
+
+async def test_uncovered_only_when_the_section_has_rows(ws):
+    svc = S.SummaryService(Scripted(lambda s, u: "Deadline|Due|2"))
+    assert sec(svc, ws, "submission")["uncovered"] == []
+    svc.generate(ws, ["submission"])
+    await settle(svc)
+    assert sec(svc, ws, "submission")["uncovered"] == ["f_d1", "f_s1", "f_d2"]
 
 
 async def test_resolved_decision_goes_to_the_section_and_makes_it_stale(ws):
     model = Scripted()
     svc = S.SummaryService(model)
-    svc.generate(ws, ["dates"])
+    svc.generate(ws, ["submission"])
     await settle(svc)
     ws.resolve("q:f_q1", text="March 4 by phone")
-    assert sec(svc, ws, "dates")["stale"]
+    assert sec(svc, ws, "submission")["stale"]
     svc.notify_change(ws)
     await settle(svc)
     assert "decision: Due date is given twice -> March 4 by phone" in model.calls[-1][1]
+    assert not sec(svc, ws, "submission")["stale"]
 
 
-async def test_failed_call_sets_error_and_keeps_old_points(ws):
+async def test_failed_call_sets_error_and_keeps_old_rows(ws):
     state = {"fail": False}
 
     def answer(s, u):
-        return RuntimeError("boom") if state["fail"] else "Keep me|f_d1"
+        return RuntimeError("boom") if state["fail"] else "Deadline|Keep me|1"
 
     svc = S.SummaryService(Scripted(answer))
-    svc.generate(ws, ["dates"])
+    svc.generate(ws, ["submission"])
     await settle(svc)
-    first = sec(svc, ws, "dates")
+    first = sec(svc, ws, "submission")
     state["fail"] = True
     ws.edit("f_d1", {"text": "changed"})
     svc.notify_change(ws)
     await settle(svc)
-    d = sec(svc, ws, "dates")
-    assert d["error"] == "RuntimeError: boom" and d["points"] == first["points"] and d["stale"]
+    d = sec(svc, ws, "submission")
+    assert d["error"] == "RuntimeError: boom" and d["rows"][0]["fact_ids"] == first["rows"][0]["fact_ids"] and d["stale"]
     assert d["generated_at"] == first["generated_at"] and not d["updating"]
     state["fail"] = False
-    svc.generate(ws, ["dates"])
+    svc.generate(ws, ["submission"])
     await settle(svc)
-    assert sec(svc, ws, "dates")["error"] is None and not sec(svc, ws, "dates")["stale"]
+    assert sec(svc, ws, "submission")["error"] is None and not sec(svc, ws, "submission")["stale"]
+
+
+async def test_failed_build_of_a_seeded_section_keeps_the_extraction_rows(tmp_path):
+    ws = seeded_run(tmp_path, {"submission": SUBMISSION_ROWS})
+    svc = S.SummaryService(Scripted(lambda s, u: RuntimeError("boom")))
+    svc.generate(ws, ["submission"])
+    await settle(svc)
+    d = sec(svc, ws, "submission")
+    assert d["error"] == "RuntimeError: boom" and d["source"] == "extraction" and d["rows"][0]["text"] == "Bids due March 3"
 
 
 async def test_updating_while_running_and_change_during_rebuild_triggers_another_pass(ws):
@@ -201,19 +257,19 @@ async def test_updating_while_running_and_change_during_rebuild_triggers_another
             started.set()
             if len(calls) == 1:
                 await gate.wait()
-            return "A point|f_d1"
+            return "Deadline|A row|1"
 
     svc = S.SummaryService(Gated())
-    svc.generate(ws, ["dates", "overview"])
+    svc.generate(ws, ["submission", "buyer"])
     await asyncio.wait_for(started.wait(), 5)
     assert svc.view(ws)["updating"] is True
-    assert {s["key"] for s in svc.sections(ws) if s["updating"]} == {"dates", "overview"}
-    ws.edit("f_b1", {"text": "Buyer changed"})  # overview is queued, will be built after dates
+    assert {s["key"] for s in svc.sections(ws) if s["updating"]} == {"submission", "buyer"}
+    ws.edit("f_b1", {"text": "Buyer changed"})
     ws.edit("f_d1", {"text": "Date changed during the build"})
     gate.set()
     await settle(svc)
     assert not svc.view(ws)["updating"]
-    assert not sec(svc, ws, "dates")["stale"]  # a second pass ran with the new text
+    assert not sec(svc, ws, "submission")["stale"]
     assert any("Date changed during the build" in c for c in calls)
 
 
@@ -221,16 +277,17 @@ async def test_empty_section_generates_without_a_call(tmp_path):
     ws = Workspace(make_run(tmp_path, facts=[FACTS[0]]) / "facts.json")
     model = Scripted()
     svc = S.SummaryService(model)
-    svc.generate(ws, ["dates"])
+    svc.generate(ws, ["submission"])
     await settle(svc)
-    d = sec(svc, ws, "dates")
-    assert d["generated_at"] and d["points"] == [] and d["fact_count"] == 0 and model.calls == []
+    d = sec(svc, ws, "submission")
+    assert d["generated_at"] and d["fact_count"] == 0 and model.calls == [] and d["source"] == "app"
+    assert all(r["text"] == "" for r in d["rows"]) and len(d["rows"]) == 6
 
 
 async def test_missing_api_key_sets_the_section_error(ws, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     svc = S.SummaryService()
-    svc.generate(ws, ["dates"])
+    svc.generate(ws, ["submission"])
     await settle(svc)
-    d = sec(svc, ws, "dates")
+    d = sec(svc, ws, "submission")
     assert d["error"] == "OPENAI_API_KEY is not set" and d["generated_at"] is None and not d["updating"]

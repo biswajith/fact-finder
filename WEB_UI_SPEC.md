@@ -291,9 +291,8 @@ reads them with tools.
 
 | Tool | Does |
 | --- | --- |
-| `search_facts(query?, category?, flag?, status?, edited?, limit=20)` | Word-overlap search over fact text and cited text; returns `fact_id`, category, flags, status, text, page |
+| `search(query?, label?, category?, flag?, status?, edited?, limit=20)` | Word-overlap search over the labelled text of the whole document (`labels.json`): every source unit with its label and votes, plus the fact line written from it (`fact_id`, status, flags). Facts with no unit follow |
 | `get_fact(fact_id)` | Full effective fact with cited source text and its original values |
-| `search_source(query, limit=10)` | Search the PDF's tagged units (ID, page, text) to check a claim or find a citation; says so when no PDF is attached |
 | `edit_fact(fact_id, text?, category?, flags?, note?, reason)` | Correction |
 | `delete_fact(fact_id, reason)` | Correction |
 | `add_fact(category, text, flags?, citation_ids?, note?)` | New customer fact |

@@ -438,6 +438,14 @@ class Workspace:
                 self._doc_loaded = True
             return self._doc
 
+    def labels(self) -> dict[str, dict]:
+        """The labelling pass of this run by unit ID (label, votes, flags), or {} for a run without labels.json."""
+        try:
+            rows = json.loads((self.facts_path.parent / "labels.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return {r["id"]: r for r in rows if isinstance(r, dict) and "id" in r}
+
     # the log
     def log(self) -> list[dict]:
         return read_jsonl(self.corrections_path)

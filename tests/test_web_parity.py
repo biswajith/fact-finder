@@ -96,7 +96,7 @@ async def test_overview_shape_counts_and_views(c):
     assert set(r) == {"overview", "counts", "by_category", "has_post_award", "views"}
     assert r["views"] == ["All", "Bid", "After award"] and r["has_post_award"] is True
     assert r["counts"] == {"needs_review": 0, "conflicts": 1, "risk": 1, "mandatory": 1, "unclear": 0}
-    assert r["by_category"]["D"] == 3 and set(r["overview"]) >= {"summary", "buyer", "calendar", "gates", "scoring"}
+    assert r["by_category"]["D"] == 3 and set(r["overview"]) >= {"buyer_facts", "calendar", "gates", "scoring"} and not {"summary", "buyer"} & set(r["overview"])
     after = (await c.get("/api/overview", params={"run": RUN, "view": "After award"})).json()
     assert after["by_category"] == {"O": 1} and after["has_post_award"] is True
     assert (await c.get("/api/overview", params={"run": RUN, "view": "x"})).status_code == 400
@@ -113,12 +113,14 @@ async def test_overview_uses_corrections_and_stored_summaries(c, root):
     make_run(root, "doc/sum", facts=MORE)
     (root / "doc" / "sum" / "report.json").write_text(json.dumps(rep))
     o = (await c.get("/api/overview", params={"run": "doc/sum"})).json()["overview"]
-    assert o["buyer"] == [{"row": "Buyer", "text": "The County", "page": "1"}]
+    assert "buyer" not in o and "summary" not in o
+    s = (await c.get("/api/summaries", params={"run": "doc/sum"})).json()["sections"][0]
+    assert s["key"] == "buyer" and s["source"] == "extraction" and s["rows"][0]["text"] == "The County"
     rep = {"buyer_brief": rep["summaries"]["buyer"]}  # older runs stored the buyer brief only
-    (root / "doc" / "sum" / "report.json").write_text(json.dumps(rep))
     other = make_run(root, "doc/old", facts=MORE)
     (other / "report.json").write_text(json.dumps(rep))
-    assert (await c.get("/api/overview", params={"run": "doc/old"})).json()["overview"]["buyer"][0]["text"] == "The County"
+    s = (await c.get("/api/summaries", params={"run": "doc/old"})).json()["sections"][0]
+    assert s["source"] == "extraction" and s["rows"][0]["text"] == "The County"
 
 
 async def test_facts_list_filters_and_by_category(c):
@@ -266,7 +268,7 @@ async def test_attach_path_must_be_listed(c, tmp_path, made):
     assert (await c.put("/api/pdf", params={"run": RUN}, json={"path": str(made.resolve())})).status_code == 200
 
 
-async def test_attach_pdf_by_upload_and_search_source(c, root, tmp_path):
+async def test_attach_pdf_by_upload(c, root, tmp_path):
     src = tmp_path / "x.pdf"
     make_pdf(src)
     data = src.read_bytes()
@@ -279,7 +281,7 @@ async def test_attach_pdf_by_upload_and_search_source(c, root, tmp_path):
     assert (await c.get("/api/runs")).json()[0]["pdf_name"] == "my_rfp.pdf"
     from fact_extractor.web.workspace import Workspace
 
-    # What the agent's search_source reads.
+    # The PDF viewer reads the tagged document.
     doc = Workspace(root / RUN / "facts.json").document()
     assert doc is not None and doc.page_count == 3
     await c.delete("/api/pdf", params={"run": RUN})
@@ -425,3 +427,13 @@ async def test_one_extraction_at_a_time(root, made):
         gate.set()
         assert (await wait_job(c, first))["status"] == "done"
         assert (await c.post("/api/extract", json=body)).status_code == 200
+
+
+@pytest.mark.parametrize("view", ["Bid", "After award"])
+async def test_overview_and_facts_list_agree_per_view(c, view):
+    """The Overview's per-category counts and the Facts page's list and CSV describe the same facts."""
+    ov = (await c.get("/api/overview", params={"run": RUN, "view": view})).json()
+    lst = (await c.get("/api/facts/list", params={"run": RUN, "view": view})).json()
+    assert ov["by_category"] == lst["by_category"] and sum(ov["by_category"].values()) == lst["total"]
+    csv = (await c.get("/api/facts.csv", params={"run": RUN, "view": view})).text
+    assert len(csv.strip().splitlines()) == lst["total"] + 1

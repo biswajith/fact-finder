@@ -14,7 +14,7 @@ code departs from the spec and why. Read it before changing behaviour.
 
 ```
 PDF -> tag (IDs + anchor map) -> one round of parallel calls on a cached prefix:
-         label every unit (3 votes) | state every unit | find contradictions
+         label every unit (3 votes) | state every unit | find contradictions | find cross-references
     -> majority vote -> facts -> group round (repeats, list items)
     -> stored result (found again by the PDF's content)
 ```
@@ -169,6 +169,7 @@ text or IDs are off here, no prompt change will fix it.
 | `--refresh` | off | Extract again although this PDF has a stored result; prints what changed. |
 | `--no-statements` | off | Show every fact in the RFP's own words. |
 | `--no-check` | off | Skip the model's contradiction check. |
+| `--no-xref` | off | Skip the cross-reference call (the model finds references, code verifies them). |
 | `--legacy` | off | The earlier pipeline. The options below this row apply to it only. |
 | `--parallel` | 48 (legacy 32) | Max concurrent calls. |
 | `--passes` | 1 | Run every extraction call this many times and keep the union. 2 adds 0-3 points of recall for ~60% more output tokens. |
@@ -256,15 +257,20 @@ npm --prefix web run build
 uv run fact-extractor web --runs runs      # http://127.0.0.1:8765
 ```
 
-It has seven tabs: Summary (an at-a-glance block and the written sections), Facts
+It has seven tabs: Summary (an at-a-glance block and one row summary per section), Facts
 (filters, grouping, CSV download, the cited PDF page), Conflicts, Changes, Run
 report, Compare and New run. New run starts an extraction and asks for
 confirmation first, because it spends API tokens.
 
 - Corrections never change `facts.json`. They are appended to
   `<run>/workspace/corrections.jsonl`, and every one can be undone on the Changes tab.
-- A summary section is written by one model call when you press Generate. After
-  that, a change to one of its facts rebuilds it without asking.
+- Each section (buyer, submission, gates, scoring, questions, contract, requirements)
+  has one summary in fixed rows, each row citing the facts behind it. A row shows the
+  model's wording only when it passed the check against the cited facts; otherwise it
+  shows those facts. The extraction writes the first five; they start as "extraction"
+  rows. A change to a fact in a section, or a decision on a conflict touching it, marks
+  the section out of date and rebuilds it in the background. Contract and requirements
+  are written only when you ask (Generate or chat).
 - Chat and summaries need `OPENAI_API_KEY`. Everything else works without it.
 - For frontend work: `npm --prefix web run dev` (port 5173, proxies `/api` to 8765),
   or `npm --prefix web run dev:mock` to run against the mock API in `web/mock/`.
@@ -442,7 +448,7 @@ Their thresholds are untested defaults. Compare them with the hand labels in
 | `llm.py` | 5.2, 6.2: request shape, streaming, OpenAI client |
 | `validate.py`, `normalize.py` | 6.1, 7. Output format and checks |
 | `merge.py` | 8. Dedupe and coverage |
-| `xref.py` | 8.3 Contradictions: cross-references checked in code |
+| `xref.py` | 8.3 Contradictions: the XREF call finds cross-references, code verifies them |
 | `compare.py` | 13. Acceptance: score facts against a reference list |
 | `pipeline.py` | 3, 8, 11, 12: orchestration and failures |
 | `precision.py` | Precision: labelled samples, model grades, near-duplicates |
@@ -530,8 +536,10 @@ counts as the same code.
   different one of them. IDs written before 2026-11-18 used the old hash.
 - **The store is in memory.** Nothing persists unless you write `--out`.
   Decisions are collected by `RecordingDecisions`, not sent anywhere.
-- Contradictions come from two places: the model's check call and `xref.py`
-  (cross-references to blank or retitled articles and sections, source `XREF`).
+- Contradictions come from two places: the model's check call and the XREF call
+  (the model finds cross-references; `xref.py` verifies them in code: blank,
+  missing, retitled, wrong direction, inconsistent attachment names; source
+  `XREF`). The legacy pipeline has no cross-reference check.
   With the default parallel check, facts added by the sweep are not seen by the
   model check; use `--sequential-check` if that matters.
 - The model is told the audience is a bid manager. Prompts in `prompts.py` are

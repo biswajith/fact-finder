@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..models import CATEGORIES
+from ..results import upgrade_facts
 
 STATUSES = ("valid", "needs_review", "conflict")
 CSV_COLUMNS = (
@@ -197,7 +198,7 @@ def normalize(records: list[dict]) -> list[dict]:
 def load_run(path: str | Path) -> Run:
     path = Path(path)
     with open(path, encoding="utf-8") as f:
-        records = normalize(json.load(f))
+        records = normalize(upgrade_facts(json.load(f)))
     report = None
     rp = report_path(path)
     if rp != path and rp.is_file():
@@ -448,11 +449,8 @@ def calendar(records: list[dict]) -> dict:
     return {"dated": dated, "undated": undated}
 
 
-def overview(records: list[dict], summaries: dict[str, list[dict]] | None = None) -> dict:
-    """Everything the Summary screen shows, from the stored facts and the stored section
-    summaries (`report["summaries"]`: buyer, submission, gates, scoring, questions). Each
-    section has its summary rows, empty for a run without one, and the facts behind it."""
-    summaries = summaries or {}
+def overview(records: list[dict]) -> dict:
+    """The fact lists the Overview screen shows. The row summaries come from the summaries API."""
     def of(code: str) -> list[dict]:
         return [r for r in records if r["category"] == code]
 
@@ -461,9 +459,7 @@ def overview(records: list[dict], summaries: dict[str, list[dict]] | None = None
         for r in document_order(of("Q"))
     ]
     return {
-        "summary": {key: buyer_rows(records, summaries.get(key)) for key in ("submission", "gates", "scoring", "questions")},
-        "buyer": buyer_rows(records, summaries.get("buyer")),
-        "buyer_facts": _entries(of("B")),  # shown when the run has no brief
+        "buyer_facts": _entries(of("B")),
         "gates": _entries(of("G")),
         "disqualifiers": _entries(of("X")),
         "submission": _entries(of("S")),  # how to package and deliver the proposal

@@ -299,10 +299,10 @@ def test_overview_sections():
         {"row": "Why", "text": "", "fact_ids": [], "checked": False},
     ]
     gates = [{"row": "Who may bid", "text": "Holders of an NC licence", "fact_ids": ["g1"], "checked": True}]
-    o = D.overview(recs, {"buyer": brief, "gates": gates})
-    assert o["summary"]["gates"] == [{"row": "Who may bid", "text": "Holders of an NC licence", "page": "3"}]
-    assert o["summary"]["scoring"] == []  # no summary stored for it: the screen lists its facts
-    assert o["buyer"] == [
+    o = D.overview(recs)
+    assert "summary" not in o and "buyer" not in o
+    assert D.buyer_rows(recs, gates) == [{"row": "Who may bid", "text": "Holders of an NC licence", "page": "3"}]
+    assert D.buyer_rows(recs, brief) == [
         {"row": "Buyer", "text": "City of Springfield", "page": "1"},
         {"row": "Scale", "text": "There are 500 users", "page": "2"},  # the cited fact, not the unchecked wording
         {"row": "Why", "text": "", "page": ""},
@@ -318,7 +318,7 @@ def test_overview_sections():
     assert [(d["date"], d["time"]) for d in cal["dated"]] == [("2027-02-10", ""), ("2027-03-05", "14:00")]  # time order
     assert cal["dated"][0]["label"] == "Wed 10 Feb 2027"
     assert [u["text"] for u in cal["undated"]] == ["Award: 30 days after presentations"]
-    assert D.overview(recs)["buyer"] == [] and len(D.overview(recs)["buyer_facts"]) == 2
+    assert "buyer" not in D.overview(recs) and len(D.overview(recs)["buyer_facts"]) == 2
 
 
 def test_load_run_finds_the_pdf_beside_or_above(tmp_path):

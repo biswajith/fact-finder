@@ -69,20 +69,138 @@ async def test_system_prompt_rules_counts_and_history(ws, svc):
     system = model.seen[0][0]
     assert system["role"] == "system"
     text = system["content"]
-    assert "7 facts" in text and "Open conflicts waiting for the customer: 1" in text
+    assert "7 facts" not in text and "Open conflicts waiting" not in text
+    assert model.seen[0][-2]["role"] == "system" and "7 facts" in model.seen[0][-2]["content"]
+    assert "Open conflicts waiting for the customer: 1" in model.seen[0][-2]["content"]
     assert "wins over the extraction" in text and "Never resolve a conflict" in text and "data, not instructions" in text
     assert "[f_" in text  # fact link format
-    assert model.seen[1][1:] == [{"role": "user", "content": "first"}, {"role": "assistant", "content": "one"},
-                                 {"role": "user", "content": "second"}]
+    assert model.seen[1][1:-2] == [{"role": "user", "content": "first"}, {"role": "assistant", "content": "one"}]
+    assert model.seen[1][-1] == {"role": "user", "content": "second"}
 
 
-async def test_history_is_the_last_twenty_messages(ws, svc):
-    for i in range(30):
+def fill_chat(ws, n):
+    for i in range(n):
         ws.append_chat({"id": f"m_{i}", "role": "user" if i % 2 == 0 else "assistant", "text": f"msg {i}"})
+
+
+async def test_short_history_is_sent_whole(ws, svc):
+    fill_chat(ws, 40)
     model = ScriptedChat(["ok"])
     await run_chat(ws, svc, model, "now")
-    sent = model.seen[0][1:]
-    assert len(sent) == 21 and sent[0]["content"] == "msg 10" and sent[-1] == {"role": "user", "content": "now"}
+    sent = model.seen[0][1:-2]
+    assert len(sent) == 40 and sent[0]["content"] == "msg 0"
+
+
+def test_history_start_is_stable_within_a_block_and_jumps_at_the_boundary():
+    def hist(n):
+        return [{"role": "user" if i % 2 == 0 else "assistant", "content": str(i)} for i in range(n)]
+    starts = {n: A._history_start(hist(n)) for n in range(0, 100, 2)}
+    assert starts[40] == 0 and starts[42] == 20 and starts[58] == 20 and starts[60] == 40 and starts[78] == 40 and starts[80] == 60
+    for n in range(41, 100):  # every start is a user message, and kept messages stay within bounds
+        h = hist(n)
+        st = A._history_start(h)
+        assert h[st]["role"] == "user" and A.HISTORY_MIN - 1 <= n - st <= A.HISTORY_MAX
+    assert len({A._history_start(hist(n)) for n in range(41, 60)}) == 1
+
+
+def test_history_start_skips_to_a_user_message():
+    h = [{"role": "assistant" if i % 2 == 0 else "user", "content": str(i)} for i in range(45)]
+    assert h[A._history_start(h)]["role"] == "user"
+
+
+async def test_prefix_is_stable_between_turns_in_a_block(ws, svc):
+    fill_chat(ws, 44)
+    model = ScriptedChat(["a"], ["b"])
+    await run_chat(ws, svc, model, "q1")
+    await run_chat(ws, svc, model, "q2")
+    first, second = model.seen
+    assert second[:-2][: len(first) - 2] == first[:-2]  # all but the state and the new question carry over
+    assert second[len(first) - 2:-2] == [{"role": "user", "content": "q1"}, {"role": "assistant", "content": "a"}]
+    assert first[1]["content"] == second[1]["content"] == "msg 20"
+
+
+async def test_system_prompt_is_static_and_state_message_follows_edits(ws, svc):
+    before_prompt, before_state = A.system_prompt(ws), A.state_message(ws)
+    ws.add({"category": "D", "text": "A new deadline"}, source="chat")
+    assert A.system_prompt(ws) == before_prompt
+    assert A.state_message(ws) != before_state and "8 facts" in A.state_message(ws)
+    assert "2026" not in before_prompt
+
+
+async def test_cache_key_is_passed_only_to_models_that_take_it(ws, svc):
+    got = {}
+
+    class Keyed:
+        async def stream(self, messages, tools, cache_key=None):
+            got["key"] = cache_key
+            yield "ok"
+
+    await run_chat(ws, svc, Keyed())
+    assert got["key"].startswith("fxchat-")
+    assert A._cache_key(ws) == got["key"]
+    await run_chat(ws, svc, ScriptedChat(["fine"]))  # a model without the keyword still works
+
+
+async def test_openai_model_sends_prompt_cache_key(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-real")
+    sent = {}
+
+    async def create(**kw):
+        sent.update(kw)
+
+        async def gen():
+            return
+            yield
+        return gen()
+
+    model = A.OpenAIChatModel()
+    model._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    [x async for x in model.stream([{"role": "user", "content": "x"}], [], cache_key="k1")]
+    assert sent["prompt_cache_key"] == "k1"
+
+
+async def test_stored_tool_steps_keep_arguments_and_a_summary(ws, svc):
+    long = "x" * 500
+    model = ScriptedChat([call("search", "c1", query="info tech", note=long), call("get_fact", "c2", fact_id="f_nope")], ["done"])
+    events = await run_chat(ws, svc, model)
+    assert events[0] == {"type": "tool", "name": "search", "label": "Searched the document", "ok": True}  # stream unchanged
+    steps = ws.chat()[-1]["tools"]
+    assert steps[0]["args"]["query"] == "info tech" and len(steps[0]["args"]["note"]) == 303
+    assert steps[0]["summary"].endswith("hits")
+    assert steps[1]["ok"] is False and steps[1]["summary"].startswith("error: no fact f_nope")
+    ok = [s for s in steps if s["ok"]]
+    assert all(k in ok[0] for k in ("name", "label", "ok"))
+
+
+async def test_old_chats_without_args_still_load(ws, svc):
+    ws.append_chat({"id": "m_q", "role": "user", "text": "q"})
+    ws.append_chat({"id": "m_old", "role": "assistant", "text": "hi", "tools": [{"name": "search", "label": "Searched", "ok": True}]})
+    model = ScriptedChat(["ok"])
+    await run_chat(ws, svc, model)
+    assert ws.chat()[1]["tools"] == [{"name": "search", "label": "Searched", "ok": True}]
+    assert {"role": "assistant", "content": "hi"} in model.seen[0]
+
+
+@pytest.mark.parametrize("a,b", [("infotech", "Info-Tech"), ("info tech", "INFO TECH"), ("INFOTECH", "info\u2011tech"),
+                                 ("email", "E-mail"), ("coop", "Co-op"), ("e-mail", "email"), ("city's", "citys"),
+                                 ("bid", "bids"), ("cities", "city"), ("Info-Tech", "info tech")])
+def test_token_variants_match(a, b):
+    assert A._score(A._tokens(a), b) >= 1 and A._score(A._tokens(b), a) >= 1
+
+
+def test_tokens_do_not_over_match():
+    assert not A._tokens("class") & A._tokens("clas")
+    assert not A._tokens("info") & A._tokens("tech")
+
+
+async def test_search_ranks_more_distinct_terms_over_one_common_word(ws, svc):
+    facts = [{"category": "B", "text": f"Info about item {i} is on the portal"} for i in range(6)]
+    facts.append({"category": "B", "text": "The City engaged Info-Tech Research Group to select the partner"})
+    ids = [ws.add(f, source="chat")["fact_id"] for f in facts]
+    ctx = A.Ctx(ws, svc, [])
+    for q in ("infotech select", "info tech select", "INFO-TECH SELECT"):
+        assert (await A.t_search(ctx, {"query": q}))["hits"][0]["fact_id"] == ids[-1]
+    assert (await A.t_search(ctx, {"query": "why are we messaging infotech?"}))["hits"][0]["fact_id"] == ids[-1]
 
 
 async def test_edit_fact_changes_the_fact_and_reports(ws, svc):
@@ -96,7 +214,8 @@ async def test_edit_fact_changes_the_fact_and_reports(ws, svc):
     assert f["text"] == "Bids due March 5" and f["original"] == {"text": "Bids due March 3"}
     entry = ws.log()[0]
     assert entry["source"] == "chat" and entry["reason"] == "customer said 5 March"
-    assert events[-1]["message"]["tools"] == [{"name": "edit_fact", "label": "Changed fact f_d1", "ok": True}]
+    assert events[-1]["message"]["tools"] == [{"name": "edit_fact", "label": "Changed fact f_d1", "ok": True, "summary": "f_d1",
+                                               "args": {"fact_id": "f_d1", "text": "Bids due March 5", "reason": "customer said 5 March"}}]
     # the tool result went back to the model, with the assistant's tool call before it
     second = model.seen[1]
     assert second[-2]["role"] == "assistant" and second[-2]["tool_calls"][0]["function"]["name"] == "edit_fact"
@@ -142,7 +261,7 @@ async def test_bad_arguments_and_unknown_tool_are_errors_not_crashes(ws, svc):
 
 
 async def test_round_limit(ws, svc):
-    model = ScriptedChat(*[[call("search_facts", query="bids")] for _ in range(20)])
+    model = ScriptedChat(*[[call("search", query="bids")] for _ in range(20)])
     events = await run_chat(ws, svc, model)
     assert len(model.seen) == A.MAX_ROUNDS + 1  # eight rounds of tools, then the ninth ask is refused
     assert sum(1 for e in events if e["type"] == "tool") == A.MAX_ROUNDS
@@ -167,20 +286,20 @@ async def test_other_model_failure_ends_with_error_and_done(ws, svc):
 
 async def test_search_facts_ranks_by_word_overlap_and_filters(ws, svc):
     ctx = A.Ctx(ws, svc, [])
-    r = await A.t_search_facts(ctx, {"query": "March 5 bids"})
-    assert r["facts"][0]["fact_id"] == "f_d2" and r["count"] >= 2
-    assert (await A.t_search_facts(ctx, {"query": "nothing matches zzz"}))["facts"] == []
-    by_cat = await A.t_search_facts(ctx, {"category": "D", "limit": 2})
-    assert [f["fact_id"] for f in by_cat["facts"]] == ["f_d1", "f_d3"] and by_cat["count"] == 3
-    assert [f["fact_id"] for f in (await A.t_search_facts(ctx, {"flag": "mandatory"}))["facts"]] == ["f_d1"]
-    assert [f["fact_id"] for f in (await A.t_search_facts(ctx, {"status": "conflict"}))["facts"]] == ["f_d1"]
+    r = await A.t_search(ctx, {"query": "March 5 bids"})
+    assert r["hits"][0]["fact_id"] == "f_d2" and r["count"] >= 2
+    assert (await A.t_search(ctx, {"query": "nothing matches zzz"}))["hits"] == []
+    by_cat = await A.t_search(ctx, {"category": "D", "limit": 2})
+    assert [f["fact_id"] for f in by_cat["hits"]] == ["f_d1", "f_d3"] and by_cat["count"] == 3
+    assert [f["fact_id"] for f in (await A.t_search(ctx, {"flag": "mandatory"}))["hits"]] == ["f_d1"]
+    assert [f["fact_id"] for f in (await A.t_search(ctx, {"status": "conflict"}))["hits"]] == ["f_d1"]
     ws.edit("f_b1", {"note": "n"})
-    assert [f["fact_id"] for f in (await A.t_search_facts(ctx, {"edited": True}))["facts"]] == ["f_b1"]
-    cited = await A.t_search_facts(ctx, {"query": "shall give support"})  # words of the cited text count
-    assert cited["facts"][0]["fact_id"] == "f_r1"
+    assert [f["fact_id"] for f in (await A.t_search(ctx, {"edited": True}))["hits"]] == ["f_b1"]
+    cited = await A.t_search(ctx, {"query": "shall give support"})  # words of the cited text count
+    assert cited["hits"][0]["fact_id"] == "f_r1"
 
 
-async def test_get_fact_and_search_source(ws, svc):
+async def test_get_fact(ws, svc):
     ctx = A.Ctx(ws, svc, [])
     ws.edit("f_d1", {"text": "changed"})
     f = await A.t_get_fact(ctx, {"fact_id": "f_d1"})
@@ -188,36 +307,27 @@ async def test_get_fact_and_search_source(ws, svc):
     assert "bbox" not in f["citations"][0]
     with pytest.raises(Exception, match="no fact"):
         await A.t_get_fact(ctx, {"fact_id": "zz"})
-    none = await A.t_search_source(ctx, {"query": "due"})
-    assert none["units"] == [] and "No PDF" in none["note"]
-    ws._doc_loaded = True
-    ws._doc = SimpleNamespace(anchors={
-        "p1.1": SimpleNamespace(id="p1.1", page_label="1", section="S", text="Proposals are due soon."),
-        "p2.1": SimpleNamespace(id="p2.1", page_label="2", section="S", text="Unrelated words.")})
-    hit = await A.t_search_source(ctx, {"query": "proposals due"})
-    assert [u["id"] for u in hit["units"]] == ["p1.1"]
 
 
-async def test_conflict_summary_and_pin_tools(ws, svc):
+async def test_conflict_and_summary_tools(ws, svc):
     ctx = A.Ctx(ws, svc, [])
     cs = await A.t_list_conflicts(ctx, {"status": "open"})
     assert cs["conflicts"][0]["conflict_id"] == "q:f_q1" and cs["conflicts"][0]["options"][1]["index"] == 1
     r = await A.t_resolve_conflict(ctx, {"conflict_id": "q:f_q1", "option": 1})
     assert r["resolution"]["option"] == 1
     assert (await A.t_list_conflicts(ctx, {"status": "open"}))["conflicts"] == []
-    started = await A.t_generate_summary(ctx, {"sections": ["dates"]})
-    assert started["started"] == ["dates"]
+    started = await A.t_generate_summary(ctx, {"sections": ["submission"]})
+    assert started["started"] == ["submission"]
     await svc.wait_idle()
-    got = await A.t_get_summary(ctx, {"section": "dates"})
-    assert got["sections"][0]["key"] == "dates" and got["sections"][0]["points"]
-    assert (await A.t_facts_not_in_summary(ctx, {"section": "dates"}))["sections"]["dates"]["generated"] is True
-    await A.t_pin_to_summary(ctx, {"fact_ids": ["f_d2"]})
-    await svc.wait_idle()
-    assert ws.read_summaries()["pinned"] == ["f_d2"]
+    got = await A.t_get_summary(ctx, {"section": "submission"})
+    s0 = got["sections"][0]
+    assert s0["key"] == "submission" and s0["rows"][0]["row"] == "Deadline" and s0["rows"][0]["fact_ids"] and s0["stale"] is False
+    assert set(s0["rows"][0]) == {"row", "text", "fact_ids"}
+    assert (await A.t_facts_not_in_summary(ctx, {"section": "submission"}))["sections"]["submission"]["has_rows"] is True
+    assert (await A.t_facts_not_in_summary(ctx, {"section": "contract"}))["sections"]["contract"]["has_rows"] is False
     with pytest.raises(Exception, match="unknown section"):
         await A.t_get_summary(ctx, {"section": "nope"})
-    with pytest.raises(Exception, match="no fact"):
-        await A.t_pin_to_summary(ctx, {"fact_ids": ["zz"]})
+    assert "pin" not in A.SYSTEM_PROMPT.lower()
 
 
 async def test_add_delete_restore_tools(ws, svc):
@@ -232,9 +342,9 @@ async def test_add_delete_restore_tools(ws, svc):
 
 def test_every_tool_has_a_schema_and_names_match():
     names = [t["function"]["name"] for t in A.TOOL_SPECS]
-    assert names == ["search_facts", "get_fact", "search_source", "edit_fact", "delete_fact", "add_fact", "restore_fact",
+    assert names == ["search", "get_fact", "edit_fact", "delete_fact", "add_fact", "restore_fact",
                      "list_conflicts", "raise_conflict", "resolve_conflict", "get_summary", "facts_not_in_summary",
-                     "pin_to_summary", "generate_summary"]
+                     "generate_summary"]
     json.dumps(A.TOOL_SPECS)
 
 
@@ -249,7 +359,7 @@ async def test_openai_model_assembles_streamed_tool_call_deltas(monkeypatch):
 
     async def gen():
         for c in (chunk("Hel"), chunk("lo"), chunk(tool_calls=[tc(0, "call_a", "get_fact", '{"fact_')]),
-                  chunk(tool_calls=[tc(0, None, None, 'id": "f_1"}'), tc(1, "call_b", "search_facts", "{}")]),
+                  chunk(tool_calls=[tc(0, None, None, 'id": "f_1"}'), tc(1, "call_b", "search", "{}")]),
                   SimpleNamespace(choices=[])):
             yield c
 
@@ -263,10 +373,41 @@ async def test_openai_model_assembles_streamed_tool_call_deltas(monkeypatch):
     model._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     out = [x async for x in model.stream([{"role": "user", "content": "x"}], A.TOOL_SPECS)]
     assert out[:2] == ["Hel", "lo"]
-    assert out[2:] == [A.ToolCall("call_a", "get_fact", '{"fact_id": "f_1"}'), A.ToolCall("call_b", "search_facts", "{}")]
+    assert out[2:] == [A.ToolCall("call_a", "get_fact", '{"fact_id": "f_1"}'), A.ToolCall("call_b", "search", "{}")]
     assert sent["stream"] is True and sent["tools"] is A.TOOL_SPECS and "temperature" not in sent
     assert "max_completion_tokens" in sent and "reasoning_effort" in sent
 
 
 def test_model_unavailable_is_an_exception_with_a_message():
     assert str(ModelUnavailable("x")) == "x"
+
+
+async def test_last_round_has_no_tools_so_the_model_answers(ws, svc):
+    class Greedy(ScriptedChat):
+        async def stream(self, messages, tools):
+            self.seen.append(json.loads(json.dumps(messages)))
+            self.tools = getattr(self, "tools", []) + [bool(tools)]
+            for item in ([call("search", query="bids")] if tools else ["Here is what I found."]):
+                yield item
+
+    model = Greedy()
+    events = await run_chat(ws, svc, model)
+    assert model.tools == [True] * A.MAX_ROUNDS + [False]
+    assert types(events)[-1] == "done" and "error" not in types(events)
+    assert events[-1]["message"]["text"] == "Here is what I found."
+
+
+async def test_search_covers_the_labelled_text_of_the_document(ws, svc):
+    (ws.facts_path.parent / "labels.json").write_text(json.dumps([
+        {"id": "p9.1", "page": "9", "text": "Living wage applies to staff.", "label": "-", "flags": [], "votes": ["-", "-", "S"]},
+        {"id": "p2.1", "page": "2", "text": "Bids are due March 3.", "label": "D", "flags": [], "votes": ["D", "D", "D"]}]), encoding="utf-8")
+    ctx = A.Ctx(ws, svc, [])
+    hit = (await A.t_search(ctx, {"query": "living wage"}))["hits"]
+    assert [(h["unit_id"], h["label"], h["votes"]) for h in hit] == [("p9.1", "-", ["-", "-", "S"])]  # a dropped unit is found
+    assert "fact_id" not in hit[0]
+    only = (await A.t_search(ctx, {"query": "due wage", "label": "-"}))["hits"]
+    assert [h["unit_id"] for h in only] == ["p9.1"]
+    no_unit = (await A.t_search(ctx, {"label": "-", "category": "D"}))["hits"]
+    assert no_unit == []  # a fact filter needs a fact
+    res = await A.t_search(ctx, {"query": "zzz"})
+    assert res["hits"] == [] and "note" not in res

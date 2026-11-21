@@ -69,11 +69,6 @@ class GenerateIn(BaseModel):
     sections: list[str] | None = None
 
 
-class PinIn(BaseModel):
-    fact_ids: list[str]
-    pinned: bool = True
-
-
 class ChatIn(BaseModel):
     message: str
 
@@ -287,11 +282,8 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         _view(view)
         everything = ws.state().visible()
         facts = [f for f in everything if R.in_view(f, view)]
-        rep = ws.run().report or {}
-        # Runs stored before every section had a summary have the buyer one only, or none.
-        stored = rep.get("summaries") or ({"buyer": rep["buyer_brief"]} if rep.get("buyer_brief") else {})
         return {
-            "overview": R.overview(facts, stored),
+            "overview": R.overview(facts),
             "counts": {
                 "needs_review": sum(f["status"] == "needs_review" for f in facts),
                 "conflicts": sum(f["status"] == "conflict" for f in facts),
@@ -394,16 +386,6 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
             raise HTTPException(400, f"unknown section {bad[0]}; sections: {', '.join(known)}")
         summaries.generate(ws, keys or None)
         return {"sections": summaries.sections(ws), "updating": True}
-
-    @app.post("/api/summaries/pin")
-    async def pin(run: str, body: PinIn) -> dict:
-        ws = ws_for(run)
-        state = ws.state()
-        for fid in body.fact_ids:
-            if state.get(fid) is None:
-                raise NotFound(f"no fact {fid}")
-        summaries.pin(ws, body.fact_ids, body.pinned)
-        return summaries.view(ws)
 
     # --- PDFs ---
     def under_cwd(path: str) -> Path:
@@ -602,8 +584,10 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                 "<p>The API is running at <code>/api/status</code>.</p>", status_code=200)
         target = (STATIC / path).resolve()
         if path and target.is_file() and target.is_relative_to(STATIC.resolve()):
-            return FileResponse(target)
-        return FileResponse(index)
+            # hashed bundles under assets/ never change; everything else (index.html) must revalidate
+            cc = "public, max-age=31536000, immutable" if path.startswith("assets/") else "no-cache"
+            return FileResponse(target, headers={"Cache-Control": cc})
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
     return app
 

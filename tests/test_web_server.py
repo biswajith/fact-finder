@@ -142,32 +142,33 @@ async def test_conflicts(c):
     assert custom["resolution"] == {"option": None, "label": "Custom answer", "text": "March 4", "at": custom["resolution"]["at"]}
 
 
-async def test_summaries_generate_pin_and_background_rebuild(c, app):
+async def test_summaries_generate_and_background_rebuild(c, app):
     p = {"run": RUN}
-    s = (await c.get("/api/summaries", params=p)).json()
-    assert s["updating"] is False and [x["key"] for x in s["sections"]][:2] == ["overview", "dates"]
-    assert set(s["sections"][0]) == {"key", "title", "points", "generated_at", "stale", "updating", "fact_count",
-                                     "uncovered", "pinned", "error"}
-    r = await c.post("/api/summaries/generate", params=p, json={"sections": ["dates"]})
+    get = lambda: c.get("/api/summaries", params=p)
+    by = lambda r, key: [x for x in r["sections"] if x["key"] == key][0]
+    s = (await get()).json()
+    assert s["updating"] is False and [x["key"] for x in s["sections"]] == [
+        "buyer", "submission", "gates", "scoring", "questions", "contract", "requirements"]
+    assert set(s["sections"][0]) == {"key", "title", "codes", "rows", "source", "generated_at", "stale", "updating",
+                                     "fact_count", "uncovered", "error"}
+    assert s["sections"][1]["source"] is None and s["sections"][1]["rows"] == []
+    r = await c.post("/api/summaries/generate", params=p, json={"sections": ["submission"]})
     assert r.status_code == 200 and r.json()["updating"] is True
-    assert (await c.post("/api/summaries/generate", params=p, json={"sections": ["nope"]})).status_code == 400
+    assert (await c.post("/api/summaries/generate", params=p, json={"sections": ["dates"]})).status_code == 400
     await app.state.summaries.wait_idle()
-    dates = [x for x in (await c.get("/api/summaries", params=p)).json()["sections"] if x["key"] == "dates"][0]
-    assert dates["generated_at"] and not dates["stale"] and len(dates["points"]) == 3
+    sub = by((await get()).json(), "submission")
+    assert sub["source"] == "app" and sub["generated_at"] and not sub["stale"] and len(sub["rows"]) == 6
+    assert set(sub["rows"][0]) == {"row", "text", "page", "fact_ids", "checked"}
     await c.patch("/api/facts/f_d1", params=p, json={"text": "Bids due March 9"})  # a write starts the rebuild
-    now = (await c.get("/api/summaries", params=p)).json()
-    assert now["updating"] is True
+    assert (await get()).json()["updating"] is True
     await app.state.summaries.wait_idle()
-    dates = [x for x in (await c.get("/api/summaries", params=p)).json()["sections"] if x["key"] == "dates"][0]
-    assert not dates["stale"]
-    pinned = (await c.post("/api/summaries/pin", params=p, json={"fact_ids": ["f_d2"], "pinned": True})).json()
-    assert [x for x in pinned["sections"] if x["key"] == "dates"][0]["pinned"] == ["f_d2"]
-    await app.state.summaries.wait_idle()
-    assert (await c.post("/api/summaries/pin", params=p, json={"fact_ids": ["zz"]})).status_code == 404
+    assert not by((await get()).json(), "submission")["stale"]
+    assert by((await get()).json(), "contract")["rows"] == []  # never built: not rebuilt by a change
+    assert (await c.post("/api/summaries/pin", params=p, json={"fact_ids": ["f_d2"]})).status_code in (404, 405)
     all_ = await c.post("/api/summaries/generate", params=p, json={})
     assert all_.json()["updating"] is True
     await app.state.summaries.wait_idle()
-    assert all(x["generated_at"] or x["fact_count"] == 0 for x in (await c.get("/api/summaries", params=p)).json()["sections"])
+    assert all(x["generated_at"] for x in (await get()).json()["sections"])
 
 
 async def test_page_image(c, root, monkeypatch):
@@ -259,7 +260,7 @@ async def test_chat_without_api_key_streams_error_then_done(root, monkeypatch):
         r = await c.post("/api/chat", params={"run": RUN}, json={"message": "hi"})
         ev = events_of(r.text)
         assert ev[0] == {"type": "error", "message": "OPENAI_API_KEY is not set"} and ev[-1]["type"] == "done"
-        s = await c.post("/api/summaries/generate", params={"run": RUN}, json={"sections": ["dates"]})
+        s = await c.post("/api/summaries/generate", params={"run": RUN}, json={"sections": ["submission"]})
         assert s.status_code == 200
 
 
@@ -282,6 +283,9 @@ async def test_frontend_files_and_index_fallback(c, monkeypatch, tmp_path):
     assert (await c.get("/")).text == "<html>app</html>"
     assert (await c.get("/assets/a.js")).text == "console.log(1)"
     assert (await c.get("/some/client/route")).text == "<html>app</html>"
+    assert (await c.get("/")).headers["cache-control"] == "no-cache"
+    assert (await c.get("/some/client/route")).headers["cache-control"] == "no-cache"
+    assert "immutable" in (await c.get("/assets/a.js")).headers["cache-control"]
     assert "secret" not in (await c.get("/..%2fsecret.txt")).text
     assert "secret" not in (await c.get("/%2e%2e/secret.txt")).text
     r = await c.get("/api/unknown")
