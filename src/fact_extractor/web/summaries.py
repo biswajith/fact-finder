@@ -89,15 +89,26 @@ def original_facts(ws: Workspace, spec: Section) -> list[dict]:
 
 
 def decisions(state: State, facts: list[dict]) -> list[str]:
-    """What the customer decided on resolved conflicts that touch a fact of this section."""
+    """What the customer decided on resolved conflicts that touch a fact of this section: the ones the
+    extraction found (their choice is kept on the Q fact) and the ones the chat agent raised (kept on the
+    conflict). A choice can matter without changing any fact, so it is given to the summary as it is."""
     ids = {f["fact_id"] for f in facts}
     out = []
+    done: set[str] = set()
     for q in state.visible():
         if q["resolution"] is None:
             continue
         c = state.conflict(q["resolution"]["conflict_id"])
         if c is not None and ids & set(c["fact_ids"]):
             out.append(f"{q['text']} -> {q['resolution']['text']}")
+            done.add(c["id"])
+    for c in state.conflicts:
+        r = c.get("resolution")
+        if c["status"] != "resolved" or not r or c["id"] in done or not ids & set(c["fact_ids"]):
+            continue
+        choice = (r.get("text") or r.get("label") or "").strip()
+        if choice:
+            out.append(f"{c['title']} -> {choice}")
     return out
 
 

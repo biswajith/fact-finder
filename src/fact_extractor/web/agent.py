@@ -538,7 +538,7 @@ TOOLS: tuple[Tool, ...] = (
     Tool("list_conflicts", "List conflicts with their options, optionally only open or resolved ones.",
          _schema({"status": {"type": "string", "enum": ["open", "resolved"]}}), t_list_conflicts, (), "Listed conflicts"),
     Tool("raise_conflict",
-         "Record a conflict for the customer to choose from. Use it when facts disagree, or when a correction could apply to several facts in ways that differ. Each option lists the changes it would make if chosen.",
+         "Record a conflict for the customer to choose from. Use it when facts disagree, or when a correction could apply to several facts in ways that differ. Each option lists the changes it would make if chosen, and its changes must do everything its text says: an option that adds, qualifies or notes something carries that as a change (edit the fact's text or note). An option with no changes leaves every fact exactly as it is.",
          _schema({"title": _S, "description": _S, "fact_ids": {"type": "array", "items": _ID},
                   "options": {"type": "array", "items": _schema({
                       "label": _S, "text": _S,

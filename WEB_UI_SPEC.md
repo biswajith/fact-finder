@@ -211,8 +211,11 @@ Section as returned by the API:
   cites, pinned facts always cited, and changed or customer-written facts treated as
   the truth.
 - **Stale**: a section stores a hash of its input (fact ID, category, flags, text and
-  resolution of every fact in it, plus the pinned IDs). It is stale when the current
-  hash differs. A section never generated has `generated_at: null` and `stale: false`.
+  resolution of every fact in it, the customer's decisions on resolved conflicts that
+  touch its facts, plus the pinned IDs). It is stale when the current hash differs.
+  A decision counts whether or not it changed a fact: the chosen option's text (or the
+  custom answer) is given to the model as "conflict title -> choice", both for
+  conflicts the extraction found and for conflicts the chat agent raised. A section never generated has `generated_at: null` and `stale: false`.
 - **Uncovered** ("in the facts, not in the summary"): the section's facts that no
   point cites, in document order. Empty when the section was never generated.
 - **Pin**: `pinned` fact IDs must appear in the summary. Pinning makes the section

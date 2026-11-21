@@ -291,3 +291,23 @@ async def test_missing_api_key_sets_the_section_error(ws, monkeypatch):
     await settle(svc)
     d = sec(svc, ws, "submission")
     assert d["error"] == "OPENAI_API_KEY is not set" and d["generated_at"] is None and not d["updating"]
+
+
+async def test_a_raised_conflict_choice_reaches_the_summary_even_without_fact_changes(ws):
+    model = Scripted()
+    svc = S.SummaryService(model)
+    svc.generate(ws, ["submission"])
+    await settle(svc)
+    c = ws.raise_conflict("Deadline wording", "Which reading?", ["f_d1"], [
+        {"label": "Keep the date", "text": "Keep March 3, and note extensions may be granted.", "changes": []},
+        {"label": "Change it", "changes": [{"op": "edit", "fact_id": "f_d1", "fields": {"text": "Bids due March 9"}}]}])
+    assert not sec(svc, ws, "submission")["stale"]  # an open conflict is not a decision yet
+    ws.resolve(c["id"], option=0)
+    assert ws.state().get("f_d1")["text"] == "Bids due March 3"  # no fact changed
+    assert S.decisions(ws.state(), S.section_facts(ws.state(), S.BY_KEY["submission"])) == [
+        "Deadline wording -> Keep March 3, and note extensions may be granted."]
+    assert sec(svc, ws, "submission")["stale"]
+    svc.notify_change(ws)
+    await settle(svc)
+    assert "decision: Deadline wording -> Keep March 3, and note extensions may be granted." in model.calls[-1][1]
+    assert S.decisions(ws.state(), S.section_facts(ws.state(), S.BY_KEY["buyer"])) == []  # other sections: no
