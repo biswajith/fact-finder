@@ -317,3 +317,20 @@ def test_summary_prompt_keeps_figures():
     system = S.brief_system(S.BY_KEY["contract"])
     assert system.startswith(units.brief_system(S.BY_KEY["contract"]))  # the pipeline's prompt, unchanged
     assert "keep the figures" in system and "specified" in system
+
+
+async def test_rows_that_fail_the_figure_check_say_why(ws):
+    model = Scripted()
+    svc = S.SummaryService(model)
+    svc.generate(ws, ["submission"])
+    await settle(svc)
+    store = ws.read_summaries()
+    rows = store["sections"]["submission"]["rows"]
+    rows[0] = {**rows[0], "text": "Bids due March 3 and a bond of $50,000", "fact_ids": ["f_d1"], "checked": False}
+    rows[1] = {**rows[1], "text": "Something with no facts", "fact_ids": [], "checked": False}
+    ws.write_summaries(store)
+    got = sec(svc, ws, "submission")["rows"]
+    assert got[0]["unverified"] == ["50,000"]
+    assert got[0]["text"] == "Bids due March 3" and "$50,000" not in got[0]["text"]  # the cited fact is shown instead
+    assert got[1]["unverified"] == ["it cites no facts"] and got[1]["text"] == ""
+    assert all("unverified" not in r for r in got[2:] if r["checked"] or not r["text"])

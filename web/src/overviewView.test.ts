@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { groupByCategory, openConflictCount } from './overviewView';
-import type { Conflict, Fact } from './types';
+import { groupByCategory, openConflictCount, unverifiedNote } from './overviewView';
+import type { Conflict, Fact, SummaryRow } from './types';
 
 const fact = (id: string, category: string) => ({ fact_id: id, category }) as unknown as Fact;
 const conflict = (id: string, fact_ids: string[], status: 'open' | 'resolved' = 'open') => ({ id, fact_ids, status }) as unknown as Conflict;
@@ -24,4 +24,16 @@ describe('openConflictCount', () => {
     expect(openConflictCount(all, 'Bid', new Set(['x']))).toBe(0);
   });
   it('falls back to all open ones while the view facts are not loaded', () => expect(openConflictCount(all, 'Bid', null)).toBe(2));
+});
+
+
+describe('unverifiedNote', () => {
+  const row = (unverified: string[]) => ({ row: 'R', text: 'x', page: '1', fact_ids: ['f'], checked: false, unverified }) as SummaryRow;
+  it('names the figures that were not in the facts', () => {
+    expect(unverifiedNote(row(['50,000', '2024-07-03']))).toBe(
+      'The summary for this row had figures not in the facts it cites (50,000, 2024-07-03), so the facts it cites are shown instead.');
+  });
+  it('says when the row cited no facts', () => {
+    expect(unverifiedNote(row(['it cites no facts']))).toBe('The summary for this row cited no facts, so it is not shown.');
+  });
 });

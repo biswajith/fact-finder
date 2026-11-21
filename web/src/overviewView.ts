@@ -1,4 +1,4 @@
-import type { Conflict, Fact, ViewName } from './types';
+import type { Conflict, Fact, SummaryRow, ViewName } from './types';
 import { CATEGORY_CODES } from './types';
 
 /** Categories the After award view lists first, in this order; any other category follows. */
@@ -29,4 +29,13 @@ export function openConflictCount(conflicts: Conflict[], view: ViewName, viewFac
   const open = conflicts.filter((c) => c.status === 'open');
   if (view === 'All' || viewFactIds === null) return open.length;
   return open.filter((c) => c.fact_ids.some((id) => viewFactIds.has(id))).length;
+}
+
+/** Why a row's summary wording is not shown, in words. */
+export function unverifiedNote(r: SummaryRow): string {
+  const why = r.unverified ?? [];
+  if (why.includes('it cites no facts')) return 'The summary for this row cited no facts, so it is not shown.';
+  const figures = why.filter((w) => /\d/.test(w));
+  const what = figures.length ? `figures not in the facts it cites (${figures.join(', ')})` : 'figures that could not be matched to its facts';
+  return `The summary for this row had ${what}, so the facts it cites are shown instead.`;
 }

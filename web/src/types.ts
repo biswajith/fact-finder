@@ -155,6 +155,9 @@ export interface SummaryRow {
   page: string;
   fact_ids: string[];
   checked: boolean;
+  /** Set when the summary's wording failed the figure check and is not shown: the figures that were not in
+   *  the facts it cites, or "it cites no facts". `text` is then the cited facts themselves (or empty). */
+  unverified?: string[];
 }
 
 export interface SummarySection {

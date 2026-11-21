@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Protocol
 
 from .. import units
+from ..normalize import missing_values
 from ..units import Section
 from . import ModelUnavailable, model_name, require_api_key
 from .runs import buyer_rows
@@ -122,6 +123,23 @@ def brief_system(spec: Section) -> str:
     return units.brief_system(spec) + "\n" + KEEP_FIGURES
 
 
+def _readable(value: str) -> str:
+    """A normalised value as a person would read it: 50000 -> 50,000; dates and times without their prefix."""
+    v = value.removeprefix("date:").removeprefix("time:")
+    return f"{int(v):,}" if v.isdigit() and len(v) > 4 else v
+
+
+def unverified(state: State, row: dict) -> list[str]:
+    """Why a row's wording failed the figure check: the figures in it that are not in the facts it cites,
+    or a note that it cites no facts. The wording itself is not shown (runs.buyer_rows)."""
+    cited = [f for f in (state.get(i) for i in row["fact_ids"]) if f is not None]
+    if not cited:
+        return ["it cites no facts"]
+    sources = [f["text"] for f in cited] + [c["text"] for f in cited for c in f["citations"]]
+    missing = sorted(_readable(v) for v in missing_values(row["text"], sources))
+    return missing or ["its figures could not be matched to the facts it cites"]
+
+
 def input_hash(facts: list[dict], decided: list[str]) -> str:
     """A fingerprint of everything the model is given, so any change to it shows as stale."""
     payload = sorted([f["fact_id"], f["category"], sorted(f["flags"]), f["text"], f.get("resolution")] for f in facts)
@@ -197,6 +215,11 @@ class SummaryService:
                 shown = buyer_rows(state.facts, cur["rows"])
                 rows = [{"row": s["row"], "text": s["text"], "page": s["page"], "fact_ids": list(b.get("fact_ids") or []),
                          "checked": bool(b.get("checked"))} for s, b in zip(shown, cur["rows"])]
+                for r, b in zip(rows, cur["rows"]):
+                    # The model's wording failed the figure check: runs.buyer_rows already shows the cited facts
+                    # instead (or nothing); say so, and why, from the wording that was not shown.
+                    if b.get("text") and not r["checked"] and str(b["text"]).strip().lower() != "not stated":
+                        r["unverified"] = unverified(state, {"text": b["text"], "fact_ids": r["fact_ids"]})
                 cited = {i for r in rows for i in r["fact_ids"]}
             out.append({
                 "key": spec.key, "title": spec.title, "codes": list(spec.codes), "rows": rows,

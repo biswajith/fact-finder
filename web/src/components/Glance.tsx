@@ -6,7 +6,7 @@ import type { CalendarDate, Fact, Overview, OverviewCounts, OverviewEntry, Overv
 import { CATEGORY_COLORS, ErrorBox, Loading, PageChip, formatTime } from './common';
 import { PageCites } from './CitationChip';
 import { emptyFilters } from '../factsQuery';
-import { openConflictCount } from '../overviewView';
+import { openConflictCount, unverifiedNote } from '../overviewView';
 import { AwardObligations } from './overview/AwardView';
 import { CollapseProvider, ExpandCollapseAll, Section } from './overview/Collapsible';
 
@@ -106,10 +106,18 @@ function Rows({ rows }: { rows: SummaryRow[] }) {
   return (
     <dl className="ov-kv">
       {rows.map((r, i) => (
-        <div key={i} className="ov-kv-row">
+        <div key={i} className={`ov-kv-row${r.unverified ? ' unverified' : ''}`}>
           <dt>{r.row}</dt>
           <dd>
-            <span className="wrap-text">{r.text || <span className="ov-none">Not stated in the RFP</span>}</span>
+            {r.unverified && (
+              <span className="ov-unverified" role="note">
+                <span className="pill warn">Not verified</span>
+                <span>{unverifiedNote(r)}</span>
+              </span>
+            )}
+            <span className="wrap-text">
+              {r.text || <span className="ov-none">{r.unverified ? 'Nothing to show' : 'Not stated in the RFP'}</span>}
+            </span>
             {r.fact_ids.length > 0 ? <PageCites ids={r.fact_ids} /> : <PageChip page={r.page} />}
           </dd>
         </div>

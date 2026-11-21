@@ -216,6 +216,10 @@ Section as returned by the API:
   A decision counts whether or not it changed a fact: the chosen option's text (or the
   custom answer) is given to the model as "conflict title -> choice", both for
   conflicts the extraction found and for conflicts the chat agent raised. A section never generated has `generated_at: null` and `stale: false`.
+- **Not verified**: a row whose wording has a figure (amount, date, number) that is not in the
+  facts it cites, or that cites no facts, fails the figure check. Its wording is never shown:
+  the screen shows the cited facts instead (or nothing), flagged "Not verified" with the
+  figures that failed (`unverified` on the row).
 - **Uncovered** ("in the facts, not in the summary"): the section's facts that no
   point cites, in document order. Empty when the section was never generated.
 - **Pin**: `pinned` fact IDs must appear in the summary. Pinning makes the section
