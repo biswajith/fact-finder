@@ -57,6 +57,7 @@ def main(argv: list[str] | None = None) -> int:
                 help="extract again even when this PDF already has a stored result, and say what changed",
             )
             p.add_argument("--no-statements", action="store_true", help="show every fact in the RFP's own words")
+            p.add_argument("--no-xref", action="store_true", help="skip the cross-reference call (references are found by the model and verified in code)")
             p.add_argument("--no-grouping", action="store_true", help="skip the round that groups repeated points and list items")
             p.add_argument(
                 "--legacy", action="store_true",
@@ -67,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--narrow-sweep", action="store_true", help="sweep only shall/must sentences (faster)")
             p.add_argument("--max-output-tokens", type=int, default=3000, help="output cap per extraction call")
             p.add_argument("--no-sweep", action="store_true", help="skip the coverage sweep (trimming tests)")
-            p.add_argument("--no-check", action="store_true", help="skip the model contradiction check (xref still runs)")
+            p.add_argument("--no-check", action="store_true", help="skip the model contradiction check")
             p.add_argument(
                 "--sequential-check", action="store_true",
                 help="run the contradiction check after the sweep, so it also sees sweep facts (slower)",
@@ -190,7 +191,7 @@ def _extract(args, doc) -> None:
     sha = results.pdf_hash(args.pdf)
     previous = store.latest(sha, doc.doc_id)
     cfg = units.Config(
-        votes=args.votes, statements=not args.no_statements, check=not args.no_check, grouping=not args.no_grouping,
+        votes=args.votes, statements=not args.no_statements, check=not args.no_check, xref=not args.no_xref, grouping=not args.no_grouping,
     )
     if args.parallel:
         cfg.max_parallel = args.parallel

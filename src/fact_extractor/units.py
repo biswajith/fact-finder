@@ -13,6 +13,9 @@ document):
 - STATE, once: a one-line statement for every unit, used as the fact's text when its
   numbers are in the unit. Otherwise the fact shows the RFP's own words.
 - CHECK, once: places where the RFP disagrees with itself (Q facts).
+- XREF, once: every reference to another part of the document, an attachment or an outside
+  source, with the unit it points at. The model only finds them; code verifies each one
+  (xref.py) and writes a Q fact only for what it can show is wrong.
 
 Then a short second round, GROUP, one small call per category over the finished facts
 (no document attached): which facts state the same point, and which are items of one
@@ -49,7 +52,8 @@ from .validate import check_output
 # units-2: table cells are read word by word (spaces kept, wrapped rows joined).
 # units-3: facts carry groups (same point restated, items of one list).
 # units-4: an incomplete label or statement answer is retried; the buyer brief is stored.
-VERSION = "units-4"
+# units-5: a cross-reference call (XREF) finds the references; code verifies them (Q facts).
+VERSION = "units-5"
 
 CODES = ("B", "C", "G", "X", "D", "S", "E", "R")
 PRECEDENCE = prompts.PRECEDENCE
@@ -370,6 +374,8 @@ class Config:
     backoff_base: float = 1.0
     statements: bool = True
     check: bool = True
+    xref: bool = True  # the cross-reference call; its facts are checked in code
+    xref_max_output_tokens: int = 12000  # reasoning counts against it; 8000 was cut once on a long document
     brief: bool = True  # second round: the section summaries for the Summary screen
     brief_max_output_tokens: int = 2500
     grouping: bool = True  # second round: group repeated points and list items
@@ -512,14 +518,15 @@ def fact_id(doc_id: str, unit_id: str) -> str:
 
 def _statement(g: Group, doc: TaggedDocument, statements: dict[str, str]) -> tuple[str, str]:
     """The fact's text and where it came from: the model's statement when every number in
-    it is in the fact's units, else the RFP's own words."""
+    it is in the fact's units, else the RFP's own words.
+    """
     source = " ".join(doc.anchors[i].text for i in g.ids)
     s = statements.get(g.main)
     if s:
         texts = [doc.anchors[i].text for i in g.ids] + [doc.anchors[i].section for i in g.ids]
         if not missing_values(s, texts):
-            return s, "statement"
-    return source, "source"
+            return s, "model"
+    return source, "rfp"
 
 
 def to_records(
@@ -699,6 +706,17 @@ async def extract(
             for c in out.checked if c.line.code == "Q" and c.line.ids and all(i in doc.anchors for i in c.line.ids)
         ]
 
+    async def cross_references() -> xref.Result:
+        """The model finds the references, code verifies them. Never raises: a run without
+        XREF facts is still a run, and the report says why there are none."""
+        if not cfg.xref:
+            return xref.Result()
+        text = await run.call("XREF", "xref", xref.TASK, cfg.xref_max_output_tokens, effort="medium")
+        try:
+            return xref.analyse(doc, text)
+        except Exception as e:  # a bug in verification must not cost the run
+            return xref.Result(status="error", error=f"{type(e).__name__}: {e}")
+
     # One call first, so the document is in the provider's cache before the rest are sent.
     started = asyncio.Event()
     first = asyncio.create_task(label(1, 1, label_parts[0], started))
@@ -712,6 +730,7 @@ async def extract(
     ]
     state_jobs = [asyncio.create_task(state(k, ids)) for k, ids in enumerate(state_parts, start=1)]
     check_job = asyncio.create_task(check())
+    xref_job = asyncio.create_task(cross_references())
     passes: list[dict[str, Label]] = [{} for _ in range(cfg.votes)]
     for v, _, job in label_jobs:
         passes[v - 1].update(await job)
@@ -719,6 +738,7 @@ async def extract(
     for job in state_jobs:
         statements.update(await job)
     q_lines = await check_job
+    xres = await xref_job
 
     voted = vote(passes, units)
     groups = group(voted, units)
@@ -736,7 +756,7 @@ async def extract(
         return parse_brief(text, facts, names)
 
     # Q facts exist only now; the summaries are written from every fact, Q included.
-    with_q = records + _q_records(q_lines, doc, deal_id, run_id)
+    with_q = records + _q_records(q_lines, xres, doc, deal_id, run_id)
     brief_jobs = [asyncio.create_task(brief(sec, section_facts(sec, with_q))) for sec in SECTIONS] if cfg.brief else []
     found: list[tuple[str, str, list[dict]]] = []
     if cfg.grouping:
@@ -752,11 +772,12 @@ async def extract(
     briefs = {sec.key: await job for sec, job in zip(SECTIONS, brief_jobs)}
     seconds = time.monotonic() - t0
 
-    records += _q_records(q_lines, doc, deal_id, run_id)
+    records += _q_records(q_lines, xres, doc, deal_id, run_id)
     _mark_conflicts(records)
 
     labels = [
-        {"id": u, "label": voted[u].label, "also": voted[u].also, "flags": voted[u].flags, "votes": voted[u].votes}
+        {"id": u, "page": doc.anchors[u].page_label, "section": doc.anchors[u].section, "text": doc.anchors[u].text,
+         "label": voted[u].label, "also": voted[u].also, "flags": voted[u].flags, "votes": voted[u].votes}
         for u in units
     ]
     report = _report(run, doc, deal_id, run_id, records, voted, groups, statements, seconds, cfg)
@@ -764,6 +785,8 @@ async def extract(
         "label_state_check": round(first_round, 2), "group_and_summaries": round(seconds - first_round, 2),
         "total": round(seconds, 2),
     }
+    report["xref"] = xres.report()
+    report["xref_conflicts"] = len(xres.problems)
     report["summaries"] = briefs
     report["buyer_brief"] = briefs.get("buyer", [])
     report["groups"] = dict(Counter(k for k, _, _ in found))
@@ -771,19 +794,34 @@ async def extract(
     return RunResult(run_id, records, report, labels)
 
 
-def _q_records(q_lines: list[dict], doc: TaggedDocument, deal_id: str, run_id: str) -> list[dict]:
-    """Contradictions: the model's CHECK lines and the cross-references checked in code.
-    One Q fact per set of IDs."""
+def _q_records(q_lines: list[dict], xres: xref.Result, doc: TaggedDocument, deal_id: str, run_id: str) -> list[dict]:
+    """Contradictions: the model's CHECK lines and the cross-reference problems verified in
+    code. One Q fact per set of IDs."""
     seen: dict[frozenset, dict] = {}
-    for q in q_lines + [{"text": f.text, "ids": f.ids, "problems": [], "source_call": "XREF"} for f in xref.check(doc)]:
+    order = {i: n for n, i in enumerate(doc.anchors)}
+    checks = [dict(q) for q in q_lines]
+    found = []
+    # A cross-reference problem about the same thing as a CHECK line is one fact: the CHECK wording,
+    # the units of both in document order, source CHECK,XREF.
+    matched = xref.match_problems([(q["ids"], q["text"]) for q in checks], xres.problems)
+    for pi, p in enumerate(xres.problems):
+        if pi in matched:
+            c = checks[matched[pi]]
+            c["ids"] = sorted(set(c["ids"]) | set(p.ids), key=order.__getitem__)
+            if "XREF" not in c["source_call"].split(","):
+                c["source_call"] += ",XREF"
+        else:
+            found.append({"text": p.text, "ids": list(p.ids), "problems": [], "source_call": "XREF"})
+    for q in checks + found:
         key = frozenset(q["ids"])
         if key in seen:
-            seen[key]["source_call"] += "," + q["source_call"]
+            if q["source_call"] not in seen[key]["source_call"].split(","):
+                seen[key]["source_call"] += "," + q["source_call"]
             continue
         seen[key] = {
             "fact_id": "f_" + hashlib.sha1(f"{doc.doc_id}|Q|{','.join(sorted(q['ids']))}".encode()).hexdigest()[:10],
             "deal_id": deal_id, "doc_id": doc.doc_id, "run_id": run_id,
-            "category": "Q", "also": None, "text": q["text"], "text_from": "statement",
+            "category": "Q", "also": None, "text": q["text"], "text_from": "model",
             "source_text": " / ".join(doc.anchors[i].text for i in q["ids"]),
             "citations": [doc.anchors[i].citation() for i in q["ids"]], "unresolved_ids": [],
             "flags": [], "note": "", "status": "needs_review" if q["problems"] else "valid",
@@ -823,8 +861,8 @@ def _report(run: _Run, doc, deal_id, run_id, records, voted, groups, statements,
         "units_unanswered_votes": sum(v == NO_ANSWER for x in voted.values() for v in x.votes),
         "facts_votes_agreed": sum(g.voted.agreed for g in groups),
         "facts_votes_split": sum(not g.voted.agreed for g in groups),
-        "facts_with_statement": sum(r["text_from"] == "statement" for r in facts),
-        "facts_in_rfp_words": sum(r["text_from"] == "source" for r in facts),
+        "facts_with_statement": sum(r["text_from"] == "model" for r in facts),
+        "facts_in_rfp_words": sum(r["text_from"] == "rfp" for r in facts),
         "seconds": {"total": round(seconds, 2)},
         "cache_hit_calls_2_to_n": round(sum(c.usage.cached_tokens for c in later) / cache_in, 3) if cache_in else None,
         "output_tokens": sum(c.usage.output_tokens for c in run.calls),

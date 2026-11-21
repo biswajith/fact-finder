@@ -254,23 +254,46 @@ non-collusion affidavit" for "enclose written authorization if the signer is
 not the price decision-maker"), so quote both numbers. Pairs scoring >= 0.5
 are never judged, so some partial matches hide there.
 
-### Cross-reference check (code)
+### Cross-reference check (model finds, code verifies)
 
-`xref.py` reads every "Article N (Title)", "Section N", "Schedule X",
-"Attachment X" reference and looks it up in the document's own headings. It
-writes a Q fact (source `XREF`) when the target is blank or reserved, has a
-different title, or, for articles, does not exist. References into other laws
-("Article 15 of the Executive Law") are skipped, and missing attachments are
-not reported, since they are often separate files.
+One extra call per document (`XREF`, in the same round as the label, state and
+check calls, on the same cached document) lists every reference to another part
+of the document, an attachment or an outside source, with the unit it points at:
+`REF|unit|reference text as written|target unit or none|kind`, kind being
+section, attachment or external, and an `END|count` line. The model never says
+what is wrong. `xref.py` then verifies each line in code. A line whose unit does
+not exist or whose reference text is not in that unit is dropped. A Q fact
+(source `XREF`, one per problem) is written only when code can show it:
 
-Why code: the model's check missed "Article 17 (Intellectual Property)" in the
-survival clause vs "ARTICLE 17 – INTENTIONALLY LEFT BLANK" six pages earlier.
-Neither side was a fact (the heading carries no action; the clause was
-summarised without its article list), and the sweep fact that cited the clause
-is not seen by the check when it runs alongside the sweep. The code check costs
-no model call, runs after the merge, and dedupes with any model Q line on the
-same IDs. On the Ulster County RFP it reports exactly this one mismatch across
-49 headings; with it, every reference contradiction is found.
+- a. the target unit does not exist;
+- b. the target is blank ("intentionally left blank", "reserved", "not used");
+- c. a section reference with target none that names a number, letter or quoted
+  title, or an attachment reference that says it is in this document ("below",
+  "this RFP") and is not; and a reference left blank ("refer to" and nothing,
+  empty brackets, underscores);
+- d. the reference quotes or parenthesises a title and fewer than half of its
+  words are in the target;
+- e. it says above or below and the target is on the other side;
+- f. across the document, one attachment identifier with two different names, or
+  one name with two identifiers: one fact listing every place.
+
+External references are never errors, and an attachment that is not in the PDF
+is not an error by itself (often supplied separately). The report has
+`xref`: status (ok, failed, unparseable, off), references found, dropped,
+external, checked, verified and problems. A failed call leaves the run intact
+with no XREF facts. `--no-xref` skips the call.
+
+Why: the first version found references by regex ("Article N", "Section N")
+and matched headings starting with the same words. On the two test RFPs it
+caught 1 of 9 real reference mistakes, because most headings and references
+have no such shape (docs/xref-measurement.md). The Article 17 case it did catch
+(the survival clause citing an article that is "INTENTIONALLY LEFT BLANK") is
+rule b. Q facts from XREF and CHECK on the same units merge into one fact
+(source `CHECK,XREF`). The legacy pipeline no longer runs the cross-reference
+check.
+
+Not measured yet: how many of the 9 mistakes the new call finds on the two test
+RFPs (needs a real run).
 
 ### Recall options (two passes, wide sweep)
 

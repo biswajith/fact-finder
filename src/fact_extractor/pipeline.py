@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Protocol
 
-from . import planner, prompts, xref
+from . import planner, prompts
 from .llm import CallFailed, LLMClient, RateLimited, Request, Response
 from .merge import dedupe, uncited, union_passes
 from .models import CallRecord, CallSpec, Fact, TaggedDocument
@@ -41,7 +41,7 @@ class Config:
     parallel_check: bool = True  # check runs alongside the sweep (REVIEW.md item 12)
     # Switches for trimming tests (poc/ablation): turn a stage off to measure what it adds.
     sweep: bool = True  # coverage sweep over uncited IDs
-    check: bool = True  # model contradiction check (xref.py still runs)
+    check: bool = True  # model contradiction check
     plan: planner.PlanConfig = field(default_factory=planner.PlanConfig)
 
 
@@ -320,10 +320,6 @@ async def extract(
         facts = dedupe(facts + await check(facts))
     stages["check" if not cfg.parallel_check else "sweep_and_check"] = time.monotonic() - t
 
-    # Cross-references checked in code (xref.py); merges with any model Q line on the same IDs.
-    xref_facts = xref.check(doc)
-    facts = dedupe(facts + xref_facts)
-
     # 6. Store.
     ids = fact_ids(doc.doc_id, facts)
     _mark_conflicts(facts, ids)
@@ -339,7 +335,6 @@ async def extract(
     stages["total"] = time.monotonic() - t_start
 
     report = _report(run, doc, deal_id, run_id, records, stages, candidate_ids, facts, decision_errors, sweep_ids)
-    report["xref_conflicts"] = len(xref_facts)
     if store is not None:
         store.save_run(deal_id, doc.doc_id, run_id, records, report)
     return RunResult(run_id, records, report)

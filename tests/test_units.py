@@ -29,11 +29,13 @@ def ids_of(req) -> list[str]:
 
 
 def scripted(labels=LABELS, statements=STATEMENTS, check="Q|Due 2027-03-03 vs 2027-03-05|p1.3,p3.2|\nEND|1\n",
-             groups="END|0\n", brief="Buyer|The City of Springfield|1\nScale|900 users|1\nWhy|not stated|\nEND|7\n"):
+             groups="END|0\n", xref="END|0\n", brief="Buyer|The City of Springfield|1\nScale|900 users|1\nWhy|not stated|\nEND|7\n"):
     def handler(req):
         kind = task_name(req)
         if kind == "CHECK":
             return check
+        if kind == "XREF":
+            return xref
         if kind == "GROUP":
             return groups(req) if callable(groups) else groups
         if kind == "BRIEF":
@@ -54,12 +56,12 @@ async def test_facts_are_units(doc):
     assert set(by_unit) == set(LABELS) - {"p2.t1r1"}  # every coded unit is one fact; the continuation is not
 
     due = by_unit["p1.3"]
-    assert due["text"] == "Proposals due: 2027-03-03 17:00 Eastern" and due["text_from"] == "statement"
+    assert due["text"] == "Proposals due: 2027-03-03 17:00 Eastern" and due["text_from"] == "model"
     assert due["source_text"] == "Proposals are due March 3, 2027 at 5:00 PM Eastern."
     assert due["status"] == "conflict" and due["conflicts"]  # shares a unit with the Q fact
     # A statement with a number the unit lacks is dropped: the fact shows the RFP's words.
     users = by_unit["p2.1"]
-    assert users["text"] == "The system shall support 500 concurrent users." and users["text_from"] == "source"
+    assert users["text"] == "The system shall support 500 concurrent users." and users["text_from"] == "rfp"
     # A continuation joins the coded unit before it: one fact, both units cited.
     assert [c["id"] for c in by_unit["p2.3"]["citations"]] == ["p2.3", "p2.t1r1"]
     # mandatory comes from the unit's wording, the other flags from the votes.
@@ -77,7 +79,7 @@ async def test_facts_are_units(doc):
     # One round on one cached prefix: three label votes, one statement pass, one check.
     first = [q for q in client.requests if task_name(q) not in ("GROUP", "BRIEF")]
     assert {(q.system, q.document) for q in first} == {(units.SYSTEM, doc.tagged_text)}
-    assert sorted(task_name(q) for q in first) == ["CHECK", "LABEL", "LABEL", "LABEL", "STATE"]
+    assert sorted(task_name(q) for q in first) == ["CHECK", "LABEL", "LABEL", "LABEL", "STATE", "XREF"]
     # Then the grouping round, about the facts and without the document: only R has 4 facts.
     second = [q for q in client.requests if task_name(q) == "GROUP"]
     assert [(q.system, q.document) for q in second] == [(units.GROUP_SYSTEM, "")]
@@ -293,7 +295,7 @@ def _short(n):
 
 
 async def test_an_incomplete_answer_is_asked_again(doc):
-    cfg = units.Config(backoff_base=0, warmup_timeout=1, votes=1, statements=False, check=False, grouping=False, brief=False)
+    cfg = units.Config(backoff_base=0, warmup_timeout=1, votes=1, statements=False, check=False, xref=False, grouping=False, brief=False)
     client = ScriptedClient(_label_handler([_short(3), _full]))
     res = await units.extract(doc, client, deal_id="d", cfg=cfg)
     (call,) = res.report["calls"]
@@ -304,7 +306,7 @@ async def test_an_incomplete_answer_is_asked_again(doc):
 
 
 async def test_still_incomplete_keeps_the_fuller_answer_and_says_so(doc):
-    cfg = units.Config(backoff_base=0, warmup_timeout=1, votes=1, statements=False, check=False, grouping=False, brief=False)
+    cfg = units.Config(backoff_base=0, warmup_timeout=1, votes=1, statements=False, check=False, xref=False, grouping=False, brief=False)
     res = await units.extract(doc, ScriptedClient(_label_handler([_short(9), _short(4)])), deal_id="d", cfg=cfg)
     (call,) = res.report["calls"]
     assert call["status"] == "incomplete" and "covering 9 of 15 units" in call["log"][-1]
@@ -319,10 +321,20 @@ async def test_still_incomplete_keeps_the_fuller_answer_and_says_so(doc):
 
 
 async def test_all_units_answered_without_end_is_accepted_and_logged(doc):
-    cfg = units.Config(backoff_base=0, warmup_timeout=1, votes=1, statements=False, check=False, grouping=False, brief=False)
+    cfg = units.Config(backoff_base=0, warmup_timeout=1, votes=1, statements=False, check=False, xref=False, grouping=False, brief=False)
     no_end = lambda ids: "\n".join(f"{i}|{LABELS.get(i, '-')}" for i in ids) + "\n"  # noqa: E731
     res = await units.extract(doc, ScriptedClient(_label_handler([no_end])), deal_id="d", cfg=cfg)
     (call,) = res.report["calls"]
     assert call["status"] == "ok" and call["retries"] == 0 and call["log"] == ["every unit answered, but no END line"]
     assert units.stated_ids("p1.1|-\n[p1.2]|Provide a bond\np1.3|\nnotes\nEND|2", ["p1.1", "p1.2", "p1.3"]) == {"p1.1", "p1.2"}
     assert units.has_end("x\n end|3 \n") and not units.has_end("p1.1|R\nTHE END")
+
+
+def test_stored_facts_with_old_text_from_values_read_as_new(tmp_path):
+    old = [{"fact_id": "a", "text_from": "statement"}, {"fact_id": "b", "text_from": "source"},
+           {"fact_id": "c", "text_from": "model"}, {"fact_id": "d"}]
+    folder = tmp_path / "doc" / "run"
+    folder.mkdir(parents=True)
+    (folder / "facts.json").write_text(json.dumps(old), encoding="utf-8")
+    got = results.Stored(folder, {}).facts()
+    assert [r.get("text_from") for r in got] == ["model", "rfp", "model", None]

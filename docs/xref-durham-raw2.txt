@@ -1,0 +1,69 @@
+REF|p4.11|as depicted in the figure below|none|section|
+REF|p4.12|represented by the grey bars in the middle|none|section|
+REF|p5.15|any addenda to it|none|attachment|
+REF|p5.15|any attached schedules|none|attachment|schedules
+REF|p5.22|RFP #24-0031– -Appendix A- Model Services Contract|none|attachment|Model Services Contract
+REF|p6.2|North Carolina public records law|none|external|
+REF|p7.5|Table 1|p7.t1r1|section|
+REF|p7.6|Appendix B|none|attachment|
+REF|p7.7|Table 2|p7.8|section|
+REF|p7.7|Table 3|p8.1|section|
+REF|p8.2|following table|p8.5|section|
+REF|p8.4|weeks identified|p8.t3r4|section|
+REF|p9.25|in accordance with this section|p9.7|section|
+REF|p9.28|subsection (a) above|p9.18|section|
+REF|p10.2|subsection (c) below|p10.3|section|
+REF|p10.4|promises in (b) above|p9.27|section|
+REF|p10.4|subsection (a)|p9.18|section|
+REF|p10.10|pursuant to this section|p9.7|section|
+REF|p10.13|other indemnification and warranty provisions in the contract between the City and the proponent|none|section|
+REF|p10.14|laws of the State of North Carolina|none|external|
+REF|p10.15|North Carolina General Statutes|none|external|
+REF|p10.17|following applicable coverages and limits|p10.19|section|
+REF|p10.28|North Carolina General Statute Chapter 97|none|external|
+REF|p11.1|required herein|p10.17|section|
+REF|p11.5|Contractor Workforce Diversity Questionnaire|p11.5|attachment|Contractor Workforce Diversity Questionnaire
+REF|p11.7|completed Diversity Questionnaire|p11.5|attachment|Diversity Questionnaire
+REF|p11.8|Diversity Questionnaire|p11.5|attachment|Diversity Questionnaire
+REF|p11.9|This form|p11.5|attachment|Workforce Diversity Questionnaire
+REF|p11.10|RFP #24-0031 Attachment A – EBOP fillable professional Services for Equal Business Opportunity Program (EBOP)|none|attachment|Equal Business Opportunity Program
+REF|p11.10|UBE forms|none|attachment|UBE forms
+REF|p11.11|attachment A|p11.10|attachment|EBOP Instruction and Fillable Form
+REF|p11.12|UBE forms that are in the RFP|p11.10|attachment|UBE forms
+REF|p11.13|UBE material in this RFP|p11.10|section|
+REF|p11.13|Contracts & Compliance Division's webpage|none|external|
+REF|p11.16|list of companies that are engaged in a boycott of Israel developed by the N. C. State Treasurer|none|external|
+REF|p11.16|N. C. State Treasurer under N.C.G.S. 147 86.81(a)(1)|none|external|
+REF|p11.17|a list created by the Treasurer pursuant to N.C.G.S. 147 86.58|none|external|
+REF|p11.17|N.C.G.S. 147 86.58|none|external|
+REF|p11.21|Americans with Disabilities Act|none|external|
+REF|p11.23|Acto de Americanos Discapacitados|none|external|
+REF|p12.18|City website on the Purchasing Division’s webpage|none|external|
+REF|p12.22|including the following|p12.23|section|
+REF|p12.24|RFP #24-0031 Proponent Response Template|p12.24|attachment|Proponent Response Template
+REF|p12.25|RFP #24-0031 Proponent Pricing Template|p12.25|attachment|Proponent Pricing Template
+REF|p12.26|RFP #24-0031 Attachment A - EBOP Instruction and Fillable Form|p11.10|attachment|EBOP Instruction and Fillable Form
+REF|p13.1|RFP #24-0031 UBE Statement of Intent|none|attachment|UBE Statement of Intent
+REF|p13.1|following two questions|p13.2|section|
+REF|p13.1|following two questions|p13.3|section|
+REF|p13.4|Workforce Diversity Questionnaire online form|p11.5|attachment|Workforce Diversity Questionnaire
+REF|p13.7|North Carolina law governing the transaction of business in the State of North Carolina|none|external|
+REF|p13.26|subsections (A) and (B)|p13.20|section|
+REF|p13.26|subsections (A) and (B)|p13.21|section|
+REF|p13.28|the following items|p14.1|section|
+REF|p14.12|Section 4|p17.9|section|
+REF|p14.13|Section 6|p21.10|section|
+REF|p14.14|Section 7|p22.6|section|
+REF|p14.17|Workforce Diversity form|p11.5|attachment|Workforce Diversity form
+REF|p14.17|Attachment A|p11.10|attachment|Workforce Diversity form
+REF|p14.18|Attachment B|none|attachment|Equal Business Opportunity Program Procurement Forms
+REF|p16.2|following are those mandatory requirements|p16.t2r1|section|
+REF|p16.t2r1|section 4.1of this RFP|p17.h1|section|
+REF|p17.11|Refer to|none|section|
+REF|p17.11|full list of Oracle Solution Components to be implemented below|p17.t1r1|section|
+REF|p20.4|Appendix B|none|attachment|
+REF|p20.5|attached RFP #24-0031 Proponent Application Inventory list|none|attachment|Proponent Application Inventory List
+REF|p21.13|RFP #24-0031 City of Durham - Partner Response Template|none|attachment|Partner Response Template
+REF|p22.7|pricing sheet template|p12.25|attachment|pricing sheet template
+REF|p22.33|RFP #24-0031 Proponent Pricing Response Template|p12.25|attachment|Proponent Pricing Response Template
+END|59
