@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 Kind = Literal["sentence", "heading", "table_row", "list_item"]
-Status = Literal["valid", "needs_review", "conflict"]
 
 # Flags the model may write in the note field (prompt 10.1).
 # post-award: the fact applies only to the bidder who wins (REVIEW.md, "Before the bid and after award").
@@ -71,21 +70,6 @@ class OutputLine:
     ids: list[str]
     note: str
     field_count: int
-
-
-@dataclass
-class Fact:
-    category: str
-    text: str
-    ids: list[str]
-    note: str
-    status: Status
-    source_call: str
-    problems: list[str] = field(default_factory=list)
-    conflicts: list[str] = field(default_factory=list)  # fact_ids of Q facts
-
-    def line(self) -> str:
-        return f"{self.category}|{self.text}|{','.join(self.ids)}"
 
 
 @dataclass(frozen=True)

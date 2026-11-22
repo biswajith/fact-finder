@@ -157,3 +157,14 @@ def missing_values(fact: str, sources: list[str]) -> set[str]:
         if split != s:
             have |= values(split, generous=True)
     return values(fact) - have
+
+
+_STOP = set(
+    "a an the of to for and or in on by with at as be is are will shall must may any all its it this that "
+    "from each per not no than into their there these those which who whom within".split()
+)
+
+
+def words(text: str) -> list[str]:
+    """Lower-case words and numbers, in order."""
+    return re.findall(r"[a-z0-9]+", text.lower())

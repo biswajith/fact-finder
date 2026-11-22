@@ -37,9 +37,8 @@ from difflib import SequenceMatcher
 
 import re
 
-from .merge import _STOP, words
-from .normalize import _WORDS, values
-from .store import split_note
+from .models import FLAGS
+from .normalize import _STOP, _WORDS, values, words
 
 # "five working days", "three (3) years": number words count only before a unit,
 # so "one original and one copy" style wording is not treated as a value
@@ -54,6 +53,19 @@ _WORD_COUNT = re.compile(
 # break ties between candidates; they never lift a weak text match over this.
 MATCH_SIMILARITY = 0.4
 COMBINED_COVERAGE = 0.6
+
+
+def split_note(note: str) -> tuple[list[str], str]:
+    """A note holds flags and sometimes free text; keep both apart."""
+    flags: list[str] = []
+    rest: list[str] = []
+    for part in (p.strip() for p in note.split(",")):
+        if part.lower() in FLAGS:
+            if part.lower() not in flags:
+                flags.append(part.lower())
+        elif part:
+            rest.append(part)
+    return flags, ", ".join(rest)
 
 
 def _content(text: str) -> list[str]:

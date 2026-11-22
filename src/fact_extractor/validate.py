@@ -11,29 +11,6 @@ from .normalize import missing_values
 _ID = re.compile(r"^p\d+\.(?:h\d+|t\d+r\d+|\d+)$")
 
 
-class LineBuffer:
-    """Collect streamed text and hand back complete lines."""
-
-    def __init__(self) -> None:
-        self._buf = ""
-        self.lines: list[str] = []
-
-    def feed(self, text: str) -> list[str]:
-        self._buf += text
-        *done, self._buf = self._buf.split("\n")
-        new = [ln.strip() for ln in done if ln.strip()]
-        self.lines.extend(new)
-        return new
-
-    def close(self) -> list[str]:
-        rest = self._buf.strip()
-        self._buf = ""
-        if rest:
-            self.lines.append(rest)
-            return [rest]
-        return []
-
-
 def _looks_like_ids(field: str) -> bool:
     parts = [p.strip().strip("[]") for p in field.split(",") if p.strip()]
     return bool(parts) and all(_ID.match(p) for p in parts)

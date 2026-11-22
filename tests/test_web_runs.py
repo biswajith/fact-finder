@@ -8,7 +8,6 @@ import pymupdf
 import pytest
 from conftest import ScriptedClient
 
-from fact_extractor.pipeline import Config
 from fact_extractor.web import runs as D
 
 

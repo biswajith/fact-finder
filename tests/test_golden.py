@@ -91,7 +91,6 @@ def test_existing_prompt_strings_are_unchanged():
     # The extractor's prompt cache keys on these bytes. Change them on purpose or not at all.
     h = lambda s: hashlib.sha256(s.encode()).hexdigest()[:16]
     assert h(prompts.SYSTEM) == "4bf2be7b7b70bded"
-    assert h(prompts.CLOSING) == "ddeb6f490f6db680"
     assert h(json.dumps(prompts.DEFINITIONS, sort_keys=True)) == "240386a79ef19196"
     assert h(repr(prompts.PRECEDENCE)) == "64b933d6ff116e76"
 

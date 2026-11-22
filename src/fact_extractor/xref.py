@@ -32,7 +32,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-from .merge import _STOP
+from .normalize import _STOP
 from .models import TaggedDocument
 
 KINDS = ("section", "attachment", "external")

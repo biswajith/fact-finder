@@ -52,9 +52,9 @@ same every time. `--refresh` extracts again and says what changed.
   different numbers or dates is shown as a list instead. `--no-grouping` skips
   the round.
 
-The earlier pipeline, where the model wrote the facts, is still there as
-`extract --legacy` and is what most of this README below and of
-[REVIEW.md](REVIEW.md) describes. See REVIEW.md, "A fact is a labelled source
+An earlier pipeline, where the model wrote the facts and code deduped them, was
+removed on 2026-11-21. Much of [REVIEW.md](REVIEW.md) describes it, and the
+results in `poc/` came from it. See REVIEW.md, "A fact is a labelled source
 unit", for why it was replaced.
 
 ## Setup
@@ -101,7 +101,7 @@ Without the dev group, ask for what you need: `uv sync --extra evals`,
 
 ## Using it
 
-Work through the commands in this order. The first three cost nothing.
+Work through the commands in this order. The first two cost nothing.
 
 ```bash
 # 1. What the model will see: the document with an ID on every unit
@@ -110,31 +110,28 @@ uv run fact-extractor tag rfp.pdf > tagged.txt
 # 2. ID -> page, section, text, bbox (one JSON object per line)
 uv run fact-extractor anchors rfp.pdf
 
-# 3. The planned calls, page ranges and candidate count
-uv run fact-extractor plan rfp.pdf
-
-# 4. Extract (spends tokens the first time; the stored result after that)
+# 3. Extract (spends tokens the first time; the stored result after that)
 uv run fact-extractor extract rfp.pdf --deal-id deal_442 \
     --out facts.json --report run.json
 
-# 4a. Build a reference list instead of writing one (about 1,300 to 1,600 model
+# 3a. Build a reference list instead of writing one (about 1,300 to 1,600 model
 #     calls for all eight categories; see "Reference lists from goldset")
 uv run fact-extractor golden rfp.pdf --doc-id rfp-001
 
-# 4b. Score against a reference list by source ID (exact, no model call)
+# 3b. Score against a reference list by source ID (exact, no model call)
 uv run fact-extractor score poc/durham/gold/gold_draft.txt --facts facts.json
 uv run fact-extractor score runs/rfp-001/golden/gold.txt --facts facts.json
 
-# 5. Score a run against a hand-written reference list
+# 4. Score a run against a hand-written reference list
 uv run fact-extractor compare poc/gold/gold_*.txt --facts facts.json --show 10
 # ask the model about close calls; verdicts are cached in facts.judge.json
 uv run fact-extractor compare poc/gold/gold_*.txt --facts facts.json --judge
 
-# 6. Precision: are the facts right, and worth reading?
+# 5. Precision: are the facts right, and worth reading?
 uv run fact-extractor precision facts.json --sample 60          # CSV for a person to label
 uv run fact-extractor precision facts.json --labels facts.sample.csv --grade
 
-# 7. How far two runs on the same document agree (no model call)
+# 6. How far two runs on the same document agree (no model call)
 uv run fact-extractor stability facts_a.json facts_b.json
 ```
 
@@ -173,16 +170,12 @@ text or IDs are off here, no prompt change will fix it.
 | `--no-statements` | off | Show every fact in the RFP's own words. |
 | `--no-check` | off | Skip the model's contradiction check. |
 | `--no-xref` | off | Skip the cross-reference call (the model finds references, code verifies them). |
-| `--legacy` | off | The earlier pipeline. The options below this row apply to it only. |
-| `--parallel` | 48 (legacy 32) | Max concurrent calls. |
-| `--passes` | 1 | Run every extraction call this many times and keep the union. 2 adds 0-3 points of recall for ~60% more output tokens. |
-| `--max-output-tokens` | 3000 | Output cap per extraction call. A cut call is split and rerun. |
-| `--no-sweep` | off | Turn the sweep off, for trimming tests (`poc/ablation/`). |
-| `--sequential-check` | off | Run the contradiction check after the sweep so it sees sweep facts. Slower. |
+| `--no-grouping` | off | Skip the round that groups repeated points and list items. |
+| `--parallel` | 48 | Max concurrent calls. |
 | `--out` | `-` (stdout) | Facts JSON. |
 | `--report` | none | Run report JSON: per-call timing, tokens, cache hits, failures. |
 
-A one-line summary and latency stats print to stderr when the run ends.
+A one-line summary prints to stderr when the run ends, and what changed when an earlier result exists.
 
 ### Output
 
@@ -194,7 +187,7 @@ A one-line summary and latency stats print to stderr when the run ends.
   "category": "R", "text": "...", "status": "valid",
   "flags": ["mandatory"], "note": "",
   "citations": [{"id": "p3.7", "page": 3, "page_label": "3", "section": "...", "text": "...", "bbox": [0, 0, 0, 0]}],
-  "unresolved_ids": [], "problems": [], "conflicts": [], "source_call": "R2"
+  "unresolved_ids": [], "problems": [], "conflicts": [], "source_call": "LABEL"
 }
 ```
 
@@ -207,21 +200,19 @@ see `problems`), `conflict` (cited by a `Q` fact).
 ### From code
 
 ```python
-from fact_extractor import InMemoryFactStore, RecordingDecisions, extract, tag_pages
+from fact_extractor import tag_pages, units
 from fact_extractor.llm import OpenAIClient
 from fact_extractor.pdf import read_pdf
 
 doc = tag_pages("rfp-001", read_pdf("rfp.pdf"))
-store = InMemoryFactStore()
-result = await extract(doc, OpenAIClient(), deal_id="deal_442", store=store, decisions=RecordingDecisions())
-store.find(deal_id="deal_442", category="D")
+result = await units.extract(doc, OpenAIClient(), deal_id="deal_442", cfg=units.Config(votes=3))
+dates = [f for f in result.facts if f["category"] == "D"]
 ```
 
-Pass a `Config(...)` as `cfg=` to change parallelism, passes, sweep size and so
-on. Any object with `async complete(request, on_text) -> Response` can replace
-`OpenAIClient` (the tests use a scripted fake). Any object with
-`async submit(conflict: dict)` can replace `RecordingDecisions`, which stands in
-for the Decisions API.
+`units.Config` sets votes, parallelism, output caps and which calls run. Any
+object with `async complete(request, on_text) -> Response` can replace
+`OpenAIClient` (the tests use a scripted fake). `result.report` holds per-call
+timing, tokens, cache hits and failures.
 
 ## Use as a library
 
@@ -446,20 +437,16 @@ Their thresholds are untested defaults. Compare them with the hand labels in
 | Module | Spec section |
 | --- | --- |
 | `pdf.py`, `tagging.py` | 4. Parse and tag |
-| `planner.py` | 5. Plan calls |
 | `prompts.py` | 10. Prompts (system prompt and tasks) |
 | `llm.py` | 5.2, 6.2: request shape, streaming, OpenAI client |
 | `validate.py`, `normalize.py` | 6.1, 7. Output format and checks |
-| `merge.py` | 8. Dedupe and coverage |
 | `xref.py` | 8.3 Contradictions: the XREF call finds cross-references, code verifies them |
 | `compare.py` | 13. Acceptance: score facts against a reference list |
-| `pipeline.py` | 3, 8, 11, 12: orchestration and failures |
 | `precision.py` | Precision: labelled samples, model grades, near-duplicates |
 | `stability.py` | Agreement between two runs on cited IDs, codes and fact IDs |
 | `units.py` | The unit-label pipeline: label votes, statements, contradiction check, facts |
 | `results.py` | Stored results on disk, found by PDF content; what a re-extraction changed |
 | `score.py` | Recall against a reference list by source ID |
-| `store.py` | 9. Store (in memory, not MongoDB) |
 | `golden.py` | Builds a reference list for an RFP with goldset (needs the `evals` extra) |
 | `evalsuite.py` | DeepEval test cases and metrics over `score.py` and `precision.py` |
 | `src/goldset/` | The golden-dataset builder, copied from another repo; its own CLI is `goldset` |
@@ -467,7 +454,7 @@ Their thresholds are untested defaults. Compare them with the hand labels in
 `evals/` holds the DeepEval tests, `examples/goldset/` goldset's examples,
 `goldset.yaml` its settings and `tests/goldset_builder/` its tests.
 
-`poc/` holds output from proof-of-concept runs on the Ulster County RFP
+`poc/` holds output from proof-of-concept runs of the earlier pipeline on the Ulster County RFP
 (`facts_run*.json`, `report_run*.json`) and the reference list in `poc/gold/`
 (`CODE|fact|IDs|flags` per line) used by `compare`. A code may list alternates
 (`G/C/R`): the fact is scored under the first, and found under any of them
@@ -477,34 +464,27 @@ counts as the same code.
 
 **Cost and runs**
 
-- **One pass by default.** A run on a ~50-page RFP is roughly 15 extraction
-  calls, plus sweep chunks and a check. `--passes 2` runs every call twice and
-  keeps the union: 0-3 points more recall in the trimming tests, about 60% more
-  output tokens and 15-20 s more.
-- **No repair call.** A line that fails validation (unknown ID, number not in
-  the cited text) is kept as `needs_review` with the reason in `problems`.
-- **`--parallel` defaults to 32**, enough for every call of two passes at once
-  on a ~50-page RFP. Raise it if `queue_seconds` in the report is not zero,
-  lower it if you hit rate limits.
-- **A 429 halves the concurrency limit for the rest of the run** and retries
-  with backoff (5 times). Failed calls are listed in `failed_calls` in the
-  report; the run still completes with what it has.
+- **One round of calls, all in parallel.** LABEL (`--votes` times), STATE,
+  CHECK and XREF run at once on the same cached prefix; GROUP and BRIEF follow.
+  `--parallel` defaults to 48, enough for every call of the round on a ~50-page
+  RFP. Lower it if you hit rate limits.
+- **A rate-limited call is retried with backoff** up to 5 times. Failed calls
+  are listed in the report; the run still completes with what it has.
+- **A result is stored and shown again.** `extract` on a PDF it has seen
+  returns the stored result with no model call; `--refresh` extracts again and
+  says what changed.
 - **Prompt caching depends on a byte-identical prefix.** The system prompt and
   tagged document must not change between calls. Put new instructions in the
   task message, never before the document. Reasoning effort is a request
   parameter, so it does not affect the cache. Check `cache_hit_calls_2_to_n` in
   the report; near 0 means the cache is not working (it printed `0.0` in the
   first POC report).
-- **Output is capped at 3,000 tokens per call.** A cut call is split (by page
-  range for `R`/`K`, by category for `A`/`B`/`C`) and rerun, up to 3 times. If
-  it is still cut, valid lines are kept and the call is marked `partial` in the
-  report. Check for `partial` before trusting recall.
 
 **Input PDFs**
 
 - **Text PDFs only.** Scanned pages with no text layer are not supported (no
-  OCR) and silently produce few or no IDs. Check `anchors` or `plan` first: the
-  `ids` count should look plausible.
+  OCR) and silently produce few or no IDs. Check `anchors` first: the number of
+  units should look plausible.
 - Headings come from font size and bold short lines; tables from PyMuPDF's
   table finder. Odd layouts (multi-column, rotated pages, unusual tables) can
   mis-tag. Look at `tag` output.
@@ -525,35 +505,18 @@ counts as the same code.
 - Number check: dates, times, money and ordinals are normalised before
   comparison (`March 3, 2027` = `2027-03-03`, `$1.2 million` = `1200000`). A
   number the model computes rather than copies will be flagged.
-- Dedupe merges facts with the same code and IDs only when the text is also
-  similar (>= 0.6), so one sentence can legitimately yield several facts.
-  Facts with different codes merge only when they have the same main (first)
-  ID and one plainly restates the other; the code that comes first in
-  `prompts.PRECEDENCE` is kept.
-- `fact_id` is a hash of doc, category and the main (first) cited ID, plus a
-  counter when several facts share those. It does not depend on wording, so
-  about 60% of facts keep their ID on a rerun (5% when it hashed the text). It
-  changes when the model files the sentence under another code or cites a
-  different main ID, and the counter follows list order: when one sentence gives
-  two R facts in one run and three in the next, the same ID can name a
-  different one of them. IDs written before 2026-11-18 used the old hash.
-- **The store is in memory.** Nothing persists unless you write `--out`.
-  Decisions are collected by `RecordingDecisions`, not sent anywhere.
 - Contradictions come from two places: the model's check call and the XREF call
   (the model finds cross-references; `xref.py` verifies them in code: blank,
   missing, retitled, wrong direction, inconsistent attachment names; source
-  `XREF`). The legacy pipeline has no cross-reference check.
-  With the default parallel check, facts added by the sweep are not seen by the
-  model check; use `--sequential-check` if that matters.
+  `XREF`).
 - The model is told the audience is a bid manager. Prompts in `prompts.py` are
   tuned on one RFP (Ulster County). Run `compare` on a second document before
   assuming recall holds elsewhere.
 
 **Development**
 
-- `uv run pytest` makes no network calls. It runs 281 tests (89 for the
-  extractor, 131 for the web workspace, 19 for goldset, 31 for `golden.py`, 11 for `evalsuite.py`), all
-  offline; goldset's pass on Python 3.11, 3.12 and 3.13.
+- `uv run pytest` makes no network calls. It runs 397 tests, all offline;
+  goldset's pass on Python 3.11, 3.12 and 3.13.
 - `.env` holds a real key. `.gitignore` excludes it; confirm `git status` never
   lists `.env`.
 - `load_env` is a minimal parser: `KEY=value` lines, optional quotes and

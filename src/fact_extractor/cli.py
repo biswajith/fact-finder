@@ -9,10 +9,7 @@ import os
 import sys
 from dataclasses import asdict
 
-from . import planner
 from .pdf import read_pdf
-from .pipeline import Config, RecordingDecisions, extract
-from .store import InMemoryFactStore
 from .tagging import tag_pages
 
 
@@ -41,7 +38,6 @@ def main(argv: list[str] | None = None) -> int:
     for name, help_ in (
         ("tag", "print the tagged text sent to the model"),
         ("anchors", "print the anchor map as JSON lines"),
-        ("plan", "print the planned calls"),
         ("extract", "extract the facts, or show the stored result for this PDF (needs OPENAI_API_KEY to extract)"),
     ):
         p = sub.add_parser(name, help=help_)
@@ -59,20 +55,8 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--no-statements", action="store_true", help="show every fact in the RFP's own words")
             p.add_argument("--no-xref", action="store_true", help="skip the cross-reference call (references are found by the model and verified in code)")
             p.add_argument("--no-grouping", action="store_true", help="skip the round that groups repeated points and list items")
-            p.add_argument(
-                "--legacy", action="store_true",
-                help="the earlier pipeline, where the model writes the facts; the options below apply to it only",
-            )
-            p.add_argument("--parallel", type=int, default=None, help="calls at once (default 48, legacy 32)")
-            p.add_argument("--passes", type=int, default=1, help="extraction passes to merge; 2 finds a little more, costs ~60%% more")
-            p.add_argument("--narrow-sweep", action="store_true", help="sweep only shall/must sentences (faster)")
-            p.add_argument("--max-output-tokens", type=int, default=3000, help="output cap per extraction call")
-            p.add_argument("--no-sweep", action="store_true", help="skip the coverage sweep (trimming tests)")
+            p.add_argument("--parallel", type=int, default=None, help="calls at once (default 48)")
             p.add_argument("--no-check", action="store_true", help="skip the model contradiction check")
-            p.add_argument(
-                "--sequential-check", action="store_true",
-                help="run the contradiction check after the sweep, so it also sees sweep facts (slower)",
-            )
             p.add_argument("--out", default="-", help="facts JSON file, - for stdout")
             p.add_argument("--report", default=None, help="write the run report JSON here")
     c = sub.add_parser("compare", help="score extracted facts against a reference list")
@@ -132,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         return _precision(args)
 
     doc_id = args.doc_id or args.pdf.rsplit("/", 1)[-1].rsplit(".", 1)[0]
-    if args.cmd == "extract" and not args.legacy and not args.refresh and _show_stored(args, doc_id):
+    if args.cmd == "extract" and not args.refresh and _show_stored(args, doc_id):
         return 0  # found by the PDF's content: no need to read the PDF again, or to call the model
     doc = tag_pages(doc_id, read_pdf(args.pdf))
 
@@ -141,12 +125,6 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "anchors":
         for a in doc.anchors.values():
             print(json.dumps(asdict(a)))
-    elif args.cmd == "plan":
-        for c in planner.plan_calls(doc):
-            print(f"{c.name:5} codes={','.join(c.codes):8} pages={c.page_range or 'all'}")
-        print(f"candidates: {len(planner.candidates(doc))}, ids: {len(doc.anchors)}")
-    elif args.legacy:
-        _extract_legacy(args, doc)
     else:
         _extract(args, doc)
     return 0
@@ -236,45 +214,6 @@ def _score(args) -> int:
         with open(args.json, "w") as f:
             json.dump(result, f, indent=2)
     return 0
-
-
-def _extract_legacy(args, doc) -> None:
-    from .llm import OpenAIClient
-
-    store = InMemoryFactStore()
-    result = asyncio.run(
-        extract(
-            doc, OpenAIClient(args.model), deal_id=args.deal_id, store=store,
-            decisions=RecordingDecisions(),
-            cfg=Config(
-                max_parallel=args.parallel or 32, parallel_check=not args.sequential_check,
-                passes=args.passes, sweep_all=not args.narrow_sweep,
-                max_output_tokens=args.max_output_tokens, sweep=not args.no_sweep,
-                check=not args.no_check,
-            ),
-        )
-    )
-    text = json.dumps(result.facts, indent=2)
-    if args.out == "-":
-        print(text)
-    else:
-        with open(args.out, "w") as f:
-            f.write(text)
-    if args.report:
-        with open(args.report, "w") as f:
-            json.dump(result.report, f, indent=2)
-    r = result.report
-    perf = r["performance"]
-    print(
-        f"{r['facts']} facts, {r['by_status']}, {r['seconds']['total']} s, "
-        f"cache hit {r['cache_hit_calls_2_to_n']}, failed calls {r['failed_calls']}",
-        file=sys.stderr,
-    )
-    for name in ("call_seconds", "model_seconds", "ttft_seconds", "queue_seconds", "tokens_per_second"):
-        st = perf[name]
-        extra = f" p5={st['p5']}" if "p5" in st else ""
-        print(f"  {name:18} n={st['n']} p50={st['p50']} p95={st['p95']} max={st['max']}{extra}", file=sys.stderr)
-    print(f"  extract stage throughput: {perf['extract_stage_tokens_per_second']} tok/s", file=sys.stderr)
 
 
 def _golden(args) -> int:
