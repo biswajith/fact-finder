@@ -604,3 +604,36 @@ Owns: new `tests/test_bid_e2e.py`, new `src/fact_extractor/bideval.py`, `cli.py`
    where, what is not yet measured: RELATE votes, the review band, the depends question, and that a
    real change or Q&A addendum is still needed to test RELATE). Change the design page's status line
    from "not built" to "built on feature/multi-document-bid; RELATE not yet measured on a real addendum".
+
+## Web API as built (WP7): the frontend packages follow this, not the table above
+
+All under `/api`. Errors are `{detail}` with 400/404/409/413.
+
+- `GET /bids` → `[{bid_id, name, run, documents, facts, modified}]`.
+- `POST /bids` `{name, deal_id?}` → bid view.
+- `GET /bids/{bid}` → bid view: the manifest (`bid_id, name, deal_id, created, team: [{name}], precedence, documents`)
+  plus `order` (doc_ids in issue order), `run` (`""` until facts exist, then `_bids/<bid_id>`), and
+  `playbooks: [{name, description, role, form, level, visibility, calls, votes}]` (`level` is `"1"`, `"by speaker"` or `"4"`).
+- `PATCH /bids/{bid}` `{name?, team?: [{name}], precedence?: [doc_id] | null}` → bid view.
+- `POST /bids/{bid}/documents?name=<file name>` with the raw file as body → document entry:
+  `no, doc_id, file, file_name, sha256, pages, proposed{playbook, issue_number, issue_date, by, checked}, playbook,
+  issue_number, issue_date, confirmed, previous, speakers[{id, name, side, proposed, why}], speakers_confirmed, run,
+  status, error, missing: [string]`.
+- `PATCH /bids/{bid}/documents/{no}` `{doc_id?, playbook?, issue_number?, issue_date?, previous?, confirmed?,
+  speakers?: [{id | name, side}], speakers_confirmed?}` → entry. `issue_number`, `issue_date`, `previous` accept null.
+- `DELETE /bids/{bid}/documents/{no}` → `{ok}`.
+- `POST /bids/{bid}/plan` `{votes?}` → `{documents: [{no, doc_id, file_name, playbook, missing, units,
+  calls: [{call, times, units, pages}], total_calls, stored: {run, facts, created} | null, error}],
+  skipped: [{no, doc_id, why}], relate_again: [no], total_calls}`.
+- `POST /bids/{bid}/process` `{confirm: true, votes?, model?}` → `{job_id}`; poll `GET /extract/{job_id}` →
+  `{status, seconds, result, run, error, steps: [{doc_no, step, status, detail}]}`. Step names per document:
+  `cut`, `extract`, `relate`, `save`; bid-wide (doc_no 0): `plan`, `group`, `pairs`, `build`. Statuses: `running`,
+  `done`, `reused`, `failed`. A finished job has `run: "_bids/<bid_id>"`.
+- `POST /relations/{rid}/reject?run=` and `/restore` → `{ok, relation_id, rejected, facts}`. A rejected relation
+  leaves the facts; it is restored by undoing its entry on the Changes page (`GET /corrections`).
+- `POST /groups/{gid}/ungroup?run=` and `/regroup` → `{ok, group_id, ungrouped, facts}`.
+- `GET /facts?run=` for a bid adds `documents: [{no, doc_id, file_name, playbook, level, visibility, issue_date,
+  issue_number, has_pdf}]` in issue order. `GET /facts/list` and `/facts.csv` take `docs=1,2` and `levels=1,4`;
+  the CSV takes `audience=external`.
+- `GET /runs` rows for a bid add `kind: "bid"`, `name`, `documents`.
+- `GET /page?run=&page=&fact_id=&doc=<doc_id>`.
