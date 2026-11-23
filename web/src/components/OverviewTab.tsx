@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button } from '@adobe/react-spectrum';
 import * as api from '../api';
+import { internalOnly, useBidDocs } from '../bidDocs';
 import { useAsync } from '../hooks';
 import { useRun } from '../store';
 import type { CalendarDate, Fact, Overview, OverviewCounts, OverviewEntry, OverviewResponse, SummaryRow, SummarySection, ViewName } from '../types';
@@ -249,7 +250,11 @@ const COUNT_TILES: { key: CountKey; label: string; hint: string; tone?: 'warn' |
 ];
 
 function StatTiles({ counts, view, viewFactIds }: { counts: OverviewCounts; view: ViewName; viewFactIds: ReadonlySet<string> | null }) {
-  const { goTo, showFacts, conflicts } = useRun();
+  const { goTo, showFacts, conflicts, liveFacts } = useRun();
+  const { inBid } = useBidDocs();
+  // A bid also counts what a later document replaced and what only an internal source supports.
+  const replaced = inBid ? liveFacts.filter((f) => f.flags.includes('replaced')).length : 0;
+  const internal = inBid ? liveFacts.filter(internalOnly).length : 0;
   const openConflicts = openConflictCount(conflicts.data ?? [], view, viewFactIds);
   const go = (k: CountKey) => {
     if (k === 'conflicts') return goTo('conflicts');
@@ -270,6 +275,20 @@ function StatTiles({ counts, view, viewFactIds }: { counts: OverviewCounts; view
           </button>
         );
       })}
+      {replaced > 0 && (
+        <button type="button" className="ov-stat" title={`${replaced} replaced by a later document`}
+          aria-label={`Replaced: ${replaced}, replaced by a later document. Show these facts`} onClick={() => showFacts({ flags: ['replaced'], view, hideReplaced: false })}>
+          <span className="l">Replaced</span>
+          <span className="v">{replaced}</span>
+        </button>
+      )}
+      {internal > 0 && (
+        <div className="ov-stat" style={{ cursor: 'default' }} title={`${internal} supported only by internal sources, left out of the CSV to share`}
+          aria-label={`Internal only: ${internal}, supported only by internal sources`}>
+          <span className="l">Internal only</span>
+          <span className="v">{internal}</span>
+        </div>
+      )}
     </div>
   );
 }

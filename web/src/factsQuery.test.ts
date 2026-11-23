@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyFilters, factsListQuery, listEntries, paginate, pct } from './factsQuery';
+import { emptyFilters, factsListQuery, listEntries, paginate, pct, withoutReplaced } from './factsQuery';
 import type { Fact } from './types';
 
 const fact = (id: string, over: Partial<Fact> = {}) =>
@@ -20,6 +20,10 @@ describe('factsListQuery', () => {
       run: 'r', q: 'due date', categories: 'D,S', statuses: 'needs_review', flags: 'risk,mandatory', page_from: '2', page_to: '9',
       view: 'Bid', split_only: '1', edited: '1', include_deleted: '1',
     });
+  });
+  it('sends documents and levels, and never the client-side hide switch', () => {
+    const p = new URLSearchParams(factsListQuery('r', { ...emptyFilters(), docs: [1, 3], levels: [1, 4], hideReplaced: true }));
+    expect(Object.fromEntries(p)).toEqual({ run: 'r', docs: '1,3', levels: '1,4' });
   });
   it('treats all statuses as no filter', () => {
     expect(new URLSearchParams(factsListQuery('r', emptyFilters())).has('statuses')).toBe(false);
@@ -46,6 +50,25 @@ describe('listEntries and paginate', () => {
     expect(paginate(xs, 15, 3).slice).toEqual([30]);
     expect(paginate(xs, 15, 9)).toMatchObject({ page: 3, pages: 3 });
     expect(paginate([], 15, 1)).toMatchObject({ page: 1, pages: 1, slice: [] });
+  });
+});
+
+describe('withoutReplaced', () => {
+  const rep = (id: string) => fact(id, { flags: ['replaced'] });
+  const live = (id: string) => fact(id, { flags: [] });
+  it('drops a replaced fact and a group whose facts are all replaced', () => {
+    const fs = [rep('a'), live('b'), rep('c'), rep('d')];
+    const e = listEntries([
+      { kind: 'fact', fact_ids: ['a'] }, { kind: 'fact', fact_ids: ['b'] }, { kind: 'same', fact_ids: ['c', 'd'] },
+    ], byId(fs));
+    expect(withoutReplaced(e).map((x) => x.first.fact_id)).toEqual(['b']);
+  });
+  it('keeps the live members of a group and counts them again', () => {
+    const fs = [rep('a'), live('b'), live('c')];
+    const e = withoutReplaced(listEntries([{ kind: 'same', fact_ids: ['a', 'b', 'c'] }], byId(fs)));
+    expect(e).toHaveLength(1);
+    expect(e[0].first.fact_id).toBe('b');
+    expect(e[0].stated).toBe(2);
   });
 });
 

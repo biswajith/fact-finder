@@ -47,3 +47,15 @@ def test_glued_text_still_catches_wrong_values():
     assert missing_values("MacBride Statement 2", ["___2."]) == set()
     # digit-then-letter is not split, so scale suffixes keep their meaning
     assert missing_values("Budget $10,000", ["budget of $10k"]) == set()
+
+
+def test_spelled_out_numbers_in_sources():
+    # Call transcripts and notes write numbers out; a summary writes them as digits.
+    src = "The City has about ninety-five thousand utility billing customer accounts."
+    assert missing_values("about 95,000 utility accounts", [src]) == set()
+    assert missing_values("250 pages", ["no more than two hundred and fifty pages"]) == set()
+    assert missing_values("$2,500,000", ["two million five hundred thousand dollars"]) == set()
+    assert missing_values("$1,000,000 limit", ["a million dollar limit"]) == set()
+    # Words that only sit side by side are not one number.
+    assert missing_values("32 copies", ["three and two copies"]) == {"32"}
+    assert missing_values("96,000 accounts", [src]) == {"96000"}

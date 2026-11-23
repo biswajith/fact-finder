@@ -1,7 +1,9 @@
 // Shapes of the JSON the backend returns (WEB_UI_SPEC.md sections 4 to 6).
 
-export type CategoryCode = 'B' | 'C' | 'G' | 'X' | 'D' | 'S' | 'E' | 'R' | 'Q';
-export type Flag = 'mandatory' | 'desirable' | 'risk' | 'unclear' | 'replaced' | 'post-award';
+export type CategoryCode = 'B' | 'C' | 'G' | 'X' | 'D' | 'S' | 'E' | 'R' | 'Q'
+  | 'PRIORITY' | 'DECIDER' | 'BUDGET' | 'QUESTION' | 'COMPETITOR' | 'ACTION';
+export type Flag = 'mandatory' | 'desirable' | 'risk' | 'unclear' | 'replaced' | 'post-award'
+  | 'tentative' | 'precedence' | 'both-sides';
 export type FactStatus = 'valid' | 'needs_review' | 'conflict';
 
 export const CATEGORY_CODES: CategoryCode[] = ['B', 'C', 'G', 'X', 'D', 'S', 'E', 'R', 'Q'];
@@ -15,8 +17,18 @@ export const CATEGORY_NAMES: Record<CategoryCode, string> = {
   E: 'Evaluation criterion',
   R: 'Requirement',
   Q: 'Contradiction',
+  PRIORITY: 'Buyer priority',
+  DECIDER: 'Decision maker',
+  BUDGET: 'Budget',
+  QUESTION: 'Open question',
+  COMPETITOR: 'Competitor',
+  ACTION: 'Action for our team',
 };
+/** Codes only the call-transcript and deal-notes playbooks give; they appear in a bid only. */
+export const BID_CATEGORY_CODES: CategoryCode[] = ['PRIORITY', 'DECIDER', 'BUDGET', 'QUESTION', 'COMPETITOR', 'ACTION'];
 export const FLAGS: Flag[] = ['mandatory', 'desirable', 'risk', 'unclear', 'replaced', 'post-award'];
+/** Flags that only a bid's facts carry. */
+export const BID_FLAGS: Flag[] = ['tentative', 'precedence', 'both-sides'];
 
 export interface Status {
   model: string;
@@ -32,6 +44,10 @@ export interface RunInfo {
   modified: string | number;
   has_pdf: boolean;
   corrections: number;
+  /** Set on the rows of a bid (run `_bids/<bid_id>`). */
+  kind?: 'bid';
+  name?: string;
+  documents?: number;
 }
 
 export interface Citation {
@@ -41,6 +57,42 @@ export interface Citation {
   section: string;
   text: string;
   bbox: [number, number, number, number] | null;
+  // Added for a bid (runs.normalize gives every citation these; outside a bid they are empty).
+  doc_id?: string;
+  doc_no?: number;
+  /** Transcripts: who said it (the page label is then the time). */
+  speaker?: string;
+  side?: string;
+  level?: number;
+  visibility?: 'external' | 'internal';
+}
+
+/** One end of a relation between two documents. `fact_id` is "" when no fact stands on that unit. */
+export interface RelationEnd {
+  doc_id: string;
+  unit: string;
+  fact_id: string;
+}
+export type RelationKind = 'REPLACES' | 'REMOVES' | 'ADDS' | 'CLARIFIES' | 'CONFIRMS' | 'DISAGREES';
+export interface Relation {
+  id: string;
+  kind: RelationKind;
+  from: RelationEnd;
+  to: RelationEnd;
+  rejected: boolean;
+}
+
+/** A document of a bid as GET /facts lists it (issue order). */
+export interface FactsDocument {
+  no: number;
+  doc_id: string;
+  file_name: string;
+  playbook: string;
+  level: string;
+  visibility: 'external' | 'internal';
+  issue_date: string | null;
+  issue_number: number | null;
+  has_pdf: boolean;
 }
 
 export interface Resolution {
@@ -83,6 +135,16 @@ export interface Fact {
   group_id?: string;
   group_kind?: string;
   group_title?: string;
+  // Added in a bid's facts.json.
+  doc_no?: number;
+  /** 1 buyer document, 2 buyer on a call, 3 our side on a call, 4 deal notes; absent outside a bid. */
+  level?: number;
+  playbook?: string;
+  relations?: Relation[];
+  /** The fact that governs this one now, when it is replaced; "" when none (or a later document removed it). */
+  replaced_by?: string;
+  /** "" or a warning, as the server words it ("section partly replaced", "may conflict with <fact id>"). */
+  stale?: string;
 }
 
 export interface FactsResponse {
@@ -90,6 +152,8 @@ export interface FactsResponse {
   run_id: string;
   pages: number;
   facts: Fact[];
+  /** Only for a bid, in issue order. */
+  documents?: FactsDocument[];
 }
 
 export interface NewFact {
@@ -112,6 +176,8 @@ export interface ConflictChange {
   op: 'edit' | 'delete';
   fact_id: string;
   fields?: Record<string, unknown>;
+  /** A flag the workspace adds to the flags the fact has when the choice is made. */
+  add_flag?: string;
 }
 
 export interface ConflictOption {
@@ -119,11 +185,22 @@ export interface ConflictOption {
   text: string;
   citation?: { id: string; page: number; page_label: string; section: string } | null;
   changes: ConflictChange[];
+  /** "Ask the buyer": nothing is applied. */
+  question?: boolean;
 }
+
+export type DocumentConflictReason =
+  | 'user-edited fact replaced' | 'old value elsewhere' | 'depends on changed value' | 'levels disagree'
+  | 'unfound target' | 'issued together';
 
 export interface Conflict {
   id: string;
-  kind: 'source' | 'raised';
+  kind: 'source' | 'raised' | 'document';
+  /** Document conflicts only. */
+  reason?: DocumentConflictReason | string;
+  /** Document conflicts only: the doc_id of the later document that settled it, or "". */
+  closed_by?: string;
+  doc_id?: string;
   title: string;
   description: string;
   fact_ids: string[];
@@ -138,7 +215,7 @@ export interface CorrectionEntry {
   id: string;
   at: string;
   source: 'chat' | 'ui';
-  op: 'edit' | 'delete' | 'add' | 'raise' | 'resolve' | 'undo';
+  op: 'edit' | 'delete' | 'add' | 'raise' | 'resolve' | 'undo' | 'reject_relation' | 'ungroup';
   fact_id: string | null;
   fields: Record<string, unknown> | null;
   reason: string | null;
@@ -152,6 +229,8 @@ export interface CorrectionEntry {
   conflict_title?: string | null;
   /** Choices: the chosen option's label, or "Your own answer: ...". */
   choice?: string | null;
+  /** `reject_relation` and `ungroup` entries: a line in words from the server. */
+  description?: string;
 }
 
 export interface SummaryRow {
@@ -200,6 +279,8 @@ export interface ChatMessage {
   text: string;
   tools?: ToolStep[];
   conflict_ids?: string[];
+  /** How the turn was planned; `status: "awaiting_approval"` means the assistant showed a plan and waits for a yes. */
+  planning?: { mode?: string; status?: string; plan_text?: string; steps?: { step: string; done?: boolean }[]; plan_steps?: { step: string; covers?: string[] }[] } | null;
 }
 
 export type ChangedWhat = 'facts' | 'conflicts' | 'summaries';
@@ -265,6 +346,11 @@ export interface FactsListFilters {
   splitOnly: boolean;
   edited: boolean;
   includeDeleted: boolean;
+  /** Bid only: document numbers (sent as `docs`) and levels (sent as `levels`). */
+  docs: number[];
+  levels: number[];
+  /** Bid only, applied on the client to the list the server returns; never sent. */
+  hideReplaced: boolean;
 }
 
 export interface FactItem {
@@ -333,41 +419,142 @@ export interface CompareResponse {
   code_differences: CodeDifference[];
 }
 
-export interface PdfChoice {
-  path: string;
-  name: string;
-}
-export interface UploadInfo {
-  upload_id: string;
-  name: string;
-  pages: number;
-}
-export type PdfSource = { path: string } | { upload_id: string };
-export interface PlanRow {
-  call: string;
-  times: number;
-  units: number;
-  pages: string;
-}
-export interface ExtractPlan {
-  calls: PlanRow[];
-  total_calls: number;
-  units: number;
-  stored: { run: string; facts: number; created: string } | null;
-}
-export interface ExtractRequest {
-  deal_id: string;
-  doc_id: string;
-  model?: string;
-  votes: number;
-  confirm: true;
-}
 export interface ExtractJob {
   status: 'running' | 'done' | 'failed';
   seconds: number;
   result: string | null;
   run: string | null;
   error: string | null;
+  /** Only jobs of a bid report steps. */
+  steps?: JobStep[];
+}
+
+// ---- Bids: many documents, one fact list (docs/multi-document-build-plan.md, "Web API as built") ----
+
+export type BidRole = 'base' | 'change' | 'context';
+/** `other`: a named party that is neither the buyer nor us (an advisor, a partner, a subcontractor). */
+export type SpeakerSide = 'buyer' | 'ours' | 'other' | 'unknown' | '';
+
+export interface BidPlaybook {
+  name: string;
+  description: string;
+  role: BidRole;
+  form: string;
+  /** "1", "by speaker" or "4". */
+  level: string;
+  visibility: 'external' | 'internal';
+  calls: string[];
+  votes: number;
+}
+export interface BidProposal {
+  playbook: string;
+  issue_number: number | null;
+  issue_date: string | null;
+  by: string;
+  checked: boolean;
+}
+export interface BidSpeaker {
+  id: string;
+  name: string;
+  side: SpeakerSide;
+  proposed: SpeakerSide;
+  why: string;
+  organisation?: string;
+  title?: string;
+  note?: string;
+  /** For an `other` party: whom they act for, "buyer", "ours" or "". */
+  acts_for?: string;
+}
+export type BidDocStatus = 'uploaded' | 'confirmed' | 'extracting' | 'extracted' | 'failed';
+export interface BidDocument {
+  no: number;
+  doc_id: string;
+  file: string;
+  file_name: string;
+  sha256: string;
+  pages: number;
+  proposed: BidProposal;
+  playbook: string;
+  issue_number: number | null;
+  issue_date: string | null;
+  confirmed: boolean;
+  previous: string | null;
+  speakers: BidSpeaker[];
+  speakers_confirmed: boolean;
+  run: string;
+  status: BidDocStatus;
+  error: string;
+  /** What is still needed before the document can be read, as the server words it. */
+  missing: string[];
+}
+export interface Bid {
+  bid_id: string;
+  name: string;
+  deal_id: string;
+  created: string;
+  team: { name: string }[];
+  precedence: string[] | null;
+  documents: BidDocument[];
+  /** doc_ids in issue order. */
+  order: string[];
+  /** `_bids/<bid_id>` once the bid has facts, else "". */
+  run: string;
+  playbooks: BidPlaybook[];
+}
+export interface BidSummary {
+  bid_id: string;
+  name: string;
+  run: string;
+  documents: number;
+  facts: number;
+  modified: string | number;
+}
+export interface BidDocumentPatch {
+  doc_id?: string;
+  playbook?: string;
+  issue_number?: number | null;
+  issue_date?: string | null;
+  previous?: string | null;
+  confirmed?: boolean;
+  speakers?: { id: string; name: string; side: SpeakerSide; acts_for?: string }[];
+  speakers_confirmed?: boolean;
+}
+export interface BidPatch {
+  name?: string;
+  team?: { name: string }[];
+  precedence?: string[] | null;
+}
+export interface PlanRow {
+  call: string;
+  times: number;
+  units: number;
+  pages: string;
+}
+export interface BidPlanDocument {
+  no: number;
+  doc_id: string;
+  file_name: string;
+  playbook: string;
+  missing: string[];
+  units: number;
+  calls: PlanRow[];
+  total_calls: number;
+  stored: { run: string; facts: number; created: string } | null;
+  error: string;
+}
+export interface BidPlan {
+  documents: BidPlanDocument[];
+  skipped: { no: number; doc_id: string; why: string }[];
+  relate_again: number[];
+  total_calls: number;
+}
+export type StepStatus = 'running' | 'done' | 'reused' | 'failed';
+export interface JobStep {
+  /** 0 for the steps of the whole bid. */
+  doc_no: number;
+  step: string;
+  status: StepStatus;
+  detail: string;
 }
 
 // ---- Chat sessions and their event log (WEB_UI_SPEC.md 7.2) --------------------------------
@@ -406,6 +593,8 @@ export interface DecisionsCall {
   output_tokens?: number | null;
   cost_usd?: number;
   error?: string;
+  /** The whole Decisions API response as returned (answers with every label's probability, usage, request id). */
+  response?: Record<string, unknown> | null;
 }
 
 export interface PlanStep { step: string; done: boolean }
@@ -459,4 +648,17 @@ export interface ChatLogEvent {
 export interface ChatSessionDetail {
   session: ChatSession | null;
   events: ChatLogEvent[];
+}
+
+/** One row of a chat timeline block (GET /timeline): dates and text come from the stored fact. */
+export interface TimelineRow {
+  fact_id: string;
+  date: string;
+  label: string;
+  time: string;
+  text: string;
+  page: string;
+  replaced: boolean;
+  doc_no: number;
+  internal: boolean;
 }

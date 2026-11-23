@@ -9,7 +9,7 @@ Kind = Literal["sentence", "heading", "table_row", "list_item"]
 
 # Flags the model may write in the note field (prompt 10.1).
 # post-award: the fact applies only to the bidder who wins (REVIEW.md, "Before the bid and after award").
-FLAGS = ("mandatory", "desirable", "risk", "unclear", "replaced", "post-award")
+FLAGS = ("mandatory", "desirable", "risk", "unclear", "replaced", "post-award", "tentative", "precedence", "both-sides")
 
 # Fact categories (spec section 5).
 CATEGORIES: dict[str, str] = {
@@ -22,6 +22,12 @@ CATEGORIES: dict[str, str] = {
     "E": "evaluation criterion",
     "R": "requirement",
     "Q": "contradiction",
+    "PRIORITY": "buyer priority",
+    "DECIDER": "decider or influencer",
+    "BUDGET": "buyer budget",
+    "QUESTION": "open question",
+    "COMPETITOR": "competitor intelligence",
+    "ACTION": "action for our team",
 }
 
 
@@ -37,9 +43,12 @@ class Anchor:
     text: str
     bbox: tuple[float, float, float, float] | None
     kind: Kind
+    speaker: str = ""  # who said it (transcripts); "" elsewhere
+    side: str = ""  # "buyer", "ours", "other", "unknown" or "" (not a spoken source)
 
     def citation(self) -> dict:
-        return {
+        out = {
+            "doc_id": self.doc_id,
             "id": self.id,
             "page": self.page,
             "page_label": self.page_label,
@@ -47,6 +56,11 @@ class Anchor:
             "text": self.text,
             "bbox": list(self.bbox) if self.bbox else None,
         }
+        if self.speaker:
+            out["speaker"] = self.speaker
+        if self.side:
+            out["side"] = self.side
+        return out
 
 
 @dataclass

@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..models import CATEGORIES
+from .. import results
 from ..results import safe_name
 
 CSV_COLUMNS = (
@@ -36,6 +37,8 @@ class RunRef:
     mtime: float
     doc_id: str
     run_id: str
+    kind: str = "document"  # "bid" for a bid's fact list (_bids/<bid_id>/facts.json), else "document"
+    documents: int = 0  # for a bid: how many documents it holds
 
 
 @dataclass
@@ -47,6 +50,7 @@ class Run:
     doc_id: str
     run_id: str
     pages: int
+    source: Path | None = None  # the stored source file of any form (source.pdf, source.json, ...)
 
 
 # --- finding and loading runs ---------------------------------------------------------
@@ -71,6 +75,16 @@ def _read_report(path: Path) -> dict | None:
     return rep if isinstance(rep, dict) else None
 
 
+def _read_bid(facts_path: Path) -> dict | None:
+    """The manifest of the bid whose fact list this is, or None when it is an ordinary run."""
+    try:
+        with open(facts_path.parent / "bid.json", encoding="utf-8") as f:
+            m = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return m if isinstance(m, dict) else None
+
+
 def find_runs(folder: str | Path) -> list[RunRef]:
     """Every run under `folder` (a `<doc>/<run>/facts.json`), newest first. A facts file that is
     not a JSON list is skipped."""
@@ -83,6 +97,14 @@ def find_runs(folder: str | Path) -> list[RunRef]:
         if data is None:
             continue
         first = data[0] if data and isinstance(data[0], dict) else {}
+        manifest = _read_bid(p)
+        if manifest is not None:  # a bid is listed once, under its own ID
+            out.append(RunRef(
+                path=p, label=str(p.relative_to(root)), facts=len(data), mtime=p.stat().st_mtime,
+                doc_id=str(manifest.get("bid_id") or p.parent.name), run_id="bid", kind="bid",
+                documents=len(manifest.get("documents") or []),
+            ))
+            continue
         out.append(RunRef(
             path=p, label=str(p.relative_to(root)), facts=len(data), mtime=p.stat().st_mtime,
             doc_id=str(first.get("doc_id", "")), run_id=str(first.get("run_id", "")),
@@ -108,6 +130,15 @@ def runs_table(runs: list[RunRef]) -> list[dict]:
     return rows
 
 
+def _int(value: object) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def cite_key(c: dict) -> tuple[str, str]:
+    """A citation names a unit of one document: the pair (document ID, unit ID)."""
+    return (str(c.get("doc_id") or ""), str(c.get("id") or ""))
+
+
 def normalize(records: list[dict]) -> list[dict]:
     """Give every record every field the app reads, with an empty value where it has none
     (user-added facts, `also` = null, test fixtures), so the rest of the app can index them directly."""
@@ -117,12 +148,18 @@ def normalize(records: list[dict]) -> list[dict]:
         for c in r.get("citations") or []:
             page = c.get("page")
             cites.append({
+                "doc_id": c.get("doc_id") or r.get("doc_id") or "",
+                "doc_no": _int(c.get("doc_no") or r.get("doc_no")),
                 "id": str(c.get("id", "")),
                 "page": page if isinstance(page, int) else None,
                 "page_label": str(c.get("page_label") or (page if page is not None else "")),
                 "section": c.get("section") or "",
                 "text": c.get("text") or "",
                 "bbox": c.get("bbox") or None,
+                "speaker": c.get("speaker") or "",
+                "side": c.get("side") or "",
+                "level": _int(c.get("level")),
+                "visibility": c.get("visibility") or "external",
             })
         out.append({
             **r,
@@ -157,6 +194,10 @@ def load_run(path: str | Path) -> Run:
     with open(path, encoding="utf-8") as f:
         records = normalize(json.load(f))
     report = _read_report(path)
+    if _read_bid(path) is not None:  # a bid: no source file, the bid's ID in place of a document's
+        bid_id = path.parent.name
+        pages = (report or {}).get("pages") or max((c["page"] for r in records for c in r["citations"] if c["page"]), default=1)
+        return Run(path, records, report, None, bid_id, "bid", int(pages), None)
     # The PDF sits beside the run, or one level up when a document's runs share it.
     pdf = next((p for p in (path.parent / "source.pdf", path.parent.parent / "source.pdf") if p.is_file()), None)
     first = records[0] if records else {}
@@ -165,7 +206,12 @@ def load_run(path: str | Path) -> Run:
     pages = (report or {}).get("pages") or max(
         (c["page"] for r in records for c in r["citations"] if c["page"]), default=1
     )
-    return Run(path, records, report, pdf, doc_id, run_id, int(pages))
+    source = pdf or next(
+        (p for d in (path.parent, path.parent.parent) for ext in results.SOURCE_SUFFIXES
+         if (p := d / f"source{ext}").is_file()),
+        None,
+    )
+    return Run(path, records, report, pdf, doc_id, run_id, int(pages), source)
 
 
 # --- filtering and ordering: before the bid, after award ------------------------------
@@ -250,13 +296,20 @@ def id_position(cid: str) -> tuple:
 
 
 def document_order(records: list[dict]) -> list[dict]:
-    """By first citation: page, then position in the ID. Facts without citations go last."""
+    """By first citation: page, then position in the ID. Facts without citations go last. In a
+    bid the document comes first, in the order the documents appear on `records`; a record with
+    no `doc_no` sorts as it always did."""
+    place: dict[int, int] = {}
+    for r in records:
+        if r.get("doc_no"):
+            place.setdefault(r["doc_no"], len(place) + 1)
 
     def key(r: dict) -> tuple:
+        doc = place.get(r.get("doc_no") or 0, 0)
         if not r["citations"]:
-            return (10**9, (10**9, 10**9, 9, 0, ""))
+            return (doc, 10**9, (10**9, 10**9, 9, 0, ""))
         c = r["citations"][0]
-        return (c["page"] or 10**9, id_position(c["id"]))
+        return (doc, c["page"] or 10**9, id_position(c["id"]))
 
     return sorted(records, key=key)
 
@@ -288,16 +341,30 @@ class Item:
 def items(records: list[dict]) -> list[Item]:
     """Collapse grouped facts, keeping the order of `records`: a group sits where its first
     member is. A group with only one member in `records` (the others filtered out) is
-    shown as the plain fact it is."""
+    shown as the plain fact it is.
+
+    In a bid (records with a `level`) a group shows its governing member first: not replaced, then
+    the lowest level number, then the latest document in the order `records` lists them. A group
+    whose members are all replaced shows as plain facts. Other records keep their order."""
     members: dict[str, list[dict]] = {}
     for r in records:
         if r["group_id"]:
             members.setdefault(r["group_id"], []).append(r)
+    place: dict[int, int] = {}
+    for r in records:
+        place.setdefault(r.get("doc_no") or 0, len(place))
+    plain: set[str] = set()
+    for gid, ms in members.items():
+        if any(m.get("level") for m in ms):
+            if all("replaced" in m.get("flags", []) for m in ms):
+                plain.add(gid)
+                continue
+            ms.sort(key=lambda m: ("replaced" in m.get("flags", []), m.get("level") or 9, -place[m.get("doc_no") or 0]))
     out: list[Item] = []
     done: set[str] = set()
     for r in records:
         gid = r["group_id"]
-        if not gid or len(members[gid]) < 2:
+        if not gid or gid in plain or len(members[gid]) < 2:
             out.append(Item("fact", r["text"], [r]))
         elif gid not in done:
             done.add(gid)
@@ -342,32 +409,54 @@ def buyer_rows(records: list[dict], brief: list[dict] | None) -> list[dict]:
     return rows
 
 
+def _when(text: str) -> tuple[str, str, str]:
+    """The first calendar date a text names as (YYYY-MM-DD, "Thu 24 Jun 2027", time "14:00"); all empty when
+    it names none. A time is given only when the text names a single date."""
+    from ..normalize import values
+
+    tokens = values(text)
+    days = sorted(t.split(":", 1)[1] for t in tokens if t.startswith("date:"))
+    times = sorted(t.split(":", 1)[1] for t in tokens if t.startswith("time:"))
+    if not days:
+        return "", "", ""
+    when = datetime.strptime(days[0], "%Y-%m-%d")
+    return days[0], f"{when:%a} {when.day} {when:%b %Y}", times[0] if times and len(days) == 1 else ""
+
+
 def calendar(records: list[dict]) -> dict:
     """Date facts in time order. A fact goes under the first calendar date it names; one
     with no date of its own ("30 days after award") is kept apart, in document order."""
-    from ..normalize import values
-
     dated, undated = [], []
     seen: set[str] = set()
     for it in items(document_order([r for r in records if r["category"] == "D"])):
         for f in ([it.first] if it.kind == "same" else it.facts):
-            tokens = values(f["text"])
-            days = sorted(t.split(":", 1)[1] for t in tokens if t.startswith("date:"))
-            times = sorted(t.split(":", 1)[1] for t in tokens if t.startswith("time:"))
+            day, label, time = _when(f["text"])
             page = it.pages() if it.kind == "same" else page_labels(f)
-            if not days:
+            if not day:
                 undated.append({"text": f["text"], "page": page})
                 continue
             if f["text"] in seen:
                 continue
             seen.add(f["text"])
-            when = datetime.strptime(days[0], "%Y-%m-%d")
-            dated.append({
-                "date": days[0], "label": f"{when:%a} {when.day} {when:%b %Y}",
-                "time": times[0] if times and len(days) == 1 else "", "text": f["text"], "page": page,
-            })
+            dated.append({"date": day, "label": label, "time": time, "text": f["text"], "page": page})
     dated.sort(key=lambda d: (d["date"], d["time"] or "99:99"))
     return {"dated": dated, "undated": undated}
+
+
+def timeline(records: list[dict]) -> list[dict]:
+    """The chosen facts as timeline rows, dated ones in time order, then the undated ones in the order
+    given. Dates and times are read from the stored text, never supplied by the caller."""
+    rows = []
+    for r in records:
+        day, label, time = _when(r["text"])
+        cites = r["citations"]
+        rows.append({
+            "fact_id": r["fact_id"], "date": day, "label": label, "time": time, "text": r["text"],
+            "page": page_labels(r), "replaced": "replaced" in r.get("flags", []),
+            "doc_no": _int(r.get("doc_no") or (cites[0].get("doc_no") if cites else 0)),
+            "internal": bool(cites) and all(c.get("visibility") == "internal" for c in cites),
+        })
+    return sorted(rows, key=lambda x: (x["date"] or "9999", x["time"] or "99:99"))  # stable: undated keep their order
 
 
 def overview(records: list[dict]) -> dict:
@@ -395,9 +484,29 @@ def overview(records: list[dict]) -> dict:
 # --- CSV ------------------------------------------------------------------------------
 
 
-def csv_row(r: dict) -> dict:
+BID_COLUMNS = ("document", "level", "visibility")  # added to a bid's CSV only
+
+
+def external_view(records: list[dict]) -> list[dict]:
+    """The records an outside reader may see: citations of an internal document are dropped, and a fact
+    left with none (it cited only internal sources, a Q fact and a conflict-only row included) is dropped
+    too. A fact that never had a citation stays."""
+    out = []
+    for r in records:
+        cites = [c for c in r["citations"] if c.get("visibility") != "internal"]
+        if r["citations"] and not cites:
+            continue
+        out.append(r if len(cites) == len(r["citations"]) else {**r, "citations": cites})
+    return out
+
+
+def csv_row(r: dict, bid: bool = False) -> dict:
     cites = r["citations"]
-    return {
+    extra = {
+        "document": r.get("doc_id", ""), "level": r.get("level") or "",
+        "visibility": "internal" if any(c.get("visibility") == "internal" for c in cites) else "external",
+    } if bid else {}
+    return {**extra,
         "category": r["category"],
         "category_name": CATEGORIES.get(r["category"], ""),
         "text": r["text"],
@@ -413,13 +522,13 @@ def csv_row(r: dict) -> dict:
     }
 
 
-def to_csv(records: list[dict]) -> bytes:
-    """UTF-8 with a byte order mark, so Excel reads it as UTF-8."""
+def to_csv(records: list[dict], bid: bool = False) -> bytes:
+    """UTF-8 with a byte order mark, so Excel reads it as UTF-8. A bid's CSV has three more columns."""
     buf = io.StringIO()
-    w = csv.DictWriter(buf, fieldnames=CSV_COLUMNS)
+    w = csv.DictWriter(buf, fieldnames=(*CSV_COLUMNS, *BID_COLUMNS) if bid else CSV_COLUMNS)
     w.writeheader()
     for r in records:
-        w.writerow(csv_row(r))
+        w.writerow(csv_row(r, bid))
     return buf.getvalue().encode("utf-8-sig")
 
 
@@ -528,13 +637,17 @@ def tag_pdf(pdf_bytes: bytes, doc_id: str, runs_root: str | Path = "runs"):
         return tag_pages(doc_id, read_pdf(str(path)))
 
 
-def plan_rows(doc, votes: int = 3) -> list[dict]:
+def plan_rows(doc, votes: int | None = 3, playbook=None) -> list[dict]:
     """The calls of the first round of one extraction: every unit labelled `votes` times and
     stated once, one contradiction check and one cross-reference call. All are sent together.
-    The group and summary calls that follow depend on the facts found and are not listed."""
-    from .. import units
+    The group and summary calls that follow depend on the facts found and are not listed.
+    With a `playbook` only its calls are listed (and `votes` None means the playbook's own), and
+    RELATE adds one call per batch of units."""
+    from .. import relate, units
 
     cfg = units.Config()
+    calls = playbook.calls if playbook is not None else ("LABEL", "STATE", "CHECK", "XREF")
+    votes = votes or (playbook.votes if playbook is not None else 3)
 
     def pages(ids: list[str]) -> str:
         first, last = doc.anchors[ids[0]].page, doc.anchors[ids[-1]].page
@@ -544,12 +657,20 @@ def plan_rows(doc, votes: int = 3) -> list[dict]:
         {"call": f"LABEL{k}", "times": votes, "units": len(ids), "pages": pages(ids)}
         for k, ids in enumerate(units.chunks(doc, cfg.units_per_label_call), start=1)
     ]
-    rows += [
-        {"call": f"STATE{k}", "times": 1, "units": len(ids), "pages": pages(ids)}
-        for k, ids in enumerate(units.chunks(doc, cfg.units_per_state_call), start=1)
-    ]
+    if "STATE" in calls:
+        rows += [
+            {"call": f"STATE{k}", "times": 1, "units": len(ids), "pages": pages(ids)}
+            for k, ids in enumerate(units.chunks(doc, cfg.units_per_state_call), start=1)
+        ]
     whole = {"times": 1, "units": len(doc.anchors), "pages": f"1-{doc.page_count}"}
-    return rows + [{"call": "CHECK", **whole}, {"call": "XREF", **whole}]
+    rows += [{"call": c, **whole} for c in ("CHECK", "XREF") if c in calls]
+    if "RELATE" in calls:
+        ids = list(doc.anchors)
+        rows += [
+            {"call": f"RELATE{k}", "times": 1, "units": len(part), "pages": pages(part)}
+            for k, part in enumerate((ids[i:i + relate.BATCH] for i in range(0, len(ids), relate.BATCH)), start=1)
+        ]
+    return rows
 
 
 def stored_result(pdf_bytes: bytes, doc_id: str, runs_root: str | Path = "runs"):
@@ -570,6 +691,7 @@ def run_extraction(
     runs_root: str | Path = "runs",
     client=None,
     cfg=None,
+    source_name: str | None = None,
 ) -> tuple[Path, dict, bool]:
     """What `fact-extractor extract` does: return the stored result for this PDF, or
     extract and store it under `runs/<doc_id>/<run_id>/`.
@@ -577,12 +699,12 @@ def run_extraction(
     Returns the facts path, the report, and whether the result came from the store
     (then no model was called). On an exception nothing is left on disk.
     """
-    from .. import results, units
+    from .. import units
 
     root = Path(runs_root)
     store = results.ResultStore(root)
     sha = results.pdf_hash(pdf_bytes)
-    stored = store.find(sha, units.VERSION, doc_id)
+    stored = store.find(sha, units.VERSION, doc_id, "rfp@1")
     if stored and not refresh:
         return stored.facts_path, stored.report(), True
     made_root = not root.exists()
@@ -599,7 +721,10 @@ def run_extraction(
         if made_root:
             shutil.rmtree(root, ignore_errors=True)
         raise
-    saved = store.save(pdf_bytes, sha, units.VERSION, result, result.labels)
+    saved = store.save(
+        pdf_bytes, sha, units.VERSION, result, result.labels,
+        playbook="rfp@1", source_name=source_name or f"{doc_id}.pdf", units=doc,
+    )
     return saved.facts_path, result.report, False
 
 

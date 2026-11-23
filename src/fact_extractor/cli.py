@@ -100,8 +100,42 @@ def main(argv: list[str] | None = None) -> int:
     web = sub.add_parser("web", help="open the chat workspace (corrections, summaries) in a browser (needs the web extra)")
     web.add_argument("--runs", default="runs", help="folder that holds the runs (default: runs)")
     web.add_argument("--port", type=int, default=8765)
+    web.add_argument("--reload", action="store_true", help="development: restart the server when its Python code changes")
+    bd = sub.add_parser("bid", help="a bid: several documents about one opportunity, read one by one and listed together")
+    bsub = bd.add_subparsers(dest="bid_cmd", required=True)
+    b = bsub.add_parser("create", help="start an empty bid")
+    b.add_argument("name")
+    b.add_argument("--deal-id", default="")
+    b = bsub.add_parser("add", help="add files to a bid and show what each looks like")
+    b.add_argument("bid")
+    b.add_argument("files", nargs="+")
+    b.add_argument("--type", default=None, help="the playbook (document type), instead of the proposed one")
+    b.add_argument("--number", type=int, default=None, help="issue number, e.g. of an addendum")
+    b.add_argument("--date", default=None, help="issue date YYYY-MM-DD")
+    b.add_argument("--yes", action="store_true", help="confirm the type, number and date shown")
+    b = bsub.add_parser("speakers", help="show or set who is on which side in a call; NAME=buyer|ours|other|unknown")
+    b.add_argument("bid")
+    b.add_argument("no", type=int)
+    b.add_argument("sides", nargs="*", metavar="NAME=side")
+    b = bsub.add_parser("run", help="extract every document that is ready, then build the bid's fact list")
+    b.add_argument("bid")
+    b.add_argument("--votes", type=int, default=None, help="labelling passes per unit (default: the playbook's)")
+    b.add_argument("--model", default=None, help="defaults to $FACT_EXTRACTOR_MODEL or gpt-6-luna")
+    b = bsub.add_parser("relate", help="ask again for the units RELATE left unanswered, then build the bid's fact list")
+    b.add_argument("bid")
+    b.add_argument("--no", type=int, default=None, help="only this document number (default: every document)")
+    b.add_argument("--model", default=None, help="defaults to $FACT_EXTRACTOR_MODEL or gpt-6-luna")
+    b = bsub.add_parser("show", help="the documents of a bid, in issue order, and what each still needs")
+    b.add_argument("bid")
+    b = bsub.add_parser("eval", help="score a built bid against a key of relations, sides and groups (no model call)")
+    b.add_argument("bid")
+    b.add_argument("key", help="the key file, JSON")
+    for b in bsub.choices.values():
+        b.add_argument("--store", default="runs", help="the folder runs and bids are kept in")
     args = ap.parse_args(argv)
 
+    if args.cmd == "bid":
+        return _bid(args)
     if args.cmd == "web":
         return _web(args)
     if args.cmd == "golden":
@@ -173,7 +207,10 @@ def _extract(args, doc) -> None:
     if args.parallel:
         cfg.max_parallel = args.parallel
     result = asyncio.run(units.extract(doc, OpenAIClient(args.model), deal_id=args.deal_id, cfg=cfg))
-    saved = store.save(args.pdf, sha, units.VERSION, result, result.labels)
+    saved = store.save(
+        args.pdf, sha, units.VERSION, result, result.labels,
+        playbook="rfp@1", source_name=os.path.basename(args.pdf), units=doc,
+    )
     _write_out(args, result.facts, result.report)
     r = result.report
     print(
@@ -251,10 +288,178 @@ def _web(args) -> int:
     from .web.server import serve
 
     try:
-        serve(args.runs, args.port)
+        serve(args.runs, args.port, reload=args.reload)
     except KeyboardInterrupt:
         pass
     return 0
+
+
+def _suggest_speakers(bid, doc: dict) -> dict:
+    """For a call with unconfirmed speakers: ask the model who is on which side, when a key is set.
+    Any failure leaves the rules' proposal."""
+    from . import playbooks
+    from .web import has_api_key
+
+    if doc["speakers"] and not doc["speakers_confirmed"] and playbooks.load(doc["playbook"]).cutter == "transcript" and has_api_key():
+        try:
+            from . import speakers
+            from .llm import OpenAIClient
+
+            got = asyncio.run(speakers.suggest(bid, doc["no"], OpenAIClient()))
+            return got or doc
+        except Exception:
+            pass
+    return doc
+
+
+def _bid(args) -> int:
+    from . import bid as B
+
+    if args.bid_cmd == "create":
+        made = B.create(args.store, args.name, args.deal_id)
+        print(made.bid_id)
+        return 0
+    bid = B.Bid(args.store, args.bid)
+    if not bid.exists():
+        print(f"no bid named {args.bid!r} in {args.store}", file=sys.stderr)
+        return 1
+    if args.bid_cmd == "add":
+        code = 0
+        for path in args.files:
+            try:
+                with open(path, "rb") as f:
+                    doc = bid.add_document(f.read(), os.path.basename(path))
+                fields = {k: v for k, v in (("playbook", args.type), ("issue_number", args.number), ("issue_date", args.date)) if v is not None}
+                if args.yes:
+                    fields["confirmed"] = True
+                if fields:
+                    doc = bid.update_document(doc["no"], **fields)
+                doc = _suggest_speakers(bid, doc)
+            except (ValueError, OSError) as e:
+                print(f"{path}: {e}", file=sys.stderr)
+                code = 1
+                continue
+            p = doc["proposed"]
+            print(
+                f"{doc['no']}  {doc['doc_id']}  {doc['playbook']}  number {doc['issue_number'] or '-'}  "
+                f"date {doc['issue_date'] or '-'}  (suggested by {'the model' if p['by'] == 'model' else p['by']}: {p['playbook']})  "
+                + ("confirmed" if doc["confirmed"] else "not confirmed; use --yes")
+            )
+        return code
+    if args.bid_cmd == "speakers":
+        try:
+            doc = bid.refresh_speakers(args.no) if not bid.document(args.no)["speakers_confirmed"] else bid.document(args.no)
+            if args.sides:
+                given = []
+                for item in args.sides:
+                    name, _, side = item.rpartition("=")
+                    given.append({"name": name, "side": side})
+                doc = bid.update_document(args.no, speakers=given)
+                # a speaker not named takes the proposed side; the sides are then confirmed
+                rest = [{"id": s["id"], "side": s["proposed"]} for s in doc["speakers"] if not s["side"]]
+                doc = bid.update_document(args.no, speakers=rest, speakers_confirmed=True)
+        except (ValueError, KeyError) as e:
+            print(e, file=sys.stderr)
+            return 1
+        for s in doc["speakers"]:
+            org = f" [{s['organisation']}]" if s.get("organisation") else ""
+            print(f"{s['name']}{org}: {s['side'] or '-'} (proposed {s['proposed']}, {s['why']})")
+        print("speakers confirmed" if doc["speakers_confirmed"] else "not confirmed: give NAME=side for the speakers")
+        return 0
+    if args.bid_cmd == "eval":
+        from . import bideval
+
+        try:
+            with open(args.key, encoding="utf-8") as f:
+                key = json.load(f)
+            print(bideval.report(bideval.score(bid, key)))
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            print(f"cannot score the bid: {e!r}" if isinstance(e, (KeyError, TypeError)) else f"cannot score the bid: {e}", file=sys.stderr)
+            return 1
+        return 0
+    if args.bid_cmd == "show":
+        m = bid.manifest()
+        print(f"{m['name']} ({m['bid_id']}), deal {m['deal_id']}")
+        for d in B.issue_order(m):
+            need = B.ready(d)
+            print(
+                f"{d['no']:>3}  {d['doc_id']}  {d['playbook']}  number {d['issue_number'] or '-'}  date {d['issue_date'] or '-'}  "
+                f"{d['status']}" + (f"  needs: {', '.join(need)}" if need and not d["run"] else "")
+            )
+        return 0
+    if args.bid_cmd == "relate":
+        return _bid_relate(args, bid)
+    # run
+    from .llm import OpenAIClient
+    from .results import ResultStore
+
+    store = ResultStore(args.store)
+    client = None
+    code = 0
+    for d in B.issue_order(bid.manifest()):
+        if d["status"] == "extracted" and d["run"]:
+            continue
+        need = B.ready(d)
+        if need:
+            print(f"{d['doc_id']}: left out, {', '.join(need)}", file=sys.stderr)
+            continue
+        client = client or OpenAIClient(args.model)
+        try:
+            asyncio.run(B.extract_document(
+                bid, d["no"], client, votes=args.votes, store=store,
+                on_step=lambda no, step, status, detail: print(f"{d['doc_id']}: {step} {status} {detail}".rstrip(), file=sys.stderr),
+            ))
+        except Exception as e:
+            print(f"{d['doc_id']}: failed: {e}", file=sys.stderr)
+            code = 1
+    from .web import has_api_key
+
+    if has_api_key():  # no key: the bid is built from what is stored; every pair is recorded as not checked
+        from .llm import OpenAIClient
+        from .web.consistency import ConsistencyChecker
+
+        client, checker = client or OpenAIClient(args.model), ConsistencyChecker()
+    else:
+        client, checker = None, None
+    facts = asyncio.run(B.settle(
+        bid, client, checker, on_step=lambda no, step, status, detail: print(f"bid: {step} {status} {detail}".rstrip(), file=sys.stderr),
+    ))
+    print(f"{len(facts)} facts in the bid's list: {bid.folder / 'facts.json'}")
+    return code
+
+
+def _bid_relate(args, bid) -> int:
+    """`bid relate`: ask again for the units RELATE left unanswered, then settle and build as `bid run` does."""
+    from . import bid as B
+    from .llm import OpenAIClient
+    from .results import ResultStore
+    from .web.consistency import ConsistencyChecker
+
+    if not os.environ.get("OPENAI_API_KEY"):
+        print("OPENAI_API_KEY is not set (put it in .env or the environment)", file=sys.stderr)
+        return 1
+    left = bid.incomplete_relations()
+    if args.no is not None:
+        if args.no not in {d["no"] for d in bid.manifest()["documents"]}:
+            print(f"no document {args.no} in bid {args.bid!r}", file=sys.stderr)
+            return 1
+        left = {n: u for n, u in left.items() if n == args.no}
+    store, client, code = ResultStore(args.store), OpenAIClient(args.model), 0
+    for no, unit_ids in left.items():
+        try:
+            asyncio.run(B.extract_document(bid, no, client, store=store, relate_only=True, only_incomplete=True))
+        except Exception as e:
+            print(f"d{no}: failed: {e}", file=sys.stderr)
+            code = 1
+            continue
+        print(f"d{no}: {len(unit_ids)} units asked, {len(bid.incomplete_relations().get(no, []))} still unanswered")
+    if not left:
+        print("no unit is waiting for an answer")
+    facts = asyncio.run(B.settle(
+        bid, client, ConsistencyChecker(), on_step=lambda no, step, status, detail: print(f"bid: {step} {status} {detail}".rstrip(), file=sys.stderr),
+    ))
+    print(f"{len(facts)} facts in the bid's list: {bid.folder / 'facts.json'}")
+    return code
 
 
 def hit_rate(result) -> float:

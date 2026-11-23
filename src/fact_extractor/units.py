@@ -45,6 +45,7 @@ from . import prompts, xref
 from .llm import CallFailed, LLMClient, RateLimited, Request
 from .models import CallRecord, CallSpec, TaggedDocument
 from .normalize import missing_values, values
+from .playbooks import Playbook, definition, load
 from .validate import check_output
 
 # Part of the key a stored result is found by. Change it whenever the prompts or the way
@@ -55,38 +56,18 @@ from .validate import check_output
 # units-5: a cross-reference call (XREF) finds the references; code verifies them (Q facts).
 VERSION = "units-5"
 
-CODES = ("B", "C", "G", "X", "D", "S", "E", "R")
-PRECEDENCE = prompts.PRECEDENCE
-MODEL_FLAGS = ("post-award", "risk", "unclear")  # judged by the model, by majority
+_RFP = load("rfp")  # the reading rules of an RFP: playbooks/rfp.md
+CODES = _RFP.codes
+PRECEDENCE = _RFP.precedence
+MODEL_FLAGS = _RFP.flags  # judged by the model, by majority
 CONTINUES, NOTHING, NO_ANSWER = "=", "-", "?"
 CONTINUATION_REACH = 3  # a continuation attaches to a coded unit at most this many units back
 
-SYSTEM = f"""You read an RFP for a bid manager, unit by unit.
-
-THE READER
-The bid manager uses your work at three moments:
-- Deciding whether to bid: can we qualify, can we win, what will it cost, what risk do we take on.
-- Writing and submitting the proposal: what it must contain and answer, in what form, by when, and how it is scored.
-- After winning: what the contract obliges the winner to do.
-The bid manager reads your work instead of the RFP, and must not miss a deadline, a mandatory item, or a risky contract term.
-
-INPUT
-The user sends the RFP as tagged text. Each line is one unit and starts with its ID in brackets, for example [p12.4]. A second message gives your task and its output format. Write nothing but that output.
-
-A POINT
-A unit matters when it states a point the bid team must know, do, or decide. A unit that only continues, qualifies, or repeats the point of a unit shortly before it belongs with that unit. Most headings, tables of contents, page furniture, courtesy text, and form blanks state no point.
-
-CATEGORIES
-{chr(10).join(prompts.DEFINITIONS[c] for c in CODES)}
-When a point fits more than one code, use the first that fits in this order: {", ".join(PRECEDENCE)}.
-
-FLAGS
-{chr(10).join("- " + prompts.FLAG_TESTS[f] for f in MODEL_FLAGS)}
-
-Judge every unit by the same standard, whatever the units around it got."""
+SYSTEM = _RFP.system()
 
 
-def label_task(ids: list[str]) -> str:
+def label_task(ids: list[str], pb: Playbook | None = None) -> str:
+    flags = (pb or _RFP).flags
     return f"""TASK LABEL
 Write exactly one line for each of these {len(ids)} units, in this order:
 {", ".join(ids)}
@@ -97,18 +78,19 @@ LABEL is one of:
 - {CONTINUES} when the unit only continues, qualifies, or repeats the point of a unit shortly before it;
 - {NOTHING} when the unit states no point.
 A unit that makes two separate points of two categories gets both codes joined by +, the main one first, for example X+D. This is rare.
-flags is empty or a comma-separated list of: {", ".join(MODEL_FLAGS)}. Decide each flag for each unit on its own. Units labelled {CONTINUES} or {NOTHING} carry no flags.
+flags is empty or a comma-separated list of: {", ".join(flags)}. Decide each flag for each unit on its own. Units labelled {CONTINUES} or {NOTHING} carry no flags.
 Read each unit with the units around it before you label it.
 After the last line write: END|number of lines"""
 
 
-def state_task(ids: list[str]) -> str:
+def state_task(ids: list[str], pb: Playbook | None = None) -> str:
+    noun = (pb or _RFP).noun
     return f"""TASK STATE
 Write exactly one line for each of these {len(ids)} units, in this order:
 {", ".join(ids)}
 
 Line format: ID|statement
-The statement says the unit's point in plain words, under 30 words, for a reader who will not see the RFP. Say what the RFP says, no more: keep who must act, how binding it is (must, should, may), and its conditions. Name the form, the number, the deadline, the person. Copy numbers, amounts, and units exactly. Write dates as YYYY-MM-DD, with the time and time zone if the RFP gives them. Start a requirement with what the bidder must do. A statement is a sentence only: no category code, no flag, and never the | character.
+The statement says the unit's point in plain words, under 30 words, for a reader who will not see {noun}. Say what {noun} says, no more: keep who must act, how binding it is (must, should, may), and its conditions. Name the form, the number, the deadline, the person. Copy numbers, amounts, and units exactly. Write dates as YYYY-MM-DD, with the time and time zone if {noun} gives them. Start a requirement with what the bidder must do. A statement is a sentence only: no category code, no flag, and never the | character.
 If the unit only continues or qualifies the unit before it, state the whole point the two make together.
 If the unit states no point, write: ID|{NOTHING}
 After the last line write: END|number of lines"""
@@ -266,12 +248,19 @@ def parse_brief(text: str, facts: list[dict], rows: tuple[str, ...]) -> list[dic
     return [got.get(r, {"row": r, "text": "", "fact_ids": [], "checked": False}) for r in rows]
 
 
-def group_task(code: str, facts: list[dict]) -> str:
+def group_task(code: str, facts: list[dict], doc_labels: dict[str, str] | None = None) -> str:
+    """The GROUP task. `doc_labels` (fact ID -> "d2") is given across a bid: page numbers repeat
+    from one document to the next, so each line's page field then starts with its document."""
+    def page(f: dict) -> str:
+        label = f["citations"][0]["page_label"] if f["citations"] else ""
+        if doc_labels is None:
+            return label
+        return " ".join(x for x in (doc_labels.get(f["fact_id"], ""), f"p.{label}" if label else "") if x)
+
     lines = "\n".join(
-        f"{n}|{f['citations'][0]['page_label'] if f['citations'] else ''}|{f['text'].replace('|', '/')}"
-        for n, f in enumerate(facts, start=1)
+        f"{n}|{page(f)}|{f['text'].replace('|', '/')}" for n, f in enumerate(facts, start=1)
     )
-    return f"TASK GROUP\nCategory: {prompts.DEFINITIONS[code].split(':', 1)[0]}\n\n{lines}"
+    return f"TASK GROUP\nCategory: {definition(code).split(':', 1)[0]}\n\n{lines}"
 
 
 def parse_groups(text: str, count: int) -> list[tuple[str, str, list[int]]]:
@@ -364,9 +353,17 @@ class Config:
 
 def chunks(doc: TaggedDocument, size: int) -> list[list[str]]:
     """Whole pages, in order, about `size` units per call."""
+    return chunk_ids(doc, list(doc.anchors), size)
+
+
+def chunk_ids(doc: TaggedDocument, ids: list[str], size: int) -> list[list[str]]:
+    """`chunks` over the given unit IDs only (in document order): whole pages of them, about `size` per call."""
+    want = set(ids)
     out: list[list[str]] = [[]]
     page = None
     for a in doc.anchors.values():
+        if a.id not in want:
+            continue
         if a.page != page and len(out[-1]) >= size:
             out.append([])
         page = a.page
@@ -379,7 +376,8 @@ def chunks(doc: TaggedDocument, size: int) -> list[list[str]]:
 Label = tuple[tuple[str, ...], tuple[str, ...]]  # (codes or one of = - , flags)
 
 
-def parse_labels(text: str, ids: list[str]) -> dict[str, Label]:
+def parse_labels(text: str, ids: list[str], pb: Playbook | None = None) -> dict[str, Label]:
+    pb = pb or _RFP
     want = set(ids)
     out: dict[str, Label] = {}
     for line in text.splitlines():
@@ -389,10 +387,10 @@ def parse_labels(text: str, ids: list[str]) -> dict[str, Label]:
             continue
         codes = tuple(c for c in p[1].upper().replace(" ", "").split("+") if c)
         special = set(codes) & {CONTINUES, NOTHING}
-        if not codes or len(codes) > 2 or (special and len(codes) > 1) or not all(c in CODES or c in special for c in codes):
+        if not codes or len(codes) > 2 or (special and len(codes) > 1) or not all(c in pb.codes or c in special for c in codes):
             continue
-        flags = tuple(f for f in MODEL_FLAGS if f in {x.strip().lower() for x in (p[2] if len(p) > 2 else "").split(",")})
-        out[uid] = (codes, flags if codes[0] in CODES else ())
+        flags = tuple(f for f in pb.flags if f in {x.strip().lower() for x in (p[2] if len(p) > 2 else "").split(",")})
+        out[uid] = (codes, flags if codes[0] in pb.codes else ())
     return out
 
 
@@ -446,24 +444,26 @@ class Voted:
         return len(set(self.votes)) == 1
 
 
-def _rank(label: str) -> int:
-    return PRECEDENCE.index(label) if label in PRECEDENCE else len(PRECEDENCE) + (CONTINUES, NOTHING, NO_ANSWER).index(label)
+def _rank(label: str, pb: Playbook | None = None) -> int:
+    order = (pb or _RFP).precedence
+    return order.index(label) if label in order else len(order) + (CONTINUES, NOTHING, NO_ANSWER).index(label)
 
 
-def vote(passes: list[dict[str, Label]], units: list[str]) -> dict[str, Voted]:
+def vote(passes: list[dict[str, Label]], units: list[str], pb: Playbook | None = None) -> dict[str, Voted]:
     """Majority per unit on the main label. With no majority the unit is kept, under the
-    code that comes first in PRECEDENCE: a missed fact costs more than an extra one."""
+    code that comes first in the playbook's precedence: a missed fact costs more than an extra one."""
+    pb = pb or _RFP
     out: dict[str, Voted] = {}
     for u in units:
         got = [p.get(u) for p in passes]
         mains = [g[0][0] if g else NO_ANSWER for g in got]
         count = Counter(mains).most_common()
-        main = min((m for m, n in count if n == count[0][1]), key=_rank)
+        main = min((m for m, n in count if n == count[0][1]), key=lambda m: _rank(m, pb))
         same = [g for g in got if g and g[0][0] == main]
         seconds = Counter(g[0][1] for g in same if len(g[0]) > 1).most_common(1)
         also = seconds[0][0] if seconds and seconds[0][1] * 2 > len(same) else None
-        flags = [f for f in MODEL_FLAGS if sum(f in g[1] for g in same) * 2 > len(same)]
-        out[u] = Voted(main, also, flags if main in CODES else [], mains)
+        flags = [f for f in pb.flags if sum(f in g[1] for g in same) * 2 > len(same)]
+        out[u] = Voted(main, also, flags if main in pb.codes else [], mains)
     return out
 
 
@@ -476,12 +476,13 @@ class Group:
     voted: Voted
 
 
-def group(voted: dict[str, Voted], units: list[str]) -> list[Group]:
+def group(voted: dict[str, Voted], units: list[str], pb: Playbook | None = None) -> list[Group]:
+    codes = (pb or _RFP).codes
     out: list[Group] = []
     at = -CONTINUATION_REACH - 1
     for n, u in enumerate(units):
         v = voted[u]
-        if v.label in CODES:
+        if v.label in codes:
             out.append(Group(u, [u], v))
             at = n
         elif v.label == CONTINUES and out and n - at <= CONTINUATION_REACH:
@@ -509,8 +510,10 @@ def _statement(g: Group, doc: TaggedDocument, statements: dict[str, str]) -> tup
 
 
 def to_records(
-    groups: list[Group], doc: TaggedDocument, statements: dict[str, str], deal_id: str, run_id: str
+    groups: list[Group], doc: TaggedDocument, statements: dict[str, str], deal_id: str, run_id: str,
+    pb: Playbook | None = None,
 ) -> list[dict]:
+    pb = pb or _RFP
     records = []
     for g in groups:
         v = g.voted
@@ -529,7 +532,7 @@ def to_records(
             "note": "",
             "status": "valid",
             "votes": v.votes, "agreement": f"{tally[v.label]}/{len(v.votes)}",
-            "source_call": "LABEL",
+            "source_call": "LABEL", "playbook": pb.name,
             "problems": [], "conflicts": [],
         })
     return records
@@ -544,14 +547,19 @@ class RunResult:
     facts: list[dict]
     report: dict
     labels: list[dict] = field(default_factory=list)  # every unit with its votes, coded or not
+    held_refs: list[dict] = field(default_factory=list)  # {unit, text, rule}: section references held back for RELATE
+    section_units: list[str] = field(default_factory=list)  # units with a reference to a section (candidates for RELATE)
+    alignment: dict = field(default_factory=dict)  # a reissue's `alignment.json`; empty for any other run
 
 
 class _Run:
-    def __init__(self, doc: TaggedDocument, client: LLMClient, cfg: Config) -> None:
+    def __init__(self, doc: TaggedDocument, client: LLMClient, cfg: Config, pb: Playbook | None = None) -> None:
         self.doc, self.client, self.cfg = doc, client, cfg
+        self.pb = pb or _RFP
+        self.system = self.pb.system()
         self.sem = asyncio.Semaphore(cfg.max_parallel)
         self.calls: list[CallRecord] = []
-        self.cache_key = "fx-" + hashlib.sha256((SYSTEM + doc.tagged_text).encode()).hexdigest()[:24]
+        self.cache_key = "fx-" + hashlib.sha256((self.system + doc.tagged_text).encode()).hexdigest()[:24]
 
     async def call(self, name: str, kind: str, task: str, cap: int, effort: str = "low",
                    started: asyncio.Event | None = None, system: str | None = None,
@@ -569,7 +577,7 @@ class _Run:
         rec = CallRecord(name, kind)
         self.calls.append(rec)
         if system is None:
-            req = Request(SYSTEM, self.doc.tagged_text, task, effort, cap, self.cache_key)
+            req = Request(self.system, self.doc.tagged_text, task, effort, cap, self.cache_key)
         else:  # a call about the facts, not the document: nothing to cache, nothing to attach
             req = Request(system, "", task, effort, cap)
         t0 = time.monotonic()
@@ -650,32 +658,49 @@ class _Run:
 
 
 async def extract(
-    doc: TaggedDocument, client: LLMClient, *, deal_id: str, cfg: Config | None = None, run_id: str | None = None
+    doc: TaggedDocument, client: LLMClient, *, deal_id: str, cfg: Config | None = None, run_id: str | None = None,
+    playbook: Playbook | None = None, hold_section_refs: bool = False,
+    only: list[str] | None = None, carried: dict[str, Voted] | None = None,
+    statements: dict[str, str] | None = None,
 ) -> RunResult:
+    """`hold_section_refs`: a reference to a section that has no target in this document is not
+    written as a Q fact but returned on `RunResult.held_refs`, for a document that points at
+    earlier documents (an addendum); RELATE answers for it later.
+
+    `only` (a reissue): LABEL and STATE are asked about these unit IDs alone; the votes of the
+    other units are `carried`, and `statements` holds the statements already written for their
+    coded units. CHECK and XREF still read the whole document. With none of the three given
+    every unit is labelled and stated."""
+    pb = playbook or _RFP
     cfg = cfg or Config()
     run_id = run_id or f"run_{datetime.now(timezone.utc):%Y_%m_%d}_{uuid.uuid4().hex[:6]}"
-    run = _Run(doc, client, cfg)
+    run = _Run(doc, client, cfg, pb)
     units = list(doc.anchors)
-    label_parts = chunks(doc, cfg.units_per_label_call)
-    state_parts = chunks(doc, cfg.units_per_state_call) if cfg.statements else []
+    carried = carried or {}
+    if only is None:
+        label_parts = chunks(doc, cfg.units_per_label_call)
+        state_parts = chunks(doc, cfg.units_per_state_call) if cfg.statements and "STATE" in pb.calls else []
+    else:
+        label_parts = chunk_ids(doc, only, cfg.units_per_label_call)
+        state_parts = chunk_ids(doc, only, cfg.units_per_state_call) if cfg.statements and "STATE" in pb.calls else []
     t0 = time.monotonic()
 
     async def label(vote_no: int, k: int, ids: list[str], started: asyncio.Event | None = None) -> dict[str, Label]:
         text = await run.call(
-            f"LABEL{k}#{vote_no}", "label", label_task(ids), cfg.label_max_output_tokens, started=started,
-            covered=lambda t: len(parse_labels(t, ids)), expected=len(ids),
+            f"LABEL{k}#{vote_no}", "label", label_task(ids, pb), cfg.label_max_output_tokens, started=started,
+            covered=lambda t: len(parse_labels(t, ids, pb)), expected=len(ids),
         )
-        return parse_labels(text, ids)
+        return parse_labels(text, ids, pb)
 
     async def state(k: int, ids: list[str]) -> dict[str, str]:
         text = await run.call(
-            f"STATE{k}", "state", state_task(ids), cfg.state_max_output_tokens,
+            f"STATE{k}", "state", state_task(ids, pb), cfg.state_max_output_tokens,
             covered=lambda t: len(stated_ids(t, ids)), expected=len(ids),
         )
         return parse_statements(text, ids)
 
     async def check() -> list[dict]:
-        if not cfg.check:
+        if not cfg.check or "CHECK" not in pb.calls:
             return []
         spec = CallSpec("CHECK", ("Q",), CHECK_TASK, effort="medium")
         text = await run.call("CHECK", "check", CHECK_TASK, cfg.check_max_output_tokens, effort="medium")
@@ -688,7 +713,7 @@ async def extract(
     async def cross_references() -> xref.Result:
         """The model finds the references, code verifies them. Never raises: a run without
         XREF facts is still a run, and the report says why there are none."""
-        if not cfg.xref:
+        if not cfg.xref or "XREF" not in pb.calls:
             return xref.Result()
         text = await run.call("XREF", "xref", xref.TASK, cfg.xref_max_output_tokens, effort="medium")
         try:
@@ -698,11 +723,12 @@ async def extract(
 
     # One call first, so the document is in the provider's cache before the rest are sent.
     started = asyncio.Event()
-    first = asyncio.create_task(label(1, 1, label_parts[0], started))
-    try:
-        await asyncio.wait_for(started.wait(), cfg.warmup_timeout)
-    except asyncio.TimeoutError:
-        pass
+    first = asyncio.create_task(label(1, 1, label_parts[0], started)) if label_parts else None
+    if first is not None:
+        try:
+            await asyncio.wait_for(started.wait(), cfg.warmup_timeout)
+        except asyncio.TimeoutError:
+            pass
     label_jobs = [
         (v, k, asyncio.create_task(label(v, k, ids)) if (v, k) != (1, 1) else first)
         for v in range(1, cfg.votes + 1) for k, ids in enumerate(label_parts, start=1)
@@ -713,15 +739,22 @@ async def extract(
     passes: list[dict[str, Label]] = [{} for _ in range(cfg.votes)]
     for v, _, job in label_jobs:
         passes[v - 1].update(await job)
-    statements: dict[str, str] = {}
+    statements = dict(statements or {})
     for job in state_jobs:
         statements.update(await job)
     q_lines = await check_job
     xres = await xref_job
+    held: list[dict] = []
+    if hold_section_refs:
+        keep_p = [p for p in xres.problems if not (p.kind == "section" and p.rule in ("absent", "missing"))]
+        held = [{"unit": p.ids[0], "text": p.terms[0] if p.terms else "", "rule": p.rule}
+                for p in xres.problems if p not in keep_p]
+        xres.problems = keep_p
 
-    voted = vote(passes, units)
-    groups = group(voted, units)
-    records = to_records(groups, doc, statements, deal_id, run_id)
+    fresh = vote(passes, [u for u in units if u not in carried], pb)
+    voted = {u: carried[u] if u in carried else fresh[u] for u in units}
+    groups = group(voted, units, pb)
+    records = to_records(groups, doc, statements, deal_id, run_id, pb)
     first_round = time.monotonic() - t0
 
     # Second round, about the finished facts and without the document: the buyer brief,
@@ -735,9 +768,10 @@ async def extract(
         return parse_brief(text, facts, names)
 
     # Q facts exist only now; the summaries are written from every fact, Q included.
+    sections = [sec for sec in SECTIONS if sec.key in pb.sections]
     q_records = _q_records(q_lines, xres, doc, deal_id, run_id)
     with_q = records + q_records
-    brief_jobs = [asyncio.create_task(brief(sec, section_facts(sec, with_q))) for sec in SECTIONS] if cfg.brief else []
+    brief_jobs = [asyncio.create_task(brief(sec, section_facts(sec, with_q))) for sec in sections] if cfg.brief else []
     found: list[tuple[str, str, list[dict]]] = []
     if cfg.grouping:
         async def group_category(code: str, facts: list[dict]) -> list[tuple[str, str, list[dict]]]:
@@ -745,11 +779,11 @@ async def extract(
                                   system=GROUP_SYSTEM)
             return [(k, t, [facts[n - 1] for n in ns]) for k, t, ns in parse_groups(text, len(facts))]
 
-        by_code = {c: [r for r in records if r["category"] == c] for c in CODES}
+        by_code = {c: [r for r in records if r["category"] == c] for c in pb.codes}
         jobs = [group_category(c, fs) for c, fs in by_code.items() if len(fs) >= cfg.group_min_facts]
         found = [g for gs in await asyncio.gather(*jobs) for g in gs]
     apply_groups(records, found, doc.doc_id)
-    briefs = {sec.key: await job for sec, job in zip(SECTIONS, brief_jobs)}
+    briefs = {sec.key: await job for sec, job in zip(sections, brief_jobs)}
     seconds = time.monotonic() - t0
 
     records += q_records
@@ -757,10 +791,12 @@ async def extract(
 
     labels = [
         {"id": u, "page": doc.anchors[u].page_label, "section": doc.anchors[u].section, "text": doc.anchors[u].text,
-         "label": voted[u].label, "also": voted[u].also, "flags": voted[u].flags, "votes": voted[u].votes}
+         "label": voted[u].label, "also": voted[u].also, "flags": voted[u].flags, "votes": voted[u].votes,
+         "speaker": doc.anchors[u].speaker, "side": doc.anchors[u].side}
         for u in units
     ]
     report = _report(run, doc, deal_id, run_id, records, voted, groups, statements, seconds, cfg)
+    report["playbook"] = pb.key
     report["seconds"] = {
         "label_state_check": round(first_round, 2), "group_and_summaries": round(seconds - first_round, 2),
         "total": round(seconds, 2),
@@ -770,7 +806,7 @@ async def extract(
     report["summaries"] = briefs
     report["groups"] = dict(Counter(k for k, _, _ in found))
     report["facts_in_groups"] = sum(bool(r.get("group_id")) for r in records)
-    return RunResult(run_id, records, report, labels)
+    return RunResult(run_id, records, report, labels, held, list(xres.section_units))
 
 
 def _q_records(q_lines: list[dict], xres: xref.Result, doc: TaggedDocument, deal_id: str, run_id: str) -> list[dict]:
@@ -813,11 +849,15 @@ def _q_records(q_lines: list[dict], xres: xref.Result, doc: TaggedDocument, deal
 
 def _mark_conflicts(records: list[dict]) -> None:
     """Facts that share a unit with a Q fact get status conflict and the Q fact's ID."""
-    qs = [(r["fact_id"], {c["id"] for c in r["citations"]}) for r in records if r["category"] == "Q"]
+    def cited(r: dict) -> set[tuple[str, str]]:
+        # a unit is the pair (document, ID): two documents of a bid both have a p1.1
+        return {(c.get("doc_id") or r.get("doc_id") or "", c["id"]) for c in r["citations"]}
+
+    qs = [(r["fact_id"], cited(r)) for r in records if r["category"] == "Q"]
     for r in records:
         if r["category"] == "Q":
             continue
-        ids = {c["id"] for c in r["citations"]}
+        ids = cited(r)
         r["conflicts"] = [qid for qid, q_ids in qs if ids & q_ids]
         if r["conflicts"] and r["status"] == "valid":
             r["status"] = "conflict"
@@ -836,7 +876,7 @@ def _report(run: _Run, doc, deal_id, run_id, records, voted, groups, statements,
         "by_category": dict(Counter(r["category"] for r in records)),
         "by_status": dict(Counter(r["status"] for r in records)),
         "votes": cfg.votes,
-        "units_coded": sum(v.label in CODES for v in voted.values()),
+        "units_coded": sum(v.label in run.pb.codes for v in voted.values()),
         "units_continuing": sum(len(g.ids) - 1 for g in groups),
         "units_without_a_point": sum(v.label in (NOTHING, NO_ANSWER) for v in voted.values()),
         "units_unanswered_votes": sum(v == NO_ANSWER for x in voted.values() for v in x.votes),

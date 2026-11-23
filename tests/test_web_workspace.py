@@ -345,3 +345,114 @@ def test_damaged_log_lines_are_skipped(ws):
     with open(ws.corrections_path, "a") as f:
         f.write("not json\n\n[1]\n")
     assert ws.state().get("f_b1")["text"] == "one"
+
+
+# --- a bid: conflicts derived for documents, ungrouping ----------------------------------------
+
+
+def bid_folder(tmp_path, conflicts, facts=None):
+    folder = make_run(tmp_path, "_bids/b1", facts or FACTS)
+    (folder / "bid.json").write_text(json.dumps({"bid_id": "b1", "documents": []}))
+    (folder / "conflicts.json").write_text(json.dumps(conflicts))
+    return folder
+
+
+def doc_conflict(**kw):
+    return {
+        "id": "d:abc1234567", "kind": "document", "title": "CALL disagrees with RFP", "description": "d",
+        "fact_ids": ["f_d1", "f_d2"], "reason": "levels disagree", "doc_id": "CALL", "closed_by": "", "status": "open",
+        "options": [
+            {"label": "Keep the RFP fact", "text": "", "citation": None, "changes": []},
+            {"label": "Rely on CALL", "text": "", "citation": None,
+             "changes": [{"op": "edit", "fact_id": "f_d1", "fields": {"flags": ["mandatory", "replaced"]}, "add_flag": "replaced"}]},
+            {"label": "Ask the buyer", "text": "", "citation": None, "changes": [], "question": True},
+        ],
+        **kw,
+    }
+
+
+def test_an_ordinary_run_has_no_document_conflicts_and_no_bid(ws):
+    assert not ws.is_bid() and {c["kind"] for c in ws.state().conflicts} == {"source"}
+    assert ws._entry("edit", "document")["source"] == "document"
+    with pytest.raises(BadRequest):
+        ws._entry("edit", "robot")
+
+
+def test_a_document_conflict_is_shown_and_resolved_like_a_raised_one(tmp_path):
+    ws = Workspace(bid_folder(tmp_path, [doc_conflict()]) / "facts.json")
+    assert ws.is_bid() and ws.document() is None
+    c = ws.state().conflict("d:abc1234567")
+    assert (c["kind"], c["status"], c["reason"], c["closed_by"]) == ("document", "open", "levels disagree", "")
+    assert c["options"][2]["question"] is True
+    ws.edit("f_d1", {"flags": ["risk"]})  # the user changed the flags before choosing
+    got = ws.resolve("d:abc1234567", option=1)
+    assert got["status"] == "resolved" and got["resolution"]["label"] == "Rely on CALL"
+    log = ws.log()
+    assert [e["op"] for e in log[-2:]] == ["resolve", "edit"] and log[-1]["conflict_id"] == "d:abc1234567"
+    assert ws.state().get("f_d1")["flags"] == ["risk", "replaced"]  # added to the flags it has now
+    row = [r for r in ws.corrections() if r["op"] == "resolve"][0]
+    assert row["choice"] == "Rely on CALL" and row["conflict_title"] == "CALL disagrees with RFP"
+    ws.reopen("d:abc1234567")  # takes the change back with it
+    assert ws.state().get("f_d1")["flags"] == ["risk"] and ws.state().conflict("d:abc1234567")["status"] == "open"
+    ws.resolve("d:abc1234567", option=2)  # asking the buyer changes no fact
+    assert ws.state().conflict("d:abc1234567")["resolution"]["label"] == "Ask the buyer" and ws.state().get("f_d1")["flags"] == ["risk"]
+
+
+def test_a_conflict_a_later_document_settled_shows_as_settled(tmp_path):
+    ws = Workspace(bid_folder(tmp_path, [doc_conflict(closed_by="ADD1")]) / "facts.json")
+    c = ws.state().conflict("d:abc1234567")
+    assert c["status"] == "resolved" and c["resolution"]["label"] == "Settled by ADD1"
+    with pytest.raises(Conflict):
+        ws.resolve("d:abc1234567", option=0)
+    with pytest.raises(Conflict):
+        ws.reopen("d:abc1234567")  # no choice of the user's to take back
+
+
+def test_a_conflict_the_user_resolved_is_shown_again_when_a_later_document_changes_it(tmp_path):
+    folder = bid_folder(tmp_path, [doc_conflict()])
+    ws = Workspace(folder / "facts.json")
+    ws.resolve("d:abc1234567", option=0)
+    assert ws.state().conflict("d:abc1234567")["status"] == "resolved"
+    (folder / "conflicts.json").write_text(json.dumps([doc_conflict(closed_by="ADD1")]))  # build ran again: the key sees the new stamp
+    c = ws.state().conflict("d:abc1234567")
+    assert c["status"] == "open" and c["note"] == "A later document changes this" and c["previous_resolution"]["label"] == "Keep the RFP fact"
+    assert ws.resolve("d:abc1234567", option=1)["status"] == "resolved"
+
+
+def test_the_state_key_includes_the_stamp_of_conflicts_json(tmp_path):
+    folder = bid_folder(tmp_path, [])
+    ws = Workspace(folder / "facts.json")
+    s = ws.state()
+    assert ws.state() is s and ws.state().conflict("d:abc1234567") is None
+    (folder / "conflicts.json").write_text(json.dumps([doc_conflict()]))
+    assert ws.state().conflict("d:abc1234567") is not None
+    (folder / "conflicts.json").write_text(json.dumps([doc_conflict(fact_ids=["f_nowhere"])]))  # about no fact here: not shown
+    assert ws.state().conflict("d:abc1234567") is None
+
+
+def grouped():
+    rows = [dict(f) for f in FACTS]
+    for r in rows[:2]:
+        r.update(group_id="g_1", group_kind="same", group_title="Related statements")
+    return rows
+
+
+def test_ungroup_clears_the_group_and_regroup_undoes_it(tmp_path):
+    ws = Workspace(make_run(tmp_path, "d/r", grouped()) / "facts.json")
+    assert {f["fact_id"] for f in ws.state().facts if f["group_id"] == "g_1"} == {"f_b1", "f_d1"}
+    entry = ws.ungroup("g_1")
+    assert entry["op"] == "ungroup" and entry["fields"]["group_id"] == "g_1"
+    assert all(not f["group_id"] and not f["group_title"] for f in ws.state().facts)
+    row = ws.corrections()[0]
+    assert row["description"] == "Ungrouped: Related statements" and not row["undone"]
+    with pytest.raises(Conflict):
+        ws.ungroup("g_1")
+    ws.regroup("g_1")
+    assert {f["fact_id"] for f in ws.state().facts if f["group_id"] == "g_1"} == {"f_b1", "f_d1"} and ws.corrections()[0]["undone"]
+    ws.ungroup("g_1")
+    ws.undo(ws.log()[-1]["id"])  # the generic undo takes it back too
+    assert any(f["group_id"] == "g_1" for f in ws.state().facts)
+    with pytest.raises(NotFound):
+        ws.ungroup("g_none")
+    with pytest.raises(NotFound):
+        ws.regroup("g_1")  # not ungrouped any more

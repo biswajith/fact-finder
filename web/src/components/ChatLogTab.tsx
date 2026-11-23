@@ -83,6 +83,45 @@ function Decision({ label, e, value, tone }: { label: string; e: ChatLogEvent; v
       <span className="muted">{bits.join(' · ')}</span>
       {e.note && <span className="cl-note">{e.note}</span>}
       {e.call?.error && <span className="cl-err">{e.call.error}</span>}
+      <LabelBreakdown probs={decisionProbs(e)} picked={pickedLabel(e)} />
+      {e.call?.response && (
+        <details className="cl-raw">
+          <summary>Decisions API response</summary>
+          <pre>{JSON.stringify(e.call.response, null, 2)}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** The model's own pick: from the raw answer when logged, else the most probable label. Not the mode that ran,
+ *  which differs when the answer was not trusted (a fallback). */
+function pickedLabel(e: ChatLogEvent): string | undefined {
+  const q = (e.call?.response as { answers?: Record<string, { choice?: unknown }> } | undefined)?.answers?.q;
+  if (q && q.choice != null) return String(q.choice);
+  const rows = Object.entries(decisionProbs(e) ?? {}).sort((x, y) => y[1] - x[1]);
+  return rows[0]?.[0];
+}
+
+function decisionProbs(e: ChatLogEvent): Record<string, number> | undefined {
+  if (e.probabilities && Object.keys(e.probabilities).length) return e.probabilities;
+  const q = (e.call?.response as { answers?: Record<string, { probabilities?: Record<string, number> }> } | undefined)?.answers?.q;
+  return q?.probabilities;
+}
+
+function LabelBreakdown({ probs, picked }: { probs?: Record<string, number>; picked?: string }) {
+  if (!probs) return null;
+  const rows = Object.entries(probs).sort((a, b) => b[1] - a[1]);
+  if (!rows.length) return null;
+  return (
+    <div className="cl-probs" role="table" aria-label="Probability per label">
+      {rows.map(([label, p]) => (
+        <div key={label} role="row" className={`cl-prob${label === picked ? ' picked' : ''}`}>
+          <span role="cell" className="lbl">{label}{label === picked ? " (model's pick)" : ''}</span>
+          <span role="cell" className="bar" aria-hidden="true"><span style={{ width: `${Math.max(0, Math.min(1, p)) * 100}%` }} /></span>
+          <span role="cell" className="v">{(p * 100).toFixed(1)}%</span>
+        </div>
+      ))}
     </div>
   );
 }

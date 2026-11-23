@@ -1,9 +1,10 @@
 import { SseParser } from './sse';
 import { factsListQuery } from './factsQuery';
 import type {
-  ChatEvent, ChatMessage, ChatSession, ChatSessionDetail, CompareResponse, Conflict, CorrectionEntry, ExtractJob, ExtractPlan, ExtractRequest, Fact,
-  FactPatch, FactsListFilters, FactsListResponse, FactsResponse, NewFact, OverviewResponse, PdfChoice, PdfSource,
-  Report, ResolveBody, RunInfo, RunsTableRow, Status, SummariesResponse, UploadInfo, ViewName,
+  Bid, BidDocument, BidDocumentPatch, BidPatch, BidPlan, BidSummary,
+  ChatEvent, ChatMessage, ChatSession, ChatSessionDetail, CompareResponse, Conflict, CorrectionEntry, ExtractJob, Fact,
+  FactPatch, FactsListFilters, FactsListResponse, FactsResponse, NewFact, OverviewResponse,
+  Report, ResolveBody, RunInfo, RunsTableRow, Status, SummariesResponse, TimelineRow, ViewName,
 } from './types';
 
 export class ApiError extends Error {
@@ -90,25 +91,50 @@ export const getOverview = (run: string, view: ViewName, signal?: AbortSignal) =
 
 export const getFactsList = (run: string, filters: FactsListFilters, signal?: AbortSignal) =>
   request<FactsListResponse>('GET', `/facts/list?${factsListQuery(run, filters)}`, undefined, signal);
-/** Link target for the "Download CSV" button: the same filters as the list. */
-export const factsCsvUrl = (run: string, filters: FactsListFilters) => `/api/facts.csv?${factsListQuery(run, filters)}`;
+/** Link target for the "Download CSV" button: the same filters as the list. `external` leaves out internal sources. */
+export const factsCsvUrl = (run: string, filters: FactsListFilters, audience?: 'external') =>
+  `/api/facts.csv?${factsListQuery(run, filters)}${audience ? `&audience=${audience}` : ''}`;
 
 export const getReport = (run: string, signal?: AbortSignal) => request<Report>('GET', `/report?${q({ run })}`, undefined, signal);
 export const getRunsTable = (signal?: AbortSignal) => request<RunsTableRow[]>('GET', '/runs/table', undefined, signal);
+export const getTimeline = (run: string, factIds: string[], signal?: AbortSignal) =>
+  request<{ rows: TimelineRow[] }>('GET', `/timeline?${q({ run, fact_ids: factIds.join(',') })}`, undefined, signal);
+
 export const getCompare = (a: string, b: string, signal?: AbortSignal) =>
   request<CompareResponse>('GET', `/compare?${q({ a, b })}`, undefined, signal);
 
-export const getPdfs = (signal?: AbortSignal) => request<PdfChoice[]>('GET', '/pdfs', undefined, signal);
+// ---- Bids ----
 
-export const uploadPdf = (file: File) => send<UploadInfo>('POST', `/uploads?${q({ name: file.name })}`, file, 'application/pdf');
-export const planExtract = (source: PdfSource, doc_id: string, votes: number) =>
-  request<ExtractPlan>('POST', '/extract/plan', { ...source, doc_id, votes });
-export const startExtract = (source: PdfSource, body: ExtractRequest) =>
-  request<{ job_id: string }>('POST', '/extract', { ...source, ...body });
+export const getBids = () => request<BidSummary[]>('GET', '/bids');
+export const createBid = (name: string, deal_id?: string) => request<Bid>('POST', '/bids', { name, deal_id });
+export const getBid = (bid: string, signal?: AbortSignal) => request<Bid>('GET', `/bids/${enc(bid)}`, undefined, signal);
+export const patchBid = (bid: string, body: BidPatch) => request<Bid>('PATCH', `/bids/${enc(bid)}`, body);
+/** The raw file is the body; the server reads the type from the name. */
+export const uploadBidDocument = (bid: string, file: File) =>
+  send<BidDocument>('POST', `/bids/${enc(bid)}/documents?${q({ name: file.name })}`, file, 'application/octet-stream');
+export const patchBidDocument = (bid: string, no: number, body: BidDocumentPatch) =>
+  request<BidDocument>('PATCH', `/bids/${enc(bid)}/documents/${no}`, body);
+/** Ask the model again who is on which side of a call; the document entry comes back. */
+export const suggestBidSpeakers = (bid: string, no: number) =>
+  request<BidDocument>('POST', `/bids/${enc(bid)}/documents/${no}/speakers/suggest`, {});
+export const deleteBidDocument = (bid: string, no: number) =>
+  request<{ ok: true }>('DELETE', `/bids/${enc(bid)}/documents/${no}`);
+export const planBid = (bid: string, votes?: number, signal?: AbortSignal) =>
+  request<BidPlan>('POST', `/bids/${enc(bid)}/plan`, votes === undefined ? {} : { votes }, signal);
+export const processBid = (bid: string, body: { votes?: number; model?: string } = {}) =>
+  request<{ job_id: string }>('POST', `/bids/${enc(bid)}/process`, { ...body, confirm: true });
 export const getExtractJob = (jobId: string) => request<ExtractJob>('GET', `/extract/${enc(jobId)}`);
 
-export const pageImageUrl = (run: string, page: number, factId: string) =>
-  `/api/page?${q({ run, page, fact_id: factId })}`;
+/** `doc` (a doc_id) names the document of a bid whose page is drawn. */
+export const pageImageUrl = (run: string, page: number, factId: string, doc?: string) =>
+  `/api/page?${q({ run, page, fact_id: factId, doc })}`;
+
+// ---- Relations and groups of a bid ----
+
+export const rejectRelation = (run: string, rid: string) =>
+  request<{ ok: true }>('POST', `/relations/${enc(rid)}/reject?${q({ run })}`);
+export const ungroup = (run: string, gid: string) =>
+  request<{ ok: true }>('POST', `/groups/${enc(gid)}/ungroup?${q({ run })}`);
 
 export const getChat = (run: string) => request<ChatMessage[]>('GET', `/chat?${q({ run })}`);
 export const clearChat = (run: string) => request<{ ok: true }>('DELETE', `/chat?${q({ run })}`);

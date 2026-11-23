@@ -1,18 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Content, Dialog, Divider, Heading, Item, Picker } from '@adobe/react-spectrum';
 import * as api from '../api';
+import { sideLabel } from '../bid';
+import { citeDoc, citeLabel, isInternal, relationLines, replacedState, useBidDocs } from '../bidDocs';
 import { useRun } from '../store';
-import type { Fact, FactPatch } from '../types';
+import type { Citation, Fact, FactPatch } from '../types';
 import { CATEGORY_NAMES } from '../types';
+import { DocCite } from './CitationChip';
 import { FactLink, formatTime } from './common';
 import { FactForm, type FactFormValues } from './FactForm';
 import { CatPill, FactTags } from './facts/parts';
 import './facts.css';
 
-function PageImage({ run, factId, pages }: { run: string; factId: string; pages: { page: number; label: string }[] }) {
+const citeKey = (c: Citation) => `${c.doc_id ?? ''}|${c.id}`;
+
+function PageImage({ run, factId, pages, doc }: { run: string; factId: string; pages: { page: number; label: string }[]; doc?: string }) {
   const [page, setPage] = useState(pages[0]?.page);
   const [state, setState] = useState<'loading' | 'ok' | 'missing'>('loading');
-  useEffect(() => setState('loading'), [page, factId, run]);
+  useEffect(() => setState('loading'), [page, factId, run, doc]);
   if (page === undefined) return null;
   return (
     <div className="fx-page-img">
@@ -29,9 +34,9 @@ function PageImage({ run, factId, pages }: { run: string; factId: string; pages:
         <>
           {state === 'loading' && <div className="muted">Loading page image...</div>}
           <img
-            key={`${page}`}
+            key={`${doc ?? ''}|${page}`}
             style={state === 'loading' ? { display: 'none' } : undefined}
-            src={api.pageImageUrl(run, page, factId)}
+            src={api.pageImageUrl(run, page, factId, doc)}
             alt={`PDF page ${pages.find((p) => p.page === page)?.label ?? page} with the cited text highlighted`}
             onLoad={() => setState('ok')}
             onError={() => setState('missing')}
@@ -43,7 +48,9 @@ function PageImage({ run, factId, pages }: { run: string; factId: string; pages:
 }
 
 function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
-  const { run, act, setChatDraft, liveFacts } = useRun();
+  const { run, act, setChatDraft, liveFacts, factById, openFact } = useRun();
+  const docs = useBidDocs();
+  const { inBid } = docs;
   // A point stated in several places: the facts of its "same" group, this one included.
   const stated = useMemo(
     () => (fact.group_id && fact.group_kind === 'same' ? liveFacts.filter((f) => f.group_id === fact.group_id) : []),
@@ -51,11 +58,32 @@ function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
   );
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  // In a bid the page image belongs to one document: the one whose chip was pressed, if it has a PDF.
+  const [openedKey, setOpenedKey] = useState('');
+  const opened = fact.citations.find((c) => citeKey(c) === openedKey) ?? fact.citations[0] ?? null;
+  const openedDoc = inBid && opened ? citeDoc(opened, docs) : undefined;
+  const imageDoc = inBid ? (openedDoc?.has_pdf ? openedDoc.doc_id : undefined) : undefined;
   const pages = useMemo(() => {
     const seen = new Map<number, string>();
-    for (const c of fact.citations) if (!seen.has(c.page)) seen.set(c.page, c.page_label || String(c.page));
+    for (const c of fact.citations) {
+      if (inBid && c.doc_id !== imageDoc) continue;
+      if (typeof c.page === 'number' && !seen.has(c.page)) seen.set(c.page, c.page_label || String(c.page));
+    }
     return [...seen].map(([page, label]) => ({ page, label }));
-  }, [fact.citations]);
+  }, [fact.citations, inBid, imageDoc]);
+  const replaced = inBid ? replacedState(fact) : null;
+  const relations = inBid ? relationLines(fact) : [];
+  const refText = (id: string, docId: string, unit: string) => {
+    const f = id ? factById.get(id) : undefined;
+    if (f) return f.text;
+    const no = docs.byId.get(docId)?.no;
+    return `${no ? `d${no} · ` : ''}${unit}`;
+  };
+  const reject = async (rid: string) => {
+    setBusy(true);
+    await act(() => api.rejectRelation(run, rid), 'Link rejected. Undo it on the Changes page.');
+    setBusy(false);
+  };
 
   const save = async (v: FactFormValues) => {
     const patch: FactPatch = {};
@@ -96,6 +124,19 @@ function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
             <div className="fx-tags">
               <FactTags f={fact} stated={stated.length} />
             </div>
+            {replaced && (
+              <div className="fx-sec">
+                <h3>{replaced.kind === 'by' ? 'Replaced by' : replaced.kind === 'removed' ? 'Removed by a later document' : 'Replaced'}</h3>
+                {replaced.kind === 'by' && (
+                  <div className="fx-replaced-by">
+                    <button type="button" className="linkbtn" aria-label={`Open fact ${replaced.id}`} onClick={() => openFact(replaced.id)}>
+                      {factById.get(replaced.id)?.text ?? replaced.id}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {inBid && fact.stale && <div className="fx-alert">Check: {fact.stale}</div>}
             {fact.deleted && <div className="fx-alert danger"><strong>This fact was deleted.</strong>Restore it to bring it back.</div>}
             {(fact.original?.text !== undefined || fact.original?.category !== undefined) && (
               <div className="fx-sec">
@@ -130,12 +171,43 @@ function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
                 This point is stated {stated.length} times, on pages {[...new Set(stated.flatMap((f) => f.citations.map((c) => c.page_label || String(c.page))))].join('; ')}.
               </div>
             )}
+            {relations.length > 0 && (
+              <div className="fx-sec">
+                <h3>Links to other documents</h3>
+                {relations.map((r) => (
+                  <div className="fx-rel" key={`${r.id}|${r.otherFactId}|${r.otherDocId}|${r.otherUnit}`}>
+                    <span className="w">{r.words}</span>
+                    <span className="o">
+                      {r.otherFactId && factById.get(r.otherFactId) ? (
+                        <button type="button" className="linkbtn" aria-label={`Open fact ${r.otherFactId}`} onClick={() => openFact(r.otherFactId)}>
+                          {refText(r.otherFactId, r.otherDocId, r.otherUnit)}
+                        </button>
+                      ) : refText(r.otherFactId, r.otherDocId, r.otherUnit)}
+                    </span>
+                    <Button variant="secondary" isDisabled={busy} onPress={() => void reject(r.id)} aria-label={`Reject link: ${r.words} ${refText(r.otherFactId, r.otherDocId, r.otherUnit)}`}>Reject</Button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="fx-sec">
               <h3>Where it comes from</h3>
               {fact.citations.length === 0 && <div className="muted">No citation.</div>}
+              {inBid && fact.citations.length > 0 && (
+                <div className="fx-cites" style={{ marginBottom: 8 }}>
+                  {fact.citations.map((c) => (
+                    <DocCite key={citeKey(c)} c={c} pressed={opened !== null && citeKey(opened) === citeKey(c)} onPress={() => setOpenedKey(citeKey(c))} />
+                  ))}
+                </div>
+              )}
               {fact.citations.map((c) => (
-                <blockquote key={c.id} className="fx-quote">
-                  <div className="src">Page {c.page_label || c.page}{c.section ? ` · ${c.section}` : ''}</div>
+                <blockquote key={citeKey(c)} className={`fx-quote${inBid && opened !== null && citeKey(opened) === citeKey(c) ? ' on' : ''}`}>
+                  {inBid ? (
+                    <div className="src">
+                      {citeLabel(c, docs)}{sideLabel(c.side) ? ` · ${sideLabel(c.side)}` : ''}{c.section ? ` · ${c.section}` : ''}{isInternal(c) ? ' · Internal' : ''}
+                    </div>
+                  ) : (
+                    <div className="src">Page {c.page_label || c.page}{c.section ? ` · ${c.section}` : ''}</div>
+                  )}
                   <div className="q">{c.text}</div>
                 </blockquote>
               ))}
@@ -146,7 +218,7 @@ function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
                 The model cited IDs that are not in the document: {fact.unresolved_ids.join(', ')}
               </div>
             )}
-            {pages.length > 0 && <PageImage key={fact.fact_id} run={run} factId={fact.fact_id} pages={pages} />}
+            {pages.length > 0 && (!inBid || imageDoc) && <PageImage key={`${fact.fact_id}|${imageDoc ?? ''}`} run={run} factId={fact.fact_id} pages={pages} doc={imageDoc} />}
             <details className="fx-details">
               <summary>Details</summary>
               <div className="muted wrap-text">

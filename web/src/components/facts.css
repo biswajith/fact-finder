@@ -104,3 +104,32 @@
   .fx-group > summary .gt { grid-column: 1 / 3; grid-row: 2; }
   .fx-group .fx-row { padding-left: 18px; }
 }
+
+/* ---- A bid's facts: replaced rows, warnings, citations, relations ---- */
+.fx-row.replaced .fx-text, .fx-row.replaced .fx-cat { opacity: 0.6; }
+.fx-stale { display: block; margin-top: 2px; font-size: 12px; color: var(--warn); }
+.fx-pg.fx-cites { white-space: normal; max-width: 260px; display: flex; flex-wrap: wrap; gap: 2px; justify-content: flex-end; }
+.fx-cites { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.fx-same { border-bottom: 1px solid var(--border); }
+.fx-same > .fx-row { border-bottom: 0; }
+.fx-list > :last-child > .fx-same { border-bottom: 0; }
+.fx-same-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 0 14px 8px 163px; }
+.fx-rel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0; }
+.fx-rel + .fx-rel { border-top: 1px solid var(--border); }
+.fx-rel .w { font-weight: 600; }
+.fx-rel .o { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.fx-quote.on { border-left-color: var(--warn); }
+.fx-replaced-by { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; overflow-wrap: anywhere; }
+@media (max-width: 699px) {
+  .fx-same-foot { padding-left: 14px; }
+  .fx-pg.fx-cites { max-width: none; }
+}
+
+/* ---- Document conflicts ---- */
+.cf-reason { font-weight: 600; color: var(--warn); }
+.cf-docfacts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cf-docfacts li { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+.cf-docfacts .linkbtn { align-self: flex-start; font-size: 12px; }
+.cf-docfact-top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cf-opt.ask { border-style: dashed; background: transparent; color: var(--text-muted); }
+.cf-opt.ask .cf-opt-label { font-weight: 500; }

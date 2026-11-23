@@ -37,6 +37,12 @@ MODES = ("direct", "light", "heavy")
 VERDICTS = ("approve", "revise", "cancel", "new_request")
 DEFAULT_DECISIONS_MODEL = "gpt-6-luna"  # the only model the Decisions API serves (goldset config)
 MIN_CONFIDENCE = 0.6  # below this a Decisions answer is not trusted (see the fallbacks below)
+# Routing only: a confidence just under the cut-off is still trusted when the probabilities are clear,
+# that is the pick holds at least CLEAR_PROBABILITY and leads the next mode by CLEAR_LEAD. (Seen 2026-11-23:
+# direct at 0.72 against 0.25 with confidence 0.58 was thrown away, and a plain lookup asked for approval.)
+BORDERLINE = 0.10
+CLEAR_PROBABILITY = 0.6
+CLEAR_LEAD = 0.25
 MAX_STEPS = 10
 AWAITING = "awaiting_approval"
 
@@ -51,7 +57,8 @@ class Route:
     probabilities: dict[str, float] | None = None
     note: str = ""
     steps: list[dict] = field(default_factory=list)  # heavy mode: [{"step": str, "done": bool}]
-    plan_text: str = ""  # light mode: the one-line plan
+    plan_text: str = ""  # light mode: the plan as the customer and the model read it
+    plan_steps: list[dict] = field(default_factory=list)  # light mode: [{"step": str, "covers": [str]}], when the model gave them
     status: str = ""  # "", AWAITING, "approved", "cancelled"
     feedback: dict | None = None  # the judge's verdict on the customer's reply to the plan
     call: dict | None = None  # the Decisions call that chose the mode, for the session log (not stored on messages)
@@ -73,6 +80,8 @@ class Route:
             out["steps"] = [dict(s) for s in self.steps]
         if self.plan_text:
             out["plan_text"] = self.plan_text
+        if self.plan_steps:
+            out["plan_steps"] = [{"step": s["step"], "covers": list(s.get("covers") or [])} for s in self.plan_steps]
         if self.status:
             out["status"] = self.status
         if self.feedback:
@@ -82,7 +91,7 @@ class Route:
     @classmethod
     def from_record(cls, r: dict) -> Route:
         return cls(mode=r.get("mode", "direct"), source="plan", steps=[dict(s) for s in r.get("steps") or []],
-                   plan_text=r.get("plan_text") or "")
+                   plan_text=r.get("plan_text") or "", plan_steps=[dict(s) for s in r.get("plan_steps") or []])
 
 
 @dataclass
@@ -92,11 +101,14 @@ class Feedback:
     confidence: float | None = None
     note: str = ""
     call: dict | None = None  # the Decisions call, for the session log
+    probabilities: dict[str, float] | None = None
 
     def record(self) -> dict:
         out: dict[str, Any] = {"verdict": self.verdict, "source": self.source}
         if self.confidence is not None:
             out["confidence"] = round(self.confidence, 3)
+        if self.probabilities:
+            out["probabilities"] = {k: round(v, 3) for k, v in self.probabilities.items()}
         if self.note:
             out["note"] = self.note
         return out
@@ -186,6 +198,14 @@ FEEDBACK_INSTRUCTIONS = _SETTING + (
 )
 
 
+def clear_pick(choice: str, probabilities: dict[str, float]) -> bool:
+    """Whether the probabilities alone make `choice` a clear pick: it holds most of the weight and leads
+    every other mode by a wide margin."""
+    top = probabilities.get(choice, 0.0)
+    rest = max((v for k, v in probabilities.items() if k != choice), default=0.0)
+    return top >= CLEAR_PROBABILITY and top - rest >= CLEAR_LEAD
+
+
 class DecisionsRouter:
     """Picks the mode, and judges replies to a plan, with Choice questions to the OpenAI Decisions API.
 
@@ -200,19 +220,26 @@ class DecisionsRouter:
         self.min_confidence = min_confidence
         self._client = client  # anything with `async ainvoke(request) -> DecisionResponse`; built on first use
 
-    def _call(self, started: float, usage: Any = None, error: str = "") -> dict:
-        """What the session log keeps about one Decisions call."""
+    def _call(self, started: float, response: Any = None, error: str = "") -> dict:
+        """What the session log keeps about one Decisions call, including the whole response (every
+        label's probability, the confidence, the request id) so a decision can be reviewed later."""
         out: dict[str, Any] = {"model": self.model, "seconds": round(time.monotonic() - started, 3)}
+        usage = getattr(response, "usage", None)
         if usage is not None:
             out["input_tokens"] = getattr(usage, "input_tokens", None)
             out["output_tokens"] = getattr(usage, "output_tokens", None)
+        if response is not None and hasattr(response, "model_dump"):
+            try:
+                out["response"] = response.model_dump(mode="json")
+            except Exception:  # the log must not break the chat
+                pass
         if error:
             out["error"] = error[:300]
         return out
 
     async def _ask(self, inputs: list[str], instructions: str, choices: dict) -> tuple[Any, Any]:
-        """One Choice question; returns the ChoiceAnswer and the usage. Raises on any failure or a
-        non-choice answer."""
+        """One Choice question; returns the ChoiceAnswer and the whole DecisionResponse. Raises on any
+        failure or a non-choice answer."""
         from langchain_core.messages import HumanMessage
         from langchain_openai.decisions import Choice, ChoiceAnswer
 
@@ -227,21 +254,26 @@ class DecisionsRouter:
         answer = response.answers.get("q")
         if not isinstance(answer, ChoiceAnswer) or answer.choice not in choices:
             raise ValueError(f"no usable choice ({getattr(answer, 'type', 'missing')})")
-        return answer, response.usage
+        return answer, response
 
     async def route(self, context: str, user_text: str) -> Route:
         if self._client is None:
             require_api_key()
         started = time.monotonic()
         try:
-            a, usage = await self._ask([context, f"LATEST CUSTOMER MESSAGE\n{user_text}"], ROUTE_INSTRUCTIONS,
+            a, response = await self._ask([context, f"LATEST CUSTOMER MESSAGE\n{user_text}"], ROUTE_INSTRUCTIONS,
                                        ROUTE_CHOICES)
         except Exception as e:  # the chat must still answer: fall back to the plain loop
             note = f"router failed: {type(e).__name__}: {e}"[:300]
             return Route("direct", "fallback", note=note, call=self._call(started, error=note))
-        call = self._call(started, usage)
+        call = self._call(started, response)
         probs = {str(k): float(v) for k, v in (a.probabilities or {}).items()}
         if a.confidence < self.min_confidence:
+            if clear_pick(str(a.choice), probs) and a.confidence >= self.min_confidence - BORDERLINE:
+                others = max((v for k, v in probs.items() if k != str(a.choice)), default=0.0)
+                return Route(str(a.choice), "router", a.confidence, probs, call=call,
+                             note=(f"confidence {a.confidence:.2f} is just under the cut-off; trusted the probabilities "
+                                   f"({a.choice} {probs[str(a.choice)]:.2f} against {others:.2f})"))
             return Route("light", "fallback", a.confidence, probs,
                          note=f"router unsure (picked {a.choice} at confidence {a.confidence:.2f})", call=call)
         return Route(str(a.choice), "router", a.confidence, probs, call=call)
@@ -251,16 +283,18 @@ class DecisionsRouter:
             require_api_key()
         started = time.monotonic()
         try:
-            a, usage = await self._ask([context, f"PLAN\n{plan}", f"CUSTOMER REPLY\n{reply}"], FEEDBACK_INSTRUCTIONS,
+            a, response = await self._ask([context, f"PLAN\n{plan}", f"CUSTOMER REPLY\n{reply}"], FEEDBACK_INSTRUCTIONS,
                                        FEEDBACK_CHOICES)
         except Exception as e:
             note = f"judge failed: {type(e).__name__}: {e}"[:300]
             return Feedback("revise", "fallback", note=note, call=self._call(started, error=note))
-        call = self._call(started, usage)
+        call = self._call(started, response)
+        probs = {str(k): float(v) for k, v in (a.probabilities or {}).items()}
         if a.confidence < self.min_confidence:
             return Feedback("revise", "fallback", a.confidence,
-                            note=f"judge unsure (picked {a.choice} at confidence {a.confidence:.2f})", call=call)
-        return Feedback(str(a.choice), "judge", a.confidence, call=call)
+                            note=f"judge unsure (picked {a.choice} at confidence {a.confidence:.2f})", call=call,
+                            probabilities=probs)
+        return Feedback(str(a.choice), "judge", a.confidence, call=call, probabilities=probs)
 
 
 def planning_from_env() -> Planning:
@@ -291,10 +325,12 @@ LIGHT_PROMPT = (
 )
 
 LIGHT_PLAN_PROMPT = (
-    "Before you do anything, write your plan for the customer's latest message in one line that starts with "
-    "\"Plan:\" and numbers the steps. You cannot call tools in this step, and the customer will approve the plan "
-    "before you carry it out. Write only the plan line. Plan only what the customer asked for, and keep every "
-    "rule of your instructions."
+    "Before you do anything, write your plan for the customer's latest message. You cannot call tools in this step, "
+    "and the customer will read the plan and approve it before you carry it out.\n"
+    "Answer with JSON only, no other text: {\"steps\": [{\"step\": \"...\", \"covers\": [\"...\"]}]}. Each step is one "
+    "short action in plain words for the customer. When a step looks at several topics, name each topic in covers "
+    "(a few words each) instead of listing them in the step; leave covers out when there is no such list. Use 1 to "
+    "5 steps, in order. Plan only what the customer asked for, and keep every rule of your instructions."
 )
 
 PLAN_PROMPT = (
@@ -353,6 +389,34 @@ def parse_plan(text: str) -> list[str]:
             return steps[:MAX_STEPS]
     lines = [_NUMBERED.sub("", ln).strip() for ln in text.splitlines() if _NUMBERED.match(ln)]
     return [ln for ln in lines if ln][:MAX_STEPS]
+
+
+def parse_light_plan(text: str) -> list[dict]:
+    """Steps with the topics each covers, from the light planning call's JSON; [] when it gave none."""
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        return []
+    try:
+        data = json.loads(text[start : end + 1])
+    except ValueError:
+        return []
+    out = []
+    for s in (data.get("steps") if isinstance(data, dict) else None) or []:
+        if isinstance(s, str):
+            s = {"step": s}
+        if not isinstance(s, dict) or not str(s.get("step") or "").strip():
+            continue
+        covers = s.get("covers") if isinstance(s.get("covers"), list) else []
+        out.append({"step": " ".join(str(s["step"]).split()),
+                    "covers": [" ".join(str(c).split()) for c in covers if isinstance(c, (str, int, float)) and str(c).strip()]})
+    return out[:MAX_STEPS]
+
+
+def light_plan_text(steps: list[dict]) -> str:
+    """The light plan as text, for the chat history the model reads and the judge: one numbered line a step."""
+    return "Plan:\n" + "\n".join(
+        f"{i}. {s['step']}" + (f" (covers: {', '.join(s['covers'])})" if s.get("covers") else "")
+        for i, s in enumerate(steps, start=1))
 
 
 def numbered(steps: list[dict]) -> str:

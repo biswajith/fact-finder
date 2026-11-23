@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, InlineAlert, Heading, Content, TextArea } from '@adobe/react-spectrum';
 import * as api from '../api';
 import { errorText, useRun } from '../store';
 import type { ChatEvent, ChatMessage, ToolStep } from '../types';
+import { planLines, planMessage } from '../chatBlocks';
 import { ConflictCard } from './ConflictCard';
 import { ErrorBox, Loading } from './common';
 import { ChatMarkdown } from './chat/Markdown';
@@ -14,8 +15,8 @@ const STARTERS = [
   'List the facts I have changed.',
 ];
 
-function ChatText({ text, role }: { text: string; role: 'user' | 'assistant' }) {
-  return role === 'user' ? <>{text}</> : <ChatMarkdown text={text} />;
+function ChatText({ text, role, streaming = false }: { text: string; role: 'user' | 'assistant'; streaming?: boolean }) {
+  return role === 'user' ? <>{text}</> : <ChatMarkdown text={text} streaming={streaming} />;
 }
 
 function Tools({ tools }: { tools: ToolStep[] }) {
@@ -43,11 +44,40 @@ function ConflictRefs({ ids }: { ids: string[] }) {
   );
 }
 
-function Message({ m }: { m: ChatMessage }) {
+/** A plan the assistant shows before it works: numbered steps, a long topic list as tags, then its question. */
+function PlanCard({ steps, rest, waiting }: { steps: NonNullable<ReturnType<typeof planMessage>>['steps']; rest: string; waiting: boolean }) {
+  return (
+    <div className="plan-card">
+      <div className="plan-card-head">
+        <strong>Plan</strong>
+        <span className="muted">{steps.length} {steps.length === 1 ? 'step' : 'steps'}{waiting ? ' · waiting for your answer' : ''}</span>
+      </div>
+      <ol className="plan-steps">
+        {steps.map((s, i) => (
+          <li key={i} className={s.done ? 'done' : undefined}>
+            <span className="plan-no" aria-hidden="true">{s.done ? '✓' : i + 1}</span>
+            <div className="plan-step">
+              <span>{s.text}</span>
+              {s.items.length > 0 && (
+                <ul className="plan-items" aria-label="Including">
+                  {s.items.map((x) => <li key={x}>{x}</li>)}
+                </ul>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {rest && <div className="plan-card-foot"><ChatMarkdown text={rest} /></div>}
+    </div>
+  );
+}
+
+function Message({ m, waiting = false }: { m: ChatMessage; waiting?: boolean }) {
+  const plan = m.role === 'assistant' && m.text ? planMessage(m.text, m.planning) : null;
   return (
     <div className="msg-wrap">
       {m.role === 'assistant' && m.tools && <Tools tools={m.tools} />}
-      {m.text && (
+      {plan ? <PlanCard steps={plan.steps} rest={plan.rest} waiting={waiting} /> : m.text && (
         <div className={`msg ${m.role}`}>
           <ChatText text={m.text} role={m.role} />
         </div>
@@ -59,7 +89,31 @@ function Message({ m }: { m: ChatMessage }) {
 
 interface Pending { text: string; tools: ToolStep[]; conflictIds: string[] }
 
-export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** Under a plan that waits for a yes: proceed, or say no and change the plan (or drop it). */
+function PlanReply({ m, disabled, onSend }: { m: ChatMessage; disabled: boolean; onSend: (text: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(() => planLines(m.planning));
+  if (!editing) {
+    return (
+      <div className="plan-reply" role="group" aria-label="Answer the plan">
+        <Button variant="accent" isDisabled={disabled} onPress={() => onSend('Yes, go ahead.')}>Yes, proceed</Button>
+        <Button variant="secondary" isDisabled={disabled} onPress={() => setEditing(true)}>No, change the plan</Button>
+      </div>
+    );
+  }
+  return (
+    <div className="plan-reply editing" role="group" aria-label="Change the plan">
+      <TextArea label="The plan, as you want it" value={draft} onChange={setDraft} width="100%" autoFocus />
+      <div className="row">
+        <Button variant="accent" isDisabled={disabled || !draft.trim()} onPress={() => onSend(`Change the plan to this, then show it to me again:\n${draft.trim()}`)}>Send the changed plan</Button>
+        <Button variant="secondary" isDisabled={disabled} onPress={() => onSend('No, cancel that plan.')}>Drop the plan</Button>
+        <Button variant="secondary" isQuiet onPress={() => setEditing(false)}>Back</Button>
+      </div>
+    </div>
+  );
+}
+
+export function ChatPanel({ open, onClose, resizer }: { open: boolean; onClose: () => void; resizer?: ReactNode }) {
   const { run, status, reloadAll, chatDraft, setChatDraft, setSummaries, chatEpoch } = useRun();
   const [history, setHistory] = useState<ChatMessage[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -160,8 +214,12 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   };
 
   const empty = history !== null && history.length === 0 && !pending;
+  // The last message is a plan the assistant is waiting on: offer the answers as buttons.
+  const lastMessage = history && history.length ? history[history.length - 1] : null;
+  const waitingPlan = !pending && lastMessage?.role === 'assistant' && lastMessage.planning?.status === 'awaiting_approval' ? lastMessage : null;
   return (
     <aside className={`chat-panel${open ? ' open' : ''}`} id="app-chat" aria-label="Assistant">
+      {resizer}
       <div className="chat-head">
         <strong>Assistant</strong>
         <div className="row">
@@ -175,12 +233,13 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
         ) : history === null ? (
           <Loading label="Loading chat" />
         ) : (
-          history.map((m) => <Message key={m.id} m={m} />)
+          history.map((m) => <Message key={m.id} m={m} waiting={m === waitingPlan} />)
         )}
+        {waitingPlan && <PlanReply key={waitingPlan.id} m={waitingPlan} disabled={sending || noKey} onSend={(t) => void send(t)} />}
         {pending && (
           <div className="msg-wrap">
             <Tools tools={pending.tools} />
-            {pending.text ? <div className="msg assistant"><ChatText text={pending.text} role="assistant" /></div> : <div className="muted">Working...</div>}
+            {pending.text ? <div className="msg assistant"><ChatText text={pending.text} role="assistant" streaming /></div> : <div className="muted">Working...</div>}
             {pending.conflictIds.length > 0 && <ConflictRefs ids={pending.conflictIds} />}
           </div>
         )}

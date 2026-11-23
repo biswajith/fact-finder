@@ -68,7 +68,7 @@ class TurnLog:
 
     def llm_call(self, *, purpose: str, round_no: int | None, messages: int, tools_offered: int, tools_allowed: bool,
                  tool_calls: list[dict], text_chars: int, seconds: float, usage: CallUsage | None,
-                 error: str | None = None) -> None:
+                 error: str | None = None, extra: dict[str, Any] | None = None) -> None:
         tokens = {}
         if usage is not None:
             tokens = {"input_tokens": usage.input_tokens, "cached_tokens": usage.cached_tokens,
@@ -90,6 +90,8 @@ class TurnLog:
                 self._add("cost_usd", usd)
         if error:
             fields["error"] = error
+        if extra:
+            fields.update(extra)
         self.log("llm_call", **fields)
 
     def decisions_call(self, call: dict | None) -> dict | None:

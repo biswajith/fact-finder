@@ -482,7 +482,7 @@ async def test_search_rows_are_slim(ws, svc):
     ctx = A.Ctx(ws, svc, [])
     fact_row = next(h for h in (await A.t_search(ctx, {"query": "bids due March"}))["hits"] if h.get("fact_id") == "f_d1")
     # the fact line only: no source text, no default status, no unanimous votes, no edited/deleted
-    assert set(fact_row) <= {"fact_id", "category", "text", "page", "section", "flags", "status"}
+    assert set(fact_row) <= {"fact_id", "category", "text", "page", "section", "flags", "status", "conflicts"}
     assert "unit_text" not in fact_row and "votes" not in fact_row and "edited" not in fact_row
     unit_row = (await A.t_search(A.Ctx(ws, svc, []), {"query": "living wage"}))["hits"][0]
     assert unit_row["votes"] == ["-", "-", "S"]  # split votes are kept
@@ -575,3 +575,236 @@ def test_prompt_separates_corrections_from_new_information(ws):
     text = A.system_prompt(ws)
     assert "Tell a correction from new information" in text and "add_fact" in text
     assert "new information" in A.BY_NAME["add_fact"].description and "values_removed" in A.BY_NAME["edit_fact"].description
+
+
+def test_prompt_has_a_format_section_with_block_tokens():
+    assert "[[source:FACT_ID]]" in A.SYSTEM_PROMPT and "[[timeline:ID,ID,...]]" in A.SYSTEM_PROMPT
+    assert "Use only IDs of facts that a tool returned" in A.SYSTEM_PROMPT
+
+
+def test_clean_blocks_drops_unknown_ids_and_short_timelines():
+    known = {"f_aaaaaaaaaa", "f_bbbbbbbbbb", "f_cccccccccc"}
+    t = ("Due soon.\n[[source:f_aaaaaaaaaa]]\n[[source:f_zzzzzzzzzz]]\nAnd:\n"
+         "[[timeline:f_aaaaaaaaaa,f_zzzzzzzzzz,f_bbbbbbbbbb]]\n[[timeline:f_aaaaaaaaaa,f_zzzzzzzzzz]]\nEnd [[source:f_zzzzzzzzzz]] inline.")
+    assert A.clean_blocks(t, known) == ("Due soon.\n[[source:f_aaaaaaaaaa]]\nAnd:\n"
+                                        "[[timeline:f_aaaaaaaaaa,f_bbbbbbbbbb]]\nEnd\ninline.")
+    assert A.clean_blocks("plain [f_aaaaaaaaaa]", known) == "plain [f_aaaaaaaaaa]"
+
+
+async def test_stored_answer_is_cleaned_but_the_stream_is_not(ws, svc):
+    real = ws.state().visible()[0]["fact_id"]
+    answer = f"Here.\n[[source:{real}]]\n[[source:f_0000000000]]\n"
+    events = await run_chat(ws, svc, ScriptedChat([answer]), "where?")
+    assert "".join(e["delta"] for e in events if e["type"] == "text") == answer
+    assert events[-1]["message"]["text"] == f"Here.\n[[source:{real}]]\n"
+    assert ws.chat()[-1]["text"] == f"Here.\n[[source:{real}]]\n"
+
+
+# --- a bid: search returns points -------------------------------------------------------------
+
+
+def bid_fact(fid, doc_no, level, text, page, section, cat="R", side="", **kw):
+    return {"fact_id": fid, "doc_id": f"D{doc_no}", "doc_no": doc_no, "level": level, "category": cat, "text": text,
+            "citations": [{"id": f"p{page}.{fid}", "page": page, "page_label": str(page), "section": section, "text": text,
+                           "side": side}], "flags": [], "status": "valid", "note": "", "conflicts": [], "relations": [], **kw}
+
+
+def bid_ws(tmp_path):
+    rows = [bid_fact(f"t{i}", 1, 1, f"Gold tier support level {i} answers in {i} hours", 3, "Service levels",
+                     group_id="g1", group_kind="list", group_title="Support levels") for i in range(1, 9)]
+    rows += [bid_fact(f"s{i}", 1, 1, f"Service credit schedule entry {i}", 4, "Service levels") for i in range(1, 6)]
+    due = bid_fact("d1", 1, 1, "Proposals are due June 10", 1, "Schedule", cat="D")
+    call = bid_fact("c1", 4, 2, "Proposals are due June 24", 1, "Schedule", cat="D", side="buyer")
+    note = bid_fact("n1", 3, 4, "Proposals are due June 12 on our calendar", 1, "Schedule", cat="D")
+    rel = {"id": "r_1", "kind": "DISAGREES", "from": {"doc_id": "D4", "unit": "u", "fact_id": "c1"},
+           "to": {"doc_id": "D1", "unit": "v", "fact_id": "d1"}, "rejected": False}
+    due["relations"], call["relations"] = [rel], [dict(rel)]
+    folder = tmp_path / "runs" / "_bids" / "b1"
+    folder.mkdir(parents=True)
+    (folder / "facts.json").write_text(json.dumps([*rows, due, call, note]))
+    (folder / "bid.json").write_text(json.dumps({"bid_id": "b1", "documents": [
+        {"no": 1, "playbook": "rfp", "file_name": "rfp.pdf"}, {"no": 3, "playbook": "deal-notes", "file_name": "n.md"},
+        {"no": 4, "playbook": "call-transcript", "file_name": "call.json"}]}))
+    (folder / "conflicts.json").write_text(json.dumps([{
+        "id": "d:abc", "title": "Call disagrees with RFP", "description": "d", "fact_ids": ["c1", "d1"],
+        "options": [{"label": "Keep the RFP", "text": ""}, {"label": "Ask", "text": ""}]}]))
+    return Workspace(folder / "facts.json")
+
+
+async def test_a_hit_on_one_row_of_a_list_brings_the_other_rows_and_they_are_not_hits(tmp_path, svc):
+    bws = bid_ws(tmp_path)
+    ctx = A.Ctx(bws, svc, [])
+    r = await A.t_search(ctx, {"query": "gold tier support"})
+    assert len(r["hits"]) == 1 and r["count"] == 1 and "more" not in r
+    [hit] = r["hits"]
+    assert hit["source"] == "d1 RFP (buyer document, level 1)" and hit["section"] == "Service levels"
+    assert hit["list"]["title"] == "Support levels" and len(hit["list"]["items"]) == 7
+    assert hit["fact_id"] not in {i["fact_id"] for i in hit["list"]["items"]}
+    assert all(i["source"].startswith("d1 RFP") for i in hit["list"]["items"])
+    assert "linked" not in hit and "conflicts" not in hit
+    again = await A.t_search(ctx, {"query": "gold tier support level 5"})  # a row sent inside the point comes back as its ID
+    assert [h for h in again["hits"] if h["fact_id"].startswith("t")] == [{"fact_id": "t5", "sent_before": True}]
+    fresh = await A.t_search(A.Ctx(bws, svc, []), {"query": "gold tier support level 5"})
+    assert fresh["hits"][0]["fact_id"] == "t5" and "list" in fresh["hits"][0]
+
+
+async def test_a_hit_on_a_disagreement_carries_the_other_side_and_the_conflict(tmp_path, svc):
+    bws = bid_ws(tmp_path)
+    r = await A.t_search(A.Ctx(bws, svc, []), {"query": "proposals due June 24"})
+    ids = [h["fact_id"] for h in r["hits"]]
+    assert ids[0] == "c1" and "d1" not in ids  # the RFP fact is inside the call fact's hit
+    hit = r["hits"][0]
+    assert hit["source"] == "d4 call transcript, buyer speaking (level 2)"
+    assert hit["linked"] == [{"relation": "disagrees with", "fact": {
+        "fact_id": "d1", "category": "D", "flags": [], "status": "valid", "text": "Proposals are due June 10", "page": "1",
+        "edited": False, "deleted": False, "source": "d1 RFP (buyer document, level 1)"}}]
+    assert hit["conflicts"] == [{"id": "d:abc", "title": "Call disagrees with RFP", "status": "open"}]
+    other = await A.t_search(A.Ctx(bws, svc, []), {"query": "proposals due June 10"})
+    assert other["hits"][0]["linked"][0]["relation"] == "disagreed with by"
+
+
+async def test_limit_counts_points_not_the_rows_inside_them(tmp_path, svc):
+    bws = bid_ws(tmp_path)
+    r = await A.t_search(A.Ctx(bws, svc, []), {"query": "gold tier support credit schedule", "limit": 1})
+    assert len(r["hits"]) == 1 and len(r["hits"][0]["list"]["items"]) == 7 and r["more"] >= 1
+    both = await A.t_search(A.Ctx(bws, svc, []), {"query": "gold tier support credit schedule", "limit": 50})
+    assert len(both["hits"]) == 6  # one point for the table and five single rows
+    assert both["count"] == 6
+
+
+async def test_a_section_search_returns_every_row_of_it_in_document_order(tmp_path, svc):
+    bws = bid_ws(tmp_path)
+    r = await A.t_search(A.Ctx(bws, svc, []), {"section": "service levels", "query": "entry 3"})
+    ids = [h["fact_id"] for h in r["hits"]]
+    assert ids == ["t1"] + [f"s{i}" for i in range(1, 6)] and "more" not in r  # the table is one point, led by its first row
+    assert len(r["hits"][0]["list"]["items"]) == 7
+    assert [h["fact_id"] for h in (await A.t_search(A.Ctx(bws, svc, []), {"section": "Service levels"}))["hits"]] == ids
+    small = await A.t_search(A.Ctx(bws, svc, []), {"section": "Service levels", "limit": 2})
+    assert len(small["hits"]) == 2 and small["more"] == 4
+    filtered = await A.t_search(A.Ctx(bws, svc, []), {"section": "Service levels", "query": "entry", "category": "D"})
+    assert filtered["hits"] == []
+    many = await A.t_search(A.Ctx(bws, svc, []), {"section": "Service levels", "queries": ["entry 3"]})
+    assert len(many["results"][0]["hits"]) == 6
+
+
+async def test_get_fact_in_a_bid_carries_source_list_links_and_conflicts(tmp_path, svc):
+    bws = bid_ws(tmp_path)
+    ctx = A.Ctx(bws, svc, [])
+    f = await A.t_get_fact(ctx, {"fact_id": "d1"})
+    assert f["source"] == "d1 RFP (buyer document, level 1)" and f["linked"][0]["fact"]["fact_id"] == "c1"
+    assert f["conflicts"][0]["id"] == "d:abc" and "list" not in f
+    g = await A.t_get_fact(ctx, {"fact_ids": ["t2", "n1"]})
+    assert g["facts"][0]["list"]["title"] == "Support levels" and len(g["facts"][0]["list"]["items"]) == 7
+    assert g["facts"][1]["source"] == "d3 deal notes (our own notes, level 4)" and "linked" not in g["facts"][1]
+
+
+async def test_a_single_document_run_has_no_source(ws, svc):
+    f = await A.t_get_fact(A.Ctx(ws, svc, []), {"fact_id": "f_d2"})
+    assert "source" not in f
+
+
+def test_the_prompt_and_answer_form_tell_the_model_about_documents_and_lists(ws):
+    p = A.system_prompt(ws)
+    assert "11. A bid holds several documents." in p and "give every row" in p and "do not pick one side" in p
+    assert "Name the source of anything that does not come from the buyer's own document" in A.ANSWER_FORM
+    assert "give every row of it" in A.ANSWER_FORM
+
+
+class ComposeChat(ScriptedChat):
+    """Like ScriptedChat, but its `stream` takes `effort` and records every call."""
+
+    def __init__(self, *turns):
+        super().__init__(*turns)
+        self.calls: list[dict] = []
+
+    async def stream(self, messages, tools, effort=None):
+        self.calls.append({"messages": json.loads(json.dumps(messages)), "tools": list(tools), "effort": effort})
+        async for item in super().stream(messages, tools):
+            yield item
+
+
+def _text(events):
+    return "".join(e["delta"] for e in events if e["type"] == "text")
+
+
+async def test_compose_call_writes_the_answer_after_a_tool_round(ws, svc, monkeypatch):
+    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", raising=False)
+    model = ComposeChat([call("search", queries=["bids"])], ["draft text"], ["Composed ", "answer."])
+    events = await run_chat(ws, svc, model, "What should we weigh?")
+    assert _text(events) == "Composed answer." and events[-1]["message"]["text"] == "Composed answer."
+    assert len(model.calls) == 3
+    assert model.calls[0]["tools"] and model.calls[0]["effort"] is None
+    compose = model.calls[2]
+    assert compose["tools"] == [] and compose["effort"] == "low"
+    assert compose["messages"][-1] == {"role": "user", "content": A.COMPOSE_INSTRUCTION}
+    assert A.ANSWER_FORM in A.COMPOSE_INSTRUCTION
+    assert all("draft text" not in str(m.get("content")) for m in compose["messages"])
+    assert any(m["role"] == "tool" for m in compose["messages"])
+    logged = [e for e in ws.chat_events(ws.chat_session()) if e["event"] == "llm_call"]
+    assert logged[-1]["purpose"] == "compose" and logged[-1]["compose"] is True and logged[-1]["effort"] == "low"
+
+
+async def test_compose_failure_falls_back_to_the_draft(ws, svc, monkeypatch):
+    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", raising=False)
+    model = ComposeChat([call("search", queries=["bids"])], ["the draft"], RuntimeError("boom"))
+    events = await run_chat(ws, svc, model)
+    assert _text(events) == "the draft" and events[-1]["message"]["text"] == "the draft"
+    assert "error" not in types(events)
+    logged = [e for e in ws.chat_events(ws.chat_session()) if e["event"] == "llm_call"]
+    assert "boom" in logged[-1]["compose_error"]
+
+
+async def test_compose_returning_no_text_falls_back_to_the_draft(ws, svc, monkeypatch):
+    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", raising=False)
+    model = ComposeChat([call("search", queries=["bids"])], ["the draft"], [])
+    assert _text(await run_chat(ws, svc, model)) == "the draft"
+
+
+@pytest.mark.parametrize("value", ["off", "none", ""])
+async def test_compose_can_be_switched_off(ws, svc, monkeypatch, value):
+    monkeypatch.setenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", value)
+    model = ComposeChat([call("search", queries=["bids"])], ["the draft"])
+    events = await run_chat(ws, svc, model)
+    assert len(model.calls) == 2 and all(c["effort"] is None for c in model.calls)
+    assert _text(events) == "the draft"
+
+
+async def test_no_compose_without_a_tool_round(ws, svc, monkeypatch):
+    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", raising=False)
+    model = ComposeChat(["Hello ", "there."])
+    events = await run_chat(ws, svc, model)
+    assert types(events) == ["text", "text", "done"] and len(model.calls) == 1
+
+
+async def test_compose_effort_is_read_from_the_environment(ws, svc, monkeypatch):
+    monkeypatch.setenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", "medium")
+    model = ComposeChat([call("search", queries=["bids"])], ["draft"], ["final"])
+    await run_chat(ws, svc, model)
+    assert model.calls[2]["effort"] == "medium"
+
+
+async def test_openai_model_compose_call_sends_no_tools_and_an_effort(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-real")
+    sent = []
+
+    async def create(**kw):
+        sent.append(kw)
+
+        async def gen():
+            return
+            yield
+        return gen()
+
+    model = A.OpenAIChatModel()
+    model._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    msgs = [{"role": "user", "content": "x"}]
+    [x async for x in model.stream(msgs, A.TOOL_SPECS, cache_key="k", effort="low")]
+    [x async for x in model.stream(msgs, A.TOOL_SPECS)]
+    assert "tools" not in sent[0] and "tool_choice" not in sent[0]
+    assert sent[0]["reasoning_effort"] == "low" and sent[0]["max_completion_tokens"] == 12000
+    assert sent[0]["prompt_cache_key"] == "k"
+    assert sent[1]["tools"] == A.TOOL_SPECS and sent[1]["reasoning_effort"] == A.CHAT_EFFORT
+
+
+def test_prompt_has_the_drivers_first_rule(ws):
+    assert "First name to yourself what drives that decision" in A.system_prompt(ws)

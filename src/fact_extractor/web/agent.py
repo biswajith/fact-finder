@@ -11,6 +11,7 @@ import hashlib
 import inspect
 import json
 import math
+import os
 import re
 import time
 import unicodedata
@@ -22,6 +23,7 @@ from ..models import CATEGORIES, FLAGS
 from ..normalize import missing_values
 from . import ModelUnavailable, model_name, require_api_key
 from . import planning as P
+from . import points as PT
 from .chatlog import CallUsage, TurnLog
 from .consistency import MAX_RELATED, ConsistencyChecker
 from .summaries import BY_KEY, SECTIONS, SummaryService
@@ -36,8 +38,13 @@ WRAP_UP = ("You have used all your tool rounds. Do not look anything up again. A
 # gpt-6-luna rejects function tools together with a reasoning effort on Chat Completions
 # (HTTP 400, seen 2026-11-20), so the chat loop runs without reasoning.
 CHAT_EFFORT = "none"
+# The last step of a turn that used tools, writing the reply, is a separate call with no tools and a
+# reasoning effort. FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT sets it ("off", "none" or empty: no compose step).
+COMPOSE_EFFORT = "low"
+COMPOSE_TOKENS = 12000  # reasoning counts against the completion limit
 # Chat history sent to the model is trimmed in blocks, not as a sliding window, so the prefix the API
 # caches stays identical from turn to turn (see _history_start).
+MAX_TIMELINE_IDS = 12  # facts one [[timeline:...]] block may name
 HISTORY_MAX = 40
 HISTORY_MIN = 20
 HISTORY_BLOCK = HISTORY_MAX - HISTORY_MIN
@@ -61,7 +68,9 @@ class ChatModel(Protocol):
         A model whose `stream` also takes a `cache_key` keyword is given a stable per-run key.
         A model whose `stream` takes `allow_tools` is sent the tool list even on calls that must not
         use tools, with allow_tools=False, so the request starts the same and stays cached; any
-        other model gets an empty tool list on those calls."""
+        other model gets an empty tool list on those calls.
+        A model whose `stream` takes `effort` can write the final reply with a reasoning effort: that
+        call gets no tools at all."""
         ...
 
 
@@ -73,21 +82,22 @@ class OpenAIChatModel:
         self._client = None
 
     async def stream(self, messages: list[dict], tools: list[dict], cache_key: str | None = None,
-                     allow_tools: bool = True) -> AsyncIterator[str | ToolCall | CallUsage]:
+                     allow_tools: bool = True, effort: str | None = None) -> AsyncIterator[str | ToolCall | CallUsage]:
         require_api_key()
         if self._client is None:
             import openai
 
             self._client = openai.AsyncOpenAI(timeout=self.timeout, max_retries=1)
-        extra: dict[str, Any] = {"tools": tools} if tools else {}  # the API rejects an empty tools list
-        if tools and not allow_tools:
+        # the API rejects an empty tools list; a call with an effort is the compose call and sends no tools
+        extra: dict[str, Any] = {"tools": tools} if tools and effort is None else {}
+        if tools and not allow_tools and effort is None:
             # The tools stay in the request (it is cached as a prefix, tools first); the model may not call them.
             extra["tool_choice"] = "none"
         if cache_key:  # routes every turn of one run to the same prompt cache
             extra["prompt_cache_key"] = cache_key
         stream = await self._client.chat.completions.create(
-            model=model_name(), messages=messages, reasoning_effort=CHAT_EFFORT,
-            max_completion_tokens=8000, stream=True, stream_options={"include_usage": True}, **extra,
+            model=model_name(), messages=messages, reasoning_effort=effort or CHAT_EFFORT,
+            max_completion_tokens=COMPOSE_TOKENS if effort else 8000, stream=True, stream_options={"include_usage": True}, **extra,
         )
         calls: dict[int, dict] = {}  # tool-call deltas arrive in pieces, keyed by index
         usage = None
@@ -129,16 +139,95 @@ Rules you always follow:
 7. Do not make up facts about the document. When you are unsure, search the source, or say that you do not know.
 8. Each section (buyer, submission, gates, scoring, questions, contract, requirements) has one summary in fixed rows, each row citing the facts it rests on. After a change, a summary that depends on it is marked out of date and rebuilt automatically; you do not need to rebuild it. Call generate_summary only when the customer asks for a summary to be written, or for a section that has no rows yet.
 9. Be efficient: every reply that calls tools costs a round trip, so do in one reply everything that does not depend on a result you have not seen yet. Put the different things you need to find into one search call (queries), and make independent calls together in the same reply. Do not repeat a search that already returned what you need; once you have the facts, answer.
-10. Be brief and concrete. The customer is a bid manager, not an engineer.
+10. Be concrete and complete. The customer is a bid manager, not an engineer: no filler, but give every item the question asks for, each on its own row or line. Do not shorten several items into one phrase.
+
+11. A bid holds several documents. Each fact's `source` says which document it is from and, for a call, which side was speaking. Describe a document from its own facts: what someone said on a call or wrote in our notes about a document is their statement, not the document's, so attribute it (for example "on the call the buyer said"). When a fact is one row of a list or table, give every row. When linked facts disagree, or a conflict is open, say what each source says and that it is unresolved; do not pick one side.
+12. When the customer asks what to consider, weigh, watch out for or prepare for a decision (pricing, bid or no-bid, staffing, risk, the schedule), do not search for the words of the question. First name to yourself what drives that decision, then look up each driver, including facts filed under another topic that never use the question's words. For a price the drivers are: volumes (users, employees, sites, transactions), the scope and modules asked for, the contract term and renewals, how long the price must stay valid, payment and invoicing terms, how price is scored in the evaluation, any budget signal, the format the price must be given in, terms that carry cost or risk (insurance, bonds, penalties, liability, service levels), what the buyer said on calls, and what our notes say about competitors. For bid or no-bid they are: the mandatory qualifications and gates, the disqualifiers, the deadlines against our capacity, how the evaluation is weighted against our strengths, the contract risks, and what we know of the buyer's preferences and the competition. Say which drivers the documents are silent on.
 
 Fact categories: {categories}.
 Fact flags: {flags}.
+
+HOW TO WRITE THE ANSWER (check this before you write the final reply)
+Line 1 is the answer in one sentence. Then count the items the answer holds and pick the form:
+- 1 or 2 items: plain sentences.
+- 3 or more items that share the same details (a part and what it must contain; an item, its value and its limit; what two documents say about the same things): a Markdown table, one row per item, last column "Source" with the fact IDs in square brackets.
+- 3 or more items with one detail each, or parts or steps in an order (an outline, a checklist, a sequence): a Markdown list, numbered when order matters, each item ending with its fact IDs.
+An outline, a structure, a list of what to include, a set of requirements or a set of terms always has 3 or more items: it is never written as a paragraph. Never join three or more items with commas in one sentence.
+The shape of a table answer (the words are placeholders):
+
+One sentence that answers the question.
+
+| Part | What it must contain | Source |
+|---|---|---|
+| first part | its content | [fact ID] |
+| second part | its content | [fact ID] |
+
+One sentence for any caution: an open conflict, a replaced or unclear fact.
+
+Two markers the interface fills in from the stored facts. Each goes on a line of its own, with a blank line before and after, never inside a sentence or a table:
+- [[source:FACT_ID]] shows that fact's source wording. Use it when the customer asks where something is said or needs the wording; at most three per answer. Do not copy source text yourself.
+- [[timeline:ID,ID,...]] shows those facts by date. Use it when the answer is three or more dates or deadlines: one sentence, then the marker, and do not also list the dates.
+Use only IDs of facts that a tool returned in this conversation.
+
 The current counts of facts and open conflicts come in a "Current state" message just before each customer message."""
+
+
+_BLOCK = re.compile(r"^[ \t]*\[\[(source|timeline):([^\[\]\n]*)\]\][ \t]*$", re.M)
+
+
+def clean_blocks(text: str, known_ids: set[str]) -> str:
+    """Drop the [[source:...]] and [[timeline:...]] lines of an answer that name facts the run does not
+    have. A timeline keeps only known IDs and is dropped whole when fewer than two are left. The
+    interface shows these lines as blocks drawn from the stored facts, so a made-up ID must not reach it."""
+    # a marker written inside a sentence gets a line of its own, as the interface reads it
+    mark = re.compile(r"\[\[(?:source|timeline):[^\[\]\n]*\]\]")
+    lines = []
+    for line in text.split("\n"):
+        if mark.search(line) and mark.sub("", line).strip():
+            lines += [x.strip() for x in re.split(r"(\[\[(?:source|timeline):[^\[\]\n]*\]\])", line) if x.strip()]
+        else:
+            lines.append(line)
+    text = "\n".join(lines)
+
+    def fix(m: re.Match) -> str:
+        ids = [i.strip() for i in m.group(2).split(",") if i.strip()]
+        if m.group(1) == "source":
+            return m.group(0) if len(ids) == 1 and ids[0] in known_ids else "\0"
+        ids = [i for i in ids if i in known_ids][:MAX_TIMELINE_IDS]
+        return f"[[timeline:{','.join(ids)}]]" if len(ids) >= 2 else "\0"
+
+    out = _BLOCK.sub(fix, text)
+    return re.sub(r"\0\n?", "", out) if "\0" in out else out
 
 
 def system_prompt(ws: Workspace) -> str:
     """Static: nothing here changes when facts, conflicts or summaries change, so the API can cache it."""
     return SYSTEM_PROMPT.format(categories="; ".join(f"{c} = {n}" for c, n in CATEGORIES.items()), flags=", ".join(FLAGS))
+
+
+# Said again next to the customer's message: the chat model runs without reasoning, and a rule that is
+# only in the long system prompt was not applied (an outline came back as one paragraph, 2026-11-23).
+ANSWER_FORM = ("Form of your final reply: the answer in one sentence, then, when it holds three or more items "
+               "(an outline, parts, requirements, terms, steps), a Markdown table (items that share details, with a "
+               "Source column) or a Markdown list (one detail each), never a paragraph of items joined by commas. "
+               "A [[source:ID]] or [[timeline:ID,ID]] marker goes on a line of its own. "
+               "Name the source of anything that does not come from the buyer's own document. When the answer rests on a "
+               "list or table from the documents, give every row of it, never a few rows after the word including.")
+
+
+COMPOSE_INSTRUCTION = ("Write the final reply to the customer's last message now, from what the tools returned above. "
+                       "Before you write, work out: what the customer has to decide or do; which of the facts you read "
+                       "bear on it, including facts filed under another topic that do not use the customer's words "
+                       "(volumes, terms, dates, constraints, what was said on calls); what the documents are silent on; "
+                       "and which sources disagree. Leave out facts that only restate how to fill in a form unless the "
+                       "customer asked for that. Do not call tools. ") + ANSWER_FORM
+
+
+def compose_effort() -> str | None:
+    """The reasoning effort of the compose step, read at call time; None when the step is switched off."""
+    value = os.environ.get("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT")
+    value = (COMPOSE_EFFORT if value is None else value).strip().lower()
+    return None if value in ("", "off", "none") else value
 
 
 def state_message(ws: Workspace) -> str:
@@ -147,7 +236,8 @@ def state_message(ws: Workspace) -> str:
     count = Counter(f["category"] for f in state.visible())
     counts = ", ".join(f"{count.get(c, 0)} {name}" for c, name in CATEGORIES.items())
     return (f"Current state: {len(state.visible())} facts ({counts}). "
-            f"Open conflicts waiting for the customer: {sum(1 for c in state.conflicts if c['status'] == 'open')}.")
+            f"Open conflicts waiting for the customer: {sum(1 for c in state.conflicts if c['status'] == 'open')}. "
+            + ANSWER_FORM)
 
 
 def _history_start(history: list[dict]) -> int:
@@ -223,9 +313,19 @@ def _weights(query: set[str], rows: list[set[str]]) -> dict[str, float]:
 
 
 def _brief(f: dict) -> dict:
-    page = f["citations"][0]["page_label"] if f["citations"] else None
-    return {"fact_id": f["fact_id"], "category": f["category"], "flags": f["flags"], "status": f["status"],
-            "text": f["text"], "page": page, "edited": f["edited"], "deleted": f["deleted"]}
+    return PT.brief(f)
+
+
+def _documents(ws: Workspace) -> dict[int, dict]:
+    """The documents of a bid by number ({"file_name", "playbook"}); empty for a single-document run."""
+    if not ws.is_bid():
+        return {}
+    try:
+        m = json.loads((ws.facts_path.parent / "bid.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {d["no"]: {"file_name": d.get("file_name", ""), "playbook": d.get("playbook", "")}
+            for d in m.get("documents") or [] if isinstance(d, dict) and d.get("no")}
 
 
 def _limit(args: dict, default: int, top: int = 50) -> int:
@@ -234,6 +334,7 @@ def _limit(args: dict, default: int, top: int = 50) -> int:
 
 
 SEARCH_LIMIT = 10  # hits for one query, unless the model asks for more (up to 50)
+SECTION_LIMIT = 50  # hits for a search that names a section: every row of it is wanted
 MULTI_QUERY_LIMIT = 6  # hits per query when one search call carries several queries
 MIN_RELATIVE_SCORE = 0.25  # with a query, rows scoring under this share of the best row are left out
 UNIT_TEXT_CHARS = 400
@@ -247,7 +348,7 @@ def _section(u: dict | None, f: dict | None) -> str:
     return ""
 
 
-def _row(u: dict | None, f: dict | None) -> dict:
+def _row(u: dict | None, f: dict | None, documents: dict[int, dict] | None = None) -> dict:
     """One search hit, as small as it can be: a fact row gives the fact line (get_fact has its source
     text); a unit row (no fact) gives the source text. Fields at their usual value are left out."""
     if f is not None:
@@ -261,6 +362,13 @@ def _row(u: dict | None, f: dict | None) -> dict:
             row["status"] = f["status"]
         if f["edited"]:
             row["edited"] = True
+        source = PT.source_label(f, documents or {})
+        if source:
+            row["source"] = source
+        if "replaced" in f["flags"]:
+            row["replaced"] = True
+        if f.get("stale"):
+            row["stale"] = f["stale"]
     else:
         assert u is not None
         text = u.get("text", "")
@@ -278,36 +386,22 @@ def _row_key(h: dict) -> str:
     return h.get("fact_id") or h.get("unit_id") or ""
 
 
-def _dedupe(ctx: Ctx, hits: list[dict]) -> list[dict]:
-    """A row search already returned in full this turn comes back as its ID only."""
-    out = []
-    for h in hits:
-        key = _row_key(h)
-        if key and key in ctx.sent:
-            out.append({("fact_id" if h.get("fact_id") else "unit_id"): key, "sent_before": True})
-        else:
-            ctx.sent.add(key)
-            out.append(h)
-    return out
-
-
 async def t_search(ctx: Ctx, a: dict) -> dict:
     """One query (`query`), or several in one call (`queries`), so independent lookups cost one model
     round, not one each. With several, each query gets its own hits under the same filters. A row
     already returned in full earlier in this turn, by this call or an earlier one, comes back as its ID."""
     queries = a.get("queries")
     if queries is None:
-        r = await _search_one(ctx, a)
-        return {**r, "hits": _dedupe(ctx, r["hits"])}
+        return await _search_one(ctx, a)
     if not isinstance(queries, list) or not queries or not all(isinstance(q, str) for q in queries):
         raise WorkspaceError("queries must be a non-empty list of strings")
     base = {k: v for k, v in a.items() if k not in ("queries", "query")}
     # Each query's hits are capped, so several queries cannot fill the context: _limit allows 50 for one.
-    base["limit"] = min(_limit(a, MULTI_QUERY_LIMIT), MULTI_QUERY_LIMIT)
+    base["limit"] = _limit(a, SECTION_LIMIT) if a.get("section") else min(_limit(a, MULTI_QUERY_LIMIT), MULTI_QUERY_LIMIT)
     results = []
     for q in queries[:10]:
         r = await _search_one(ctx, {**base, "query": q})
-        results.append({"query": q, "count": r["count"], "hits": _dedupe(ctx, r["hits"]),
+        results.append({"query": q, "count": r["count"], "hits": r["hits"],
                         **({"more": r["more"]} if r.get("more") else {})})
     out: dict = {"results": results}
     if len(queries) > 10:
@@ -315,9 +409,11 @@ async def t_search(ctx: Ctx, a: dict) -> dict:
     return out
 
 
-async def _search_one(ctx: Ctx, a: dict) -> dict:
+async def _search_one(ctx: Ctx, a: dict, expand: bool = True) -> dict:
     """Search the labelled text of the whole document: every source unit with the label the extraction
-    gave it, and the fact line written from it. Facts with no unit (added by the customer) come after."""
+    gave it, and the fact line written from it. Facts with no unit (added by the customer) come after.
+    With `expand`, a fact hit is its whole point (see points.py) and what it returns counts as sent this
+    turn; a row sent before comes back as its ID. A search that names a section returns every row of it."""
     state = ctx.ws.state()
     labels = ctx.ws.labels()
     facts = state.visible()
@@ -352,7 +448,7 @@ async def _search_one(ctx: Ctx, a: dict) -> dict:
                 continue
         kept.append((i, u, f))
     scored = []
-    if not q:
+    if want_section or not q:  # a named section is read whole, in document order: the query does not choose rows
         scored = [(0, 0, i, u, f) for i, u, f in kept]
     else:
         # per row: terms of the unit text, of the fact line, of its cited texts, and of its section heading
@@ -370,13 +466,41 @@ async def _search_one(ctx: Ctx, a: dict) -> dict:
             s = sum(w[t] ** 2 * (1.0 + 0.25 * (t in ft)) for t in hit)
             scored.append((-s, -len(hit), i, u, f))
     scored.sort(key=lambda t: t[:3])
-    if q and scored:  # leave out the weak tail: rows far below the best match add tokens, not answers
+    if q and scored and not want_section:  # leave out the weak tail: rows far below the best match add tokens, not answers
         floor = -scored[0][0] * MIN_RELATIVE_SCORE
         scored = [t for t in scored if -t[0] >= floor]
-    shown = scored[: _limit(a, SEARCH_LIMIT)]
-    res: dict = {"count": len(scored), "hits": [_row(u, f) for _, _, _, u, f in shown]}
-    if len(scored) > len(shown):
-        res["more"] = len(scored) - len(shown)  # matched but not shown: raise limit, or filter by section
+    limit = _limit(a, SECTION_LIMIT if want_section else SEARCH_LIMIT)
+    documents = _documents(ctx.ws)
+    if not expand:
+        shown = scored[:limit]
+        res: dict = {"count": len(scored), "hits": [_row(u, f, documents) for _, _, _, u, f in shown]}
+        left = len(scored) - len(shown)
+    else:
+        by_id = {f["fact_id"]: f for f in state.facts}
+        covered: set[str] = set()  # facts inside a hit of this result: they are not hits of their own
+        hits: list[dict] = []
+        left = 0
+        for _, _, _, u, f in scored:
+            if f is not None and f["fact_id"] in covered:
+                continue
+            if len(hits) >= limit:
+                left += 1
+                continue
+            row = _row(u, f, documents)
+            key = _row_key(row)
+            sent = bool(key) and key in ctx.sent
+            ctx.sent.add(key)
+            if f is not None:
+                p = PT.point(f, by_id, state.conflicts, documents)
+                inside = {m["fact_id"] for m in p["members"]} | {e["fact"]["fact_id"] for e in p["linked"]}
+                covered |= inside  # the rest of its point is in this hit, or was sent with it before
+                if not sent:
+                    row.update(PT.point_parts(p, f["fact_id"]))
+                    ctx.sent |= inside
+            hits.append({("fact_id" if row.get("fact_id") else "unit_id"): key, "sent_before": True} if sent else row)
+        res = {"count": len(hits) + left, "hits": hits}
+    if left:
+        res["more"] = left  # matched but not shown: raise limit, or filter by section
     if not labels:
         res["note"] = "This run has no labelled text, so only facts were searched."
     return res
@@ -387,23 +511,39 @@ _FACT_FIELDS = ("fact_id", "category", "text", "flags", "note", "status", "probl
                 "deleted", "original", "resolution", "corrections", "unresolved_ids")
 
 
-def _fact_full(f: dict) -> dict:
-    """A fact in full, without the fields that are empty or at their usual value."""
+def _fact_full(f: dict, state=None, documents: dict[int, dict] | None = None) -> dict:
+    """A fact in full, without the fields that are empty or at their usual value. With `state`, it also
+    carries its source and its point: the rest of its list, the facts linked to it, the open conflicts."""
     out = {k: f[k] for k in _FACT_FIELDS if f.get(k) not in (None, "", [], {}, False)}
     if out.get("status") == "valid":
         del out["status"]
-    out["citations"] = [{k: c[k] for k in ("id", "page_label", "section", "text")} for c in f["citations"]]
+    # In a bid a unit is cited as d<no>:<unit ID> (workspace._BidAnchors), so add_fact can find it again.
+    out["citations"] = [{**{k: c[k] for k in ("id", "page_label", "section", "text")},
+                         **({"id": f"d{c['doc_no']}:{c['id']}"} if c.get("doc_no") else {})} for c in f["citations"]]
+    if state is not None:
+        documents = documents or {}
+        source = PT.source_label(f, documents)
+        if source:
+            out["source"] = source
+        if "replaced" in f["flags"]:
+            out["replaced"] = True
+        if f.get("stale"):
+            out["stale"] = f["stale"]
+        out.update(PT.point_parts(PT.point(f, {x["fact_id"]: x for x in state.facts}, state.conflicts, documents),
+                                  f["fact_id"]))
     return out
 
 
 async def t_get_fact(ctx: Ctx, a: dict) -> dict:
     """One fact (`fact_id`), or several in one call (`fact_ids`, up to 20)."""
     ids = a.get("fact_ids")
+    documents = _documents(ctx.ws)
     if ids is None:
-        f = ctx.ws.state().get(str(a.get("fact_id", "")))
+        state = ctx.ws.state()
+        f = state.get(str(a.get("fact_id", "")))
         if f is None:
             raise WorkspaceError(f"no fact {a.get('fact_id')}")
-        return _fact_full(f)
+        return _fact_full(f, state, documents)
     if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
         raise WorkspaceError("fact_ids must be a non-empty list of fact IDs")
     state = ctx.ws.state()
@@ -414,7 +554,7 @@ async def t_get_fact(ctx: Ctx, a: dict) -> dict:
         if f is None:
             missing.append(i)
         else:
-            out["facts"].append(_fact_full(f))
+            out["facts"].append(_fact_full(f, state, documents))
     if missing:
         out["not_found"] = missing
     if len(ids) > MAX_FACTS_PER_GET:
@@ -462,7 +602,7 @@ async def related_facts(ws: Workspace, fact: dict, limit: int = MAX_RELATED) -> 
     # The fact is left out before ranking: it matches its own text best and would push its neighbours under
     # the relative score cut-off.
     hits = (await _search_one(Ctx(ws, None, []), {"query": fact["text"], "limit": limit,
-                                                  "_exclude": fact["fact_id"]}))["hits"]  # type: ignore[arg-type]
+                                                  "_exclude": fact["fact_id"]}, expand=False))["hits"]  # type: ignore[arg-type]
     state = ws.state()
     out = []
     for h in hits:
@@ -582,12 +722,12 @@ class Tool:
 
 _FACTS = ("facts", "conflicts", "summaries")
 TOOLS: tuple[Tool, ...] = (
-    Tool("search", "Search the labelled text of the whole document. Each hit is either a fact row (fact_id, category, the fact line, page, section, and flags or status when set; get_fact gives its source text) or a unit row: source text the extraction made no fact from (unit_id, its label: a category code, '=' continues the unit above, '-' is not a fact). votes appear only when the extraction's votes disagreed. Hits are ranked by the rare words of the query, and weak matches are left out, so put the distinctive words first and leave out words found everywhere (the buyer's name, 'requirements'). Give one query, or several in queries (up to 10, 6 hits each) to look up different things in one call; the filters apply to every query. A row already returned this turn comes back as its ID with sent_before. more says how many matches were not shown: when the answer may be among them, raise limit or filter by section. Section headings are searched too, and section (part of a heading, as a hit shows it) keeps only that section's rows: use it to read every row of the section that answers the question, such as all the terms under one heading. Optional filters: section, label (unit label), category, flag, status, edited (these four apply to facts).",
+    Tool("search", "Search the labelled text of the whole document. Each hit is either a fact row (fact_id, category, the fact line, page, section, and flags or status when set; get_fact gives its source text) or a unit row: source text the extraction made no fact from (unit_id, its label: a category code, '=' continues the unit above, '-' is not a fact). votes appear only when the extraction's votes disagreed. Hits are ranked by the rare words of the query, and weak matches are left out, so put the distinctive words first and leave out words found everywhere (the buyer's name, 'requirements'). Give one query, or several in queries (up to 10, 6 hits each) to look up different things in one call; the filters apply to every query. A row already returned this turn comes back as its ID with sent_before. more says how many matches were not shown: when the answer may be among them, raise limit or filter by section. Section headings are searched too, and section (part of a heading, as a hit shows it) keeps only that section's rows: use it to read every row of the section that answers the question, such as all the terms under one heading. Optional filters: section, label (unit label), category, flag, status, edited (these four apply to facts). A hit is a point: a fact comes with the rest of its list or table when it is one row of one (list or same), the facts of other documents linked to it and how (linked), and any open conflict (conflicts); those facts are not repeated as hits. In a bid, source says which document a fact is from and, for a call, who was speaking. Naming a section returns that whole section in document order, whatever the query (limit then defaults to 50).",
          _schema({"query": _S, "section": {"type": "string", "description": "part of a section heading"}, "queries": {"type": "array", "items": _S, "description": "several searches in one call"},
                   "label": _S, "category": _CATEGORY, "flag": {"type": "string", "enum": list(FLAGS)},
                   "status": {"type": "string", "enum": ["valid", "needs_review", "conflict"]},
                   "edited": {"type": "boolean"}, "limit": {"type": "integer"}}), t_search, (), "Searched the document"),
-    Tool("get_fact", "Get facts in full: text, flags, note, cited source text and section, their original values if changed. Give one fact_id, or several in fact_ids (up to 20) to read them in one call; empty fields are left out.",
+    Tool("get_fact", "Get facts in full: text, flags, note, cited source text and section, their original values if changed. Give one fact_id, or several in fact_ids (up to 20) to read them in one call; empty fields are left out. Each fact also gives its point as search does: source (which document, and who was speaking on a call), the rest of its list or table (list or same), the facts of other documents linked to it and how (linked), and any open conflict (conflicts).",
          _schema({"fact_id": _ID, "fact_ids": {"type": "array", "items": _ID, "description": "several facts in one call"}}),
          t_get_fact, (), lambda a: f"Read {len(a['fact_ids'])} facts" if isinstance(a.get("fact_ids"), list) else "Read fact {fact_id}"),
     Tool("edit_fact", "Correct a fact the customer says is wrong: overwrite its text, category, flags or note. Keep everything in the text that the correction does not change. An edit whose text drops an amount, date or other figure the fact states is refused unless values_removed is true (only when the correction itself replaces or removes it). New information that does not make the fact wrong goes in add_fact, not here. The extracted value is kept for undo.",
@@ -599,7 +739,7 @@ TOOLS: tuple[Tool, ...] = (
          _schema({"fact_id": _ID, "reason": _S}, ["fact_id", "reason"]), t_delete_fact, _FACTS, "Deleted fact {fact_id}"),
     Tool("add_fact", "Add a fact the customer states: something the extraction missed, or new information from the buyer (a clarification, an answer, an update) that does not make an existing fact wrong. Give citation_ids: the source unit IDs of the fact it relates to (from get_fact citations or search). The new fact is checked against the related existing facts, and a likely contradiction is raised as a conflict for the customer.",
          _schema({"category": _CATEGORY, "text": _S, "flags": _FLAGS, "note": _S,
-                  "citation_ids": {"type": "array", "items": _S, "description": "source unit IDs, from search"}},
+                  "citation_ids": {"type": "array", "items": _S, "description": "source unit IDs exactly as get_fact shows them (in a bid: d<no>:<unit>)"}},
                  ["category", "text"]), t_add_fact, _FACTS, "Added a fact"),
     Tool("restore_fact", "Bring a changed or deleted fact back to its extracted value.",
          _schema({"fact_id": _ID}, ["fact_id"]), t_restore_fact, _FACTS, "Restored fact {fact_id}"),
@@ -748,7 +888,8 @@ def _no_tools(model: ChatModel, tools: list[dict], extra: dict) -> tuple[list[di
 
 
 async def _stream(model: ChatModel, messages: list[dict], specs: list[dict], kw: dict, tlog: TurnLog,
-                  purpose: str, round_no: int | None = None) -> AsyncIterator[str | ToolCall]:
+                  purpose: str, round_no: int | None = None,
+                  log_extra: dict | None = None) -> AsyncIterator[str | ToolCall]:
     """One model call, as `model.stream`, written to the session log when it ends: what it was for,
     the tool calls it asked for, its tokens (when the model reports them) and how long it took."""
     started = time.monotonic()
@@ -770,10 +911,26 @@ async def _stream(model: ChatModel, messages: list[dict], specs: list[dict], kw:
         error = f"{type(e).__name__}: {e}"[:300]
         raise
     finally:
+        if log_extra is not None and error and log_extra.get("compose"):
+            log_extra["compose_error"] = error
         tlog.llm_call(purpose=purpose, round_no=round_no, messages=len(messages), tools_offered=len(specs),
                       tools_allowed=bool(specs) and kw.get("allow_tools", True),
                       tool_calls=[{"name": c.name, "args": _clip(_parsed_args(c))} for c in calls],
-                      text_chars=chars, seconds=time.monotonic() - started, usage=usage, error=error)
+                      text_chars=chars, seconds=time.monotonic() - started, usage=usage, error=error, extra=log_extra)
+
+
+async def _compose(model: ChatModel, messages: list[dict], extra: dict, effort: str, round_no: int,
+                   tlog: TurnLog) -> AsyncIterator[str]:
+    """The final reply written with reasoning: the same messages plus COMPOSE_INSTRUCTION, no tools.
+    Yields text deltas; a failure is logged and ends the stream (the caller falls back to the draft)."""
+    ask = [*messages, {"role": "user", "content": COMPOSE_INSTRUCTION}]
+    info = {"compose": True, "effort": effort}
+    try:
+        async for item in _stream(model, ask, [], {**extra, "effort": effort}, tlog, "compose", round_no, info):
+            if isinstance(item, str):
+                yield item
+    except Exception:
+        pass  # _stream logged it as compose_error
 
 
 async def _plan_call(model: ChatModel, messages: list[dict], extra: dict, prompt: str, tlog: TurnLog,
@@ -788,7 +945,7 @@ async def _plan_call(model: ChatModel, messages: list[dict], extra: dict, prompt
 async def _write_plan(model: ChatModel, messages: list[dict], extra: dict, route: P.Route, tlog: TurnLog) -> None:
     """Fill `route.steps` (heavy: a JSON list of steps) or `route.plan_text` (light: one line).
     Heavy with no usable steps becomes light, so the work is still planned."""
-    route.steps, route.plan_text = [], ""
+    route.steps, route.plan_text, route.plan_steps = [], "", []
     if route.mode == "heavy":
         steps = P.parse_plan(await _plan_call(model, messages, extra, P.plan_prompt([t.name for t in TOOLS]), tlog,
                                               "plan_heavy", HEAVY_TOOL_SPECS))
@@ -797,7 +954,14 @@ async def _write_plan(model: ChatModel, messages: list[dict], extra: dict, route
             return
         route.mode = "light"
         route.add_note("planning call gave no steps, planned light")
-    text = " ".join((await _plan_call(model, messages, extra, P.LIGHT_PLAN_PROMPT, tlog, "plan_light")).split())
+    raw = await _plan_call(model, messages, extra, P.LIGHT_PLAN_PROMPT, tlog, "plan_light")
+    route.plan_steps = P.parse_light_plan(raw)
+    if route.plan_steps:
+        route.plan_text = P.light_plan_text(route.plan_steps)
+        return
+    if raw.strip():
+        route.add_note("light plan was not JSON, kept as written")
+    text = " ".join(raw.split())  # the model wrote the plan as text: keep it as it came
     route.plan_text = text if not text or text.lower().startswith("plan") else f"Plan: {text}"
 
 
@@ -866,7 +1030,7 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
                     route = pending
             if route is None:
                 route = await _route(planning.router, context, user_text)
-                tlog.log("route", **{k: v for k, v in route.record().items() if k not in ("steps", "plan_text")},
+                tlog.log("route", **{k: v for k, v in route.record().items() if k not in ("steps", "plan_text", "plan_steps")},
                          call=tlog.decisions_call(route.call))
             else:
                 tlog.log("route", mode=route.mode, source="plan", note="the reply answers the plan that was waiting")
@@ -924,6 +1088,7 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
             mode = route.mode if route else "direct"
             rounds = HEAVY_ROUNDS if mode == "heavy" and ctx.plan else MAX_ROUNDS
             tool_specs = HEAVY_TOOL_SPECS if ctx.plan else TOOL_SPECS
+            effort = compose_effort() if "effort" in inspect.signature(model.stream).parameters else None
             for round_no in range(rounds + 1):
                 calls: list[ToolCall] = []
                 turn: list[str] = []
@@ -931,13 +1096,33 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
                 if last:  # out of tool rounds: no tools, so the model must answer with what it has found
                     messages.append({"role": "system", "content": WRAP_UP})
                 specs, kw = _no_tools(model, tool_specs, extra) if last else (tool_specs, extra)
+                # After a tool round the draft is held back: when it has no tool calls, the facts are in and the
+                # reply is written again by the compose call (reasoning on); the draft is the fallback.
+                hold = round_no > 0 and effort is not None
+                draft: list[str] = []
                 async for item in _stream(model, messages, specs, kw, tlog, "final" if last else "loop", round_no + 1):
                     if isinstance(item, ToolCall):
                         calls.append(item)
                     else:
                         turn.append(item)
+                        if hold:
+                            draft.append(item)
+                            continue
                         text_parts.append(item)
                         yield {"type": "text", "delta": item}
+                if hold and calls:  # text that comes with tool calls is shown, as without a hold
+                    if draft:
+                        text_parts.extend(draft)
+                        yield {"type": "text", "delta": "".join(draft)}
+                elif hold:
+                    composed = False
+                    async for delta in _compose(model, messages, extra, effort, round_no + 1, tlog):
+                        composed = True
+                        text_parts.append(delta)
+                        yield {"type": "text", "delta": delta}
+                    if not composed and draft:
+                        text_parts.extend(draft)
+                        yield {"type": "text", "delta": "".join(draft)}
                 if not calls:
                     break
                 if last:
@@ -971,7 +1156,10 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
         error = f"{type(e).__name__}: {e}"
     if error:
         yield {"type": "error", "message": error}
-    reply = {**_message("assistant", "".join(text_parts) or (error or ""), steps, ctx.conflict_ids), **ids}
+    answer = "".join(text_parts)
+    if "[[" in answer:  # block lines the interface draws from stored facts: only the run's own facts
+        answer = clean_blocks(answer, {f["fact_id"] for f in ws.state().visible()})
+    reply = {**_message("assistant", answer or (error or ""), steps, ctx.conflict_ids), **ids}
     if route is not None:
         reply["planning"] = route.record()
     ws.append_chat(reply)

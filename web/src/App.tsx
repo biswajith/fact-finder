@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, defaultTheme, Provider, ToastContainer } from '@adobe/react-spectrum';
 import * as api from './api';
 import { ErrorBox, Loading } from './components/common';
-import { NewRunTab } from './components/NewRunTab';
+import { DocumentsPage } from './components/bid/DocumentsPage';
 import { Workspace } from './components/shell/Workspace';
-import { useNewRun } from './newRun';
+import { useBidFlow, type BidFlow } from './bidFlow';
 import { errorText, RunProvider } from './store';
 import { ThemeProvider, useTheme } from './theme';
 import type { RunInfo, Status } from './types';
@@ -18,18 +18,19 @@ function writeRunParam(run: string) {
   window.history.replaceState(null, '', u);
 }
 
-/** With no runs yet, the app is the New run page. A finished run becomes the open run. */
-function NoRuns({ status, refreshRuns, selectRun, recheck }: {
-  status: Status | null; refreshRuns: () => Promise<RunInfo[]>; selectRun: (run: string) => void; recheck: () => void;
-}) {
-  const n = useNewRun(status, refreshRuns, (r) => { window.location.hash = '#/overview'; selectRun(r); });
+/** With no runs yet, the app is the Documents page: only "New bid" until a bid exists, then that bid's documents. */
+function NoRuns({ status, flow, recheck }: { status: Status | null; flow: BidFlow; recheck: () => void }) {
+  const hasBid = !!flow.bid || (flow.bids?.length ?? 0) > 0;
   return (
     <main className="page">
-      <div className="pg-note">
-        No runs yet{status ? ` in ${status.runs_folder}` : ''}. Extract one below, or start the server with --runs
-        pointing at a folder of runs. <Button variant="secondary" onPress={recheck}>Check again</Button>
-      </div>
-      <NewRunTab n={n} status={status} />
+      {hasBid && !flow.creating && <div className="pg-note">This bid has no facts yet. Confirm its documents and extract them below.</div>}
+      <DocumentsPage flow={flow} status={status} />
+      {!hasBid && (
+        <div className="pg-newbid-foot">
+          {status && <span className="pg-note">Runs are kept in {status.runs_folder}.</span>}
+          <Button variant="secondary" onPress={recheck}>Check again</Button>
+        </div>
+      )}
     </main>
   );
 }
@@ -59,6 +60,8 @@ function Shell() {
     return r;
   }, []);
 
+  const flow = useBidFlow(status, run, refreshRuns, setRunState);
+
   useEffect(() => {
     if (run) writeRunParam(run);
   }, [run]);
@@ -71,10 +74,10 @@ function Shell() {
     );
   }
   if (!runs) return <Loading label="Loading runs" />;
-  if (!run) return <NoRuns status={status} refreshRuns={refreshRuns} selectRun={setRunState} recheck={() => void load()} />;
+  if (!run) return <NoRuns status={status} flow={flow} recheck={() => void load()} />;
   return (
     <RunProvider run={run} runs={runs} refreshRuns={refreshRuns} selectRun={setRunState} status={status}>
-      <Workspace />
+      <Workspace flow={flow} />
     </RunProvider>
   );
 }

@@ -1,9 +1,34 @@
+import { citeLabel, citeTitle, isInternal, useBidDocs } from '../bidDocs';
 import { useRun } from '../store';
+import type { Citation } from '../types';
 import { firstPage } from './common';
 
 export const SHORT_CATEGORY: Record<string, string> = {
   B: 'Buyer', C: 'Contract', G: 'Gate', X: 'DQ', D: 'Date', S: 'Submit', E: 'Eval', R: 'Req', Q: 'Conflict',
+  PRIORITY: 'Priority', DECIDER: 'Decider', BUDGET: 'Budget', QUESTION: 'Question', COMPETITOR: 'Competitor', ACTION: 'Action',
 };
+
+/**
+ * A citation of a fact in a bid: "d2 · p.4" (or "d1 · 00:04:12 · Dana Whitcomb"), the file name as its tooltip, an
+ * "Internal" mark for an internal source. With `onPress` it is a button; without, plain text for use inside a row.
+ */
+export function DocCite({ c, onPress, pressed }: { c: Citation; onPress?: () => void; pressed?: boolean }) {
+  const docs = useBidDocs();
+  const label = citeLabel(c, docs);
+  const body = (
+    <>
+      {label}
+      {isInternal(c) && <span className="cite-int">Internal</span>}
+    </>
+  );
+  const title = citeTitle(c, docs);
+  if (!onPress) return <span className="cite" title={title}>{body}</span>;
+  return (
+    <button type="button" className={`cite${pressed ? ' on' : ''}`} title={title} aria-pressed={pressed} aria-label={`Citation ${label}${isInternal(c) ? ', internal' : ''}`} onClick={onPress}>
+      {body}
+    </button>
+  );
+}
 
 /** One fact as a pill: "Req · p.4", tooltip = the fact text. Used in chat. */
 export function CiteChip({ id }: { id: string }) {

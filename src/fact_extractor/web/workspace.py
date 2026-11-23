@@ -22,6 +22,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 from ..models import CATEGORIES, FLAGS
 from .pricing import fill_costs
@@ -217,7 +218,84 @@ def _user_fact(entry: dict, template: dict, doc) -> dict:
         "unresolved_ids": unresolved, "source_call": "user", "status": "valid",
     }])[0]
     rec.update(origin="user", edited=False, deleted=False, original=None, resolution=None, corrections=[entry["id"]])
+    if cites and cites[0].get("doc_no"):  # a fact added in a bid sits with the document it cites
+        rec.update(doc_no=cites[0]["doc_no"], level=cites[0]["level"])
     return rec
+
+
+class _Cited:
+    """An anchor of a bid's document, cited as `d<no>:<unit>`: its citation says which document,
+    at which level, and who may see it."""
+
+    def __init__(self, anchor, doc_no: int, level: int, visibility: str) -> None:
+        self.anchor, self.extra = anchor, {"doc_no": doc_no, "level": level, "visibility": visibility}
+
+    def citation(self) -> dict:
+        return {**self.anchor.citation(), **self.extra}
+
+
+class _BidAnchors:
+    """`anchors` of a bid: the units of each extracted document, found by `d<no>:<unit ID>` and
+    read from the document's stored units when first asked for."""
+
+    TOKEN = re.compile(r"^d(\d+):(.+)$")
+
+    def __init__(self, folder: Path) -> None:
+        self.folder, self._docs = folder, {}
+
+    def _doc(self, no: int):
+        if no not in self._docs:
+            from .. import bid as B
+            from .. import playbooks
+            from ..results import load_document
+
+            self._docs[no] = None
+            try:
+                m = json.loads((self.folder / "bid.json").read_text(encoding="utf-8"))
+                d = next(d for d in m["documents"] if d["no"] == no and d.get("run"))
+                tagged = load_document(self.folder.parent.parent / d["run"], d["doc_id"])
+                pb = playbooks.load(d["playbook"])
+                if tagged is not None:
+                    self._docs[no] = (tagged, pb, B)
+            except (OSError, ValueError, StopIteration, KeyError):
+                pass
+        return self._docs[no]
+
+    def get(self, key, default=None):
+        m = self.TOKEN.match(key or "")
+        found = self._doc(int(m[1])) if m else None
+        anchor = found[0].anchors.get(m[2]) if found else None
+        if anchor is None:
+            return default
+        tagged, pb, B = found
+        return _Cited(anchor, int(m[1]), B.citation_level(pb, {"side": anchor.side}), pb.visibility)
+
+
+def _document_conflict(raw: dict) -> dict:
+    """A conflict derived for a document (`conflicts.json`, written by `bid.build`) as the workspace
+    shows it. Its ID is fixed, so a choice the user made stays attached to it."""
+    return {
+        "id": raw["id"], "kind": "document", "title": raw.get("title", ""), "description": raw.get("description", ""),
+        "fact_ids": list(raw.get("fact_ids") or []),
+        "options": [{"label": o.get("label", ""), "text": o.get("text", ""), "citation": o.get("citation"),
+                     "changes": copy.deepcopy(o.get("changes") or []), **({"question": True} if o.get("question") else {})}
+                    for o in raw.get("options") or []],
+        "status": "open", "resolution": None, "reason": raw.get("reason", ""), "doc_id": raw.get("doc_id", ""),
+        "closed_by": raw.get("closed_by") or "", "note": "", "acknowledged": "",
+    }
+
+
+def _settle(c: dict) -> None:
+    """A conflict a later buyer document settled shows as resolved, unless the user had already
+    resolved it: then it shows open again, because the answer they chose may no longer hold."""
+    if c["kind"] != "document" or not c["closed_by"]:
+        return
+    if c["status"] == "open":
+        c["status"] = "resolved"
+        c["resolution"] = {"option": None, "label": f"Settled by {c['closed_by']}", "text": "", "at": ""}
+    elif c["acknowledged"] != c["closed_by"]:  # the user chose before this document settled it
+        c["previous_resolution"] = c["resolution"]
+        c["status"], c["resolution"], c["note"] = "open", None, "A later document changes this"
 
 
 def _resolve_source(c: dict, entry: dict, facts: dict[str, dict], derived: set[str]) -> None:
@@ -256,6 +334,18 @@ def _resolve_raised(c: dict, entry: dict) -> None:
         label, text = c["options"][option]["label"], c["options"][option]["text"]
     c["status"] = "resolved"
     c["resolution"] = {"option": option, "label": label, "text": text, "at": entry["at"]}
+    if c["kind"] == "document":
+        c["acknowledged"] = f.get("acknowledged") or ""
+
+
+def _describe(e: dict) -> str:
+    """A line for the corrections list about an entry that has no fact of its own."""
+    f = e.get("fields") or {}
+    if e.get("op") == "reject_relation":
+        return f"Rejected the relation {f.get('kind', '')}: {f.get('from', '')} to {f.get('to', '')}".replace("  ", " ")
+    n = f.get("facts")
+    what = f.get("title") or (f"{n} facts" if n else f.get("group_id", ""))
+    return f"Ungrouped: {what}"
 
 
 def _choice(c: dict | None, fields: dict) -> str | None:
@@ -283,12 +373,14 @@ def _without_orphans(log: list[dict], live: list[dict]) -> list[dict]:
     return [e for e in live if e["id"] in live_ids]
 
 
-def replay(base: list[dict], log: list[dict], doc=None) -> State:
+def replay(base: list[dict], log: list[dict], doc=None, derived: list[dict] | None = None) -> State:
     """Effective facts and conflicts: the base records with the live log entries applied in order.
 
     An edit or delete that came from resolving a raised conflict only counts while that
     resolve entry is live, so reopening a conflict takes its changes back with it.
     `before` holds, for every edit entry (undone ones too), the values it replaced at that point.
+    `derived` is the content of a bid's `conflicts.json`: each becomes a conflict of kind
+    "document", resolved like a raised one. An `ungroup` entry clears the group of its facts.
     """
     live = _without_orphans(log, live_entries(log))
     live_ids = {e["id"] for e in live}
@@ -296,7 +388,10 @@ def replay(base: list[dict], log: list[dict], doc=None) -> State:
     facts = {r["fact_id"]: _blank(r) for r in base}
     originals = {r["fact_id"]: r for r in base}
     conflicts = _source_conflicts(base)
-    derived: set[str] = set()
+    for raw in derived or []:
+        if isinstance(raw, dict) and raw.get("id") and any(f in facts for f in raw.get("fact_ids") or []):
+            conflicts[raw["id"]] = _document_conflict(raw)
+    derived_ids: set[str] = set()
     template = base[0] if base else {}
     for e in log:
         op, fid = e.get("op"), e.get("fact_id")
@@ -313,6 +408,10 @@ def replay(base: list[dict], log: list[dict], doc=None) -> State:
             else:
                 for k, v in (e.get("fields") or {}).items():
                     facts[fid][k] = list(v) if isinstance(v, list) else v
+        elif op == "ungroup":
+            for f in facts.values():
+                if f.get("group_id") and f["group_id"] == (e.get("fields") or {}).get("group_id"):
+                    f["group_id"], f["group_kind"], f["group_title"] = "", "", ""
         elif op == "raise":
             fields = e.get("fields") or {}
             conflicts[e["conflict_id"]] = {
@@ -327,13 +426,13 @@ def replay(base: list[dict], log: list[dict], doc=None) -> State:
             if c is None:
                 continue
             if c["kind"] == "source":
-                _resolve_source(c, e, facts, derived)
+                _resolve_source(c, e, facts, derived_ids)
             else:
                 _resolve_raised(c, e)
     for fid, fact in facts.items():
         if fact["origin"] == "extracted":
             b = originals[fid]
-            now_flags = [x for x in fact["flags"] if not (fid in derived and x == "replaced" and x not in b["flags"])]
+            now_flags = [x for x in fact["flags"] if not (fid in derived_ids and x == "replaced" and x not in b["flags"])]
             diff = {k: copy.deepcopy(b[k]) for k in EDITABLE if (now_flags if k == "flags" else fact[k]) != b[k]}
             fact["original"] = diff or None
             fact["edited"] = bool(diff)
@@ -342,6 +441,7 @@ def replay(base: list[dict], log: list[dict], doc=None) -> State:
     for c in conflicts.values():
         if c["kind"] == "source" and c["fact_ids"][0] in facts:
             c["title"] = facts[c["fact_ids"][0]]["text"]
+        _settle(c)
     ordered = document_order(list(facts.values()))
     gone = {f["fact_id"] for f in ordered if f["deleted"]}
     shown = [c for c in conflicts.values() if not (c["kind"] == "source" and c["fact_ids"][0] in gone)]
@@ -362,7 +462,8 @@ class Workspace:
         self._run: Run | None = None
         self._stamp: tuple | None = None
         self._doc = None
-        self._doc_pdf: Path | None = None
+        self._bid_anchors: SimpleNamespace | None = None
+        self._doc_pdf: tuple | None = None
         self._doc_loaded = False
         self._state: State | None = None
         self._state_key: tuple | None = None
@@ -380,6 +481,23 @@ class Workspace:
     def chat_path(self) -> Path:
         return self.dir / "chat.jsonl"
 
+    @property
+    def conflicts_path(self) -> Path:
+        """The conflicts code derived for the documents of a bid (`bid.build` writes it)."""
+        return self.facts_path.parent / "conflicts.json"
+
+    def is_bid(self) -> bool:
+        """This run folder is a bid: `bid.json` sits beside `facts.json`."""
+        return (self.facts_path.parent / "bid.json").is_file()
+
+    def _rebuild_bid(self) -> None:
+        """Derive the bid's facts again (a rejected relation changes which facts are replaced)."""
+        if self.is_bid():
+            from .. import bid as B
+
+            folder = self.facts_path.parent
+            B.build(B.Bid(folder.parent.parent, folder.name))
+
     # the extraction (read only)
     def run(self) -> Run:
         """The loaded run; read again when the facts file changed on disk."""
@@ -391,12 +509,21 @@ class Workspace:
             return self._run
 
     def document(self):
-        """The tagged document of the run's PDF, or None without a PDF. Built once; slow on first use."""
+        """The tagged document of the run: rebuilt from its stored units when it has them, else read
+        from its PDF; None without either. Built once; slow on first use for a PDF."""
         with self.lock:
-            pdf = self.run().pdf
-            if not self._doc_loaded or pdf != self._doc_pdf:
-                self._doc, self._doc_pdf = None, pdf
-                if pdf is not None:
+            if self.is_bid():  # a bid has many documents; the pages of each are read from its own result
+                return None
+            run = self.run()
+            pdf = run.pdf
+            has_units = (self.facts_path.parent / "units.json").is_file()
+            if not self._doc_loaded or (pdf, has_units) != self._doc_pdf:
+                self._doc, self._doc_pdf = None, (pdf, has_units)
+                if has_units:
+                    from ..results import load_document
+
+                    self._doc = load_document(self.facts_path.parent, run.doc_id)
+                if self._doc is None and pdf is not None:
                     from ..pdf import read_pdf
                     from ..tagging import tag_pages
 
@@ -429,16 +556,45 @@ class Workspace:
                 log_stamp = (st.st_mtime_ns, st.st_size)
             except FileNotFoundError:
                 log_stamp = None
-            key = (self._stamp, log_stamp)
+            try:
+                st = self.conflicts_path.stat()
+                conflicts_stamp = (st.st_mtime_ns, st.st_size)
+            except FileNotFoundError:
+                conflicts_stamp = None
+            key = (self._stamp, log_stamp, conflicts_stamp)
             if self._state is None or key != self._state_key:
                 log = self.log()
                 needs_doc = any(e.get("op") == "add" and (e.get("fields") or {}).get("citation_ids") for e in log)
-                self._state, self._state_key = replay(run.records, log, self.document() if needs_doc else None), key
+                derived = None
+                if conflicts_stamp is not None:
+                    try:
+                        derived = json.loads(self.conflicts_path.read_text(encoding="utf-8"))
+                    except (OSError, ValueError):
+                        derived = None
+                    if not isinstance(derived, list):
+                        derived = None
+                doc = None
+                if needs_doc and self.is_bid():
+                    if self._bid_anchors is None:
+                        self._bid_anchors = SimpleNamespace(anchors=_BidAnchors(self.facts_path.parent))
+                    doc = self._bid_anchors
+                elif needs_doc:
+                    doc = self.document()
+                if self.is_bid():
+                    log = self._follow_reissues(log)
+                self._state, self._state_key = replay(run.records, log, doc, derived), key
             return self._state
 
+    def _follow_reissues(self, log: list[dict]) -> list[dict]:
+        """The log with the fact IDs of older versions of a reissued RFP sent through the bid's merged
+        old-to-new map, so corrections follow the carried fact. The log file is not changed."""
+        from ..reissue import bid_map, map_log
+
+        return map_log(log, bid_map(self.facts_path.parent))
+
     def _entry(self, op: str, source: str, **kw) -> dict:
-        if source not in ("chat", "ui"):
-            raise BadRequest("source must be chat or ui")
+        if source not in ("chat", "ui", "document"):
+            raise BadRequest("source must be chat, ui or document")
         return {"id": new_id("c_"), "at": now(), "source": source, "op": op, "fact_id": None, "fields": {},
                 "reason": "", "conflict_id": None, "target": None, **kw}
 
@@ -475,9 +631,29 @@ class Workspace:
             if "category" not in clean:
                 raise BadRequest(f"category must be one of {', '.join(CATEGORIES)}")
             clean["citation_ids"] = ids
+            unknown = self._unknown_citations(ids)
+            if ids and len(unknown) == len(ids):  # some may miss; a fact with no source found at all is refused
+                hint = " In a bid, cite a unit as d<no>:<unit ID>, as get_fact shows it." if self.is_bid() else ""
+                raise BadRequest(f"no source unit {', '.join(unknown)}.{hint}")
             fid = new_id("u_", 10)
             self._append([self._entry("add", source, fact_id=fid, fields=clean, reason=reason)])
             return self._fact(fid)
+
+    def _unknown_citations(self, ids: list[str]) -> list[str]:
+        """The citation IDs no source unit has. Empty when the run's units cannot be read, since
+        then nothing can be checked."""
+        if not ids:
+            return []
+        if self.is_bid():
+            if self._bid_anchors is None:
+                self._bid_anchors = SimpleNamespace(anchors=_BidAnchors(self.facts_path.parent))
+            anchors = self._bid_anchors.anchors
+        else:
+            doc = self.document()
+            if doc is None:
+                return []
+            anchors = doc.anchors
+        return [i for i in ids if anchors.get(i) is None]
 
     def restore(self, fact_id: str, source: str = "ui") -> dict:
         """Cancel every live entry on the fact except the one that created it."""
@@ -497,6 +673,63 @@ class Workspace:
             if entry_id in undone_ids(log):
                 raise Conflict("that correction is already undone")
             self._append([self._entry("undo", source, target=entry_id)])
+            if target.get("op") == "reject_relation":
+                self._rebuild_bid()
+
+    # relations and groups
+    def _live(self, op: str, key: str, value: str) -> dict | None:
+        """The newest live entry of `op` whose field `key` is `value`."""
+        found = [e for e in live_entries(self.log()) if e.get("op") == op and (e.get("fields") or {}).get(key) == value]
+        return found[-1] if found else None
+
+    def reject_relation(self, rid: str, source: str = "ui", reason: str = "") -> dict:
+        """The user says a relation between two documents is wrong. It is skipped when the bid's facts are
+        derived, so the fact it replaced is current again. Undo, or `restore_relation`, takes it back."""
+        with self.lock:
+            rel = next((r for f in self.state().facts for r in f.get("relations") or [] if r.get("id") == rid), None)
+            if rel is None:
+                raise NotFound(f"no relation {rid}")
+            if self._live("reject_relation", "relation_id", rid):
+                raise Conflict("that relation is already rejected")
+            end = lambda x: f"{x['doc_id']}:{x['unit']}"  # noqa: E731
+            entry = self._entry("reject_relation", source, reason=reason, fields={
+                "relation_id": rid, "kind": rel["kind"], "from": end(rel["from"]), "to": end(rel["to"]),
+            })
+            self._append([entry])
+            self._rebuild_bid()
+            return entry
+
+    def restore_relation(self, rid: str, source: str = "ui") -> dict:
+        with self.lock:
+            live = self._live("reject_relation", "relation_id", rid)
+            if live is None:
+                raise NotFound(f"relation {rid} is not rejected")
+            self._append([self._entry("undo", source, target=live["id"])])
+            self._rebuild_bid()
+            return {"ok": True, "relation_id": rid}
+
+    def ungroup(self, gid: str, source: str = "ui", reason: str = "") -> dict:
+        """The user says the facts of a group do not belong together: they are shown one by one."""
+        with self.lock:
+            if self._live("ungroup", "group_id", gid):
+                raise Conflict("that group is already ungrouped")
+            members = [f for f in self.state().facts if f.get("group_id") == gid]
+            if not members:
+                raise NotFound(f"no group {gid}")
+            entry = self._entry("ungroup", source, reason=reason, fields={
+                "group_id": gid, "title": members[0].get("group_title") or "", "kind": members[0].get("group_kind") or "",
+                "facts": len(members),
+            })
+            self._append([entry])
+            return entry
+
+    def regroup(self, gid: str, source: str = "ui") -> dict:
+        with self.lock:
+            live = self._live("ungroup", "group_id", gid)
+            if live is None:
+                raise NotFound(f"group {gid} is not ungrouped")
+            self._append([self._entry("undo", source, target=live["id"])])
+            return {"ok": True, "group_id": gid}
 
     def corrections(self) -> list[dict]:
         """The log without undo entries, newest first, each with `undone` and the fact's current text."""
@@ -517,6 +750,8 @@ class Workspace:
                     row["conflict_title"] = c["title"] if c else (e.get("fields") or {}).get("title") if e.get("op") == "raise" else None
                     if e.get("op") == "resolve":
                         row["choice"] = _choice(c, e.get("fields") or {})
+                if e.get("op") in ("reject_relation", "ungroup"):
+                    row["description"] = _describe(e)
                 out.append(row)
             return out
 
@@ -571,10 +806,17 @@ class Workspace:
                 if not isinstance(text, str) or not text.strip():
                     raise BadRequest("choose an option or give a custom answer")
                 fields = {"option": None, "text": text.strip()}
+            if c["kind"] == "document" and c.get("note"):  # chosen with the later document in view: stays resolved
+                fields["acknowledged"] = c["closed_by"]
             entries = [self._entry("resolve", source, conflict_id=conflict_id, fields=fields, reason=reason)]
-            if c["kind"] == "raised" and option is not None:
+            if c["kind"] in ("raised", "document") and option is not None:
                 for ch in c["options"][option]["changes"]:
-                    entries.append(self._entry(ch["op"], source, fact_id=ch["fact_id"], fields=ch.get("fields") or {},
+                    fields = ch.get("fields") or {}
+                    if ch.get("add_flag"):  # add to the flags the fact has now, which the user may have changed
+                        now_fact = self.state().get(ch["fact_id"])
+                        flags = list(now_fact["flags"]) if now_fact else []
+                        fields = {"flags": [*flags, *([] if ch["add_flag"] in flags else [ch["add_flag"]])]}
+                    entries.append(self._entry(ch["op"], source, fact_id=ch["fact_id"], fields=fields,
                                                reason=reason or c["title"], conflict_id=conflict_id))
             self._append(entries)
             return self.state().conflict(conflict_id) or {}
@@ -587,6 +829,8 @@ class Workspace:
             if c["status"] != "resolved":
                 raise Conflict("that conflict is not resolved")
             live = [e for e in live_entries(self.log()) if e.get("op") == "resolve" and e.get("conflict_id") == conflict_id]
+            if not live:
+                raise Conflict("that conflict was settled by a later document, not by you")
             self._append([self._entry("undo", source, target=live[-1]["id"])])
             return self.state().conflict(conflict_id) or {}
 

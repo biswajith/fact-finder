@@ -256,6 +256,25 @@ async def test_light_plan_is_shown_and_nothing_runs_until_approved(ws, svc):
     assert not [e for e in events if e["type"] in ("tool", "changed")]
 
 
+async def test_light_plan_as_json_steps_with_topics(ws, svc):
+    plan = json.dumps({"steps": [{"step": "Look up the pricing drivers", "covers": ["scope", "volumes", "payment terms"]},
+                                 {"step": "Summarize each factor", "covers": []}]})
+    events = await run(ws, svc, Tools([plan]), planning("light"), "What drives the price?")
+    final = events[-1]["message"]
+    assert final["planning"]["plan_steps"] == [
+        {"step": "Look up the pricing drivers", "covers": ["scope", "volumes", "payment terms"]},
+        {"step": "Summarize each factor", "covers": []}]
+    assert final["text"] == ("Plan:\n1. Look up the pricing drivers (covers: scope, volumes, payment terms)\n"
+                             f"2. Summarize each factor\n\n{P.ASK_APPROVAL}")
+    assert P.pending_plan([final]).plan_steps == final["planning"]["plan_steps"]
+
+
+def test_parse_light_plan_reads_only_usable_steps():
+    assert P.parse_light_plan("Plan: 1) a 2) b") == []
+    assert P.parse_light_plan('{"steps": ["  find  it ", {"step": ""}, {"step": "fix", "covers": "x"}, 3]}') == [
+        {"step": "find it", "covers": []}, {"step": "fix", "covers": []}]
+
+
 async def test_approved_light_plan_runs_with_the_plan_in_history(ws, svc):
     plan = planning("light")
     await run(ws, svc, ScriptedChat(["Plan: 1) find it 2) fix it"]), plan, "Fix the deadline")
@@ -368,3 +387,31 @@ async def test_planning_call_keeps_the_heavy_tool_list_but_refuses_tools(ws, svc
     (plan_tools, plan_allowed), (loop_tools, loop_allowed) = model.calls
     assert plan_tools == loop_tools and "update_plan" in plan_tools  # one prefix for both calls
     assert (plan_allowed, loop_allowed) == (False, True)
+
+
+async def test_router_trusts_clear_probabilities_when_confidence_is_just_under_the_cut_off():
+    """direct at 0.72 against 0.25 with confidence 0.58 runs direct; the same confidence with a close
+    split, or a clear split with a confidence far below the cut-off, still falls back to light."""
+    def answer(probs, confidence, pick="direct"):
+        return ChoiceAnswer(type="choice", choice=pick, probabilities=probs, confidence=confidence)
+
+    clear = {"direct": 0.72, "light": 0.25, "heavy": 0.03}
+    r = await P.DecisionsRouter(client=FakeDecisions(answer(clear, 0.58))).route("c", "m")
+    assert (r.mode, r.source) == ("direct", "router") and "trusted the probabilities" in r.note
+
+    close = {"direct": 0.5, "light": 0.45, "heavy": 0.05}
+    r = await P.DecisionsRouter(client=FakeDecisions(answer(close, 0.58))).route("c", "m")
+    assert (r.mode, r.source) == ("light", "fallback")
+
+    r = await P.DecisionsRouter(client=FakeDecisions(answer(clear, 0.4))).route("c", "m")
+    assert (r.mode, r.source) == ("light", "fallback")
+
+
+async def test_decisions_calls_keep_the_whole_response_and_every_label_probability():
+    route = await P.DecisionsRouter(client=FakeDecisions(choice("light", confidence=0.7))).route("c", "m")
+    answer = route.call["response"]["answers"]["q"]
+    assert answer["choice"] == "light" and set(answer["probabilities"]) == set(P.MODES)
+    assert route.call["response"]["model"] == "gpt-6-luna"
+    fb = await P.DecisionsRouter(client=FakeDecisions(verdict("approve"))).judge("c", "plan", "yes")
+    assert set(fb.record()["probabilities"]) == set(P.VERDICTS)
+    assert fb.call["response"]["answers"]["q"]["confidence"] == 0.9
