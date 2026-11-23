@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, InlineAlert, Heading, Content, TextArea } from '@adobe/react-spectrum';
 import * as api from '../api';
 import { errorText, useRun } from '../store';
@@ -59,7 +59,7 @@ function Message({ m }: { m: ChatMessage }) {
 
 interface Pending { text: string; tools: ToolStep[]; conflictIds: string[] }
 
-export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function ChatPanel({ open, onClose, resizer }: { open: boolean; onClose: () => void; resizer?: ReactNode }) {
   const { run, status, reloadAll, chatDraft, setChatDraft, setSummaries, chatEpoch } = useRun();
   const [history, setHistory] = useState<ChatMessage[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -162,6 +162,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
   const empty = history !== null && history.length === 0 && !pending;
   return (
     <aside className={`chat-panel${open ? ' open' : ''}`} id="app-chat" aria-label="Assistant">
+      {resizer}
       <div className="chat-head">
         <strong>Assistant</strong>
         <div className="row">

@@ -158,6 +158,14 @@ button, select { font-family: inherit; }
 .shell.chat-open.fact-open .chat-panel { right: var(--fact-w); width: var(--chat-w); }
 @media (max-width: 759px) { .shell.chat-open.fact-open .chat-panel { right: 0; width: min(var(--drawer-w), 100vw); } }
 @media (prefers-reduced-motion: reduce) { .chat-panel { transition: none; } }
+/* The chat's left edge is a handle: drag it, or use the arrow keys on it, to set the chat's width. */
+.chat-resizer { position: absolute; z-index: 2; top: 0; bottom: 0; left: -4px; width: 9px; cursor: col-resize; touch-action: none; }
+.chat-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 3px; background: transparent; transition: background 0.12s; }
+.chat-resizer:hover::after, .chat-resizer:focus-visible::after, .shell.chat-resizing .chat-resizer::after { background: var(--accent); }
+.chat-resizer:focus-visible { outline: none; }
+.shell.chat-resizing { user-select: none; cursor: col-resize; }
+.shell.chat-resizing .chat-panel { transition: none; }
+@media (max-width: 759px) { .chat-resizer { display: none; } }
 .chat-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .chat-log { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
 .msg { box-sizing: border-box; max-width: 92%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55;
