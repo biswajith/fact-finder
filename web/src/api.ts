@@ -91,8 +91,9 @@ export const getOverview = (run: string, view: ViewName, signal?: AbortSignal) =
 
 export const getFactsList = (run: string, filters: FactsListFilters, signal?: AbortSignal) =>
   request<FactsListResponse>('GET', `/facts/list?${factsListQuery(run, filters)}`, undefined, signal);
-/** Link target for the "Download CSV" button: the same filters as the list. */
-export const factsCsvUrl = (run: string, filters: FactsListFilters) => `/api/facts.csv?${factsListQuery(run, filters)}`;
+/** Link target for the "Download CSV" button: the same filters as the list. `external` leaves out internal sources. */
+export const factsCsvUrl = (run: string, filters: FactsListFilters, audience?: 'external') =>
+  `/api/facts.csv?${factsListQuery(run, filters)}${audience ? `&audience=${audience}` : ''}`;
 
 export const getReport = (run: string, signal?: AbortSignal) => request<Report>('GET', `/report?${q({ run })}`, undefined, signal);
 export const getRunsTable = (signal?: AbortSignal) => request<RunsTableRow[]>('GET', '/runs/table', undefined, signal);
@@ -118,8 +119,16 @@ export const processBid = (bid: string, body: { votes?: number; model?: string }
   request<{ job_id: string }>('POST', `/bids/${enc(bid)}/process`, { ...body, confirm: true });
 export const getExtractJob = (jobId: string) => request<ExtractJob>('GET', `/extract/${enc(jobId)}`);
 
-export const pageImageUrl = (run: string, page: number, factId: string) =>
-  `/api/page?${q({ run, page, fact_id: factId })}`;
+/** `doc` (a doc_id) names the document of a bid whose page is drawn. */
+export const pageImageUrl = (run: string, page: number, factId: string, doc?: string) =>
+  `/api/page?${q({ run, page, fact_id: factId, doc })}`;
+
+// ---- Relations and groups of a bid ----
+
+export const rejectRelation = (run: string, rid: string) =>
+  request<{ ok: true }>('POST', `/relations/${enc(rid)}/reject?${q({ run })}`);
+export const ungroup = (run: string, gid: string) =>
+  request<{ ok: true }>('POST', `/groups/${enc(gid)}/ungroup?${q({ run })}`);
 
 export const getChat = (run: string) => request<ChatMessage[]>('GET', `/chat?${q({ run })}`);
 export const clearChat = (run: string) => request<{ ok: true }>('DELETE', `/chat?${q({ run })}`);

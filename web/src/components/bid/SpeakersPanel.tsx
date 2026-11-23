@@ -11,7 +11,9 @@ export function SpeakersPanel({ doc, onConfirm }: {
   onConfirm: (speakers: { id: string; name: string; side: SpeakerSide }[]) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(!doc.speakers_confirmed);
-  const [draft, setDraft] = useState(() => doc.speakers.map((s) => ({ id: s.id, name: s.name, side: s.side })));
+  // A side the reader has not chosen starts from the proposal when there is one; "unknown" stays unselected.
+  const known = (x: SpeakerSide) => x === 'buyer' || x === 'ours';
+  const [draft, setDraft] = useState(() => doc.speakers.map((s) => ({ id: s.id, name: s.name, side: known(s.side) ? s.side : known(s.proposed) ? s.proposed : s.side })));
   const [busy, setBusy] = useState(false);
   const locked = !!doc.run;
   const complete = draft.every((s) => s.side === 'buyer' || s.side === 'ours');

@@ -11,6 +11,21 @@ export function levelLabel(playbook: Pick<BidPlaybook, 'level'> | null | undefin
   }
 }
 
+const PLAYBOOK_NAMES: Record<string, string> = {
+  rfp: 'RFP',
+  'reissued-rfp': 'Reissued RFP',
+  'change-addendum': 'Change addendum',
+  'qa-addendum': 'Q&A addendum',
+  'fill-in-template': 'Fill-in template',
+  'call-transcript': 'Call transcript',
+  'deal-notes': 'Deal notes',
+};
+
+/** The name of a playbook as a reader says it ("deal-notes" is "Deal notes"); a name not listed is shown as it is. */
+export function playbookLabel(name: string | null | undefined): string {
+  return name ? PLAYBOOK_NAMES[name] ?? name : '';
+}
+
 const WORDS: Record<string, string> = {
   'type not confirmed': 'confirm the type',
   'issue date missing': 'add the issue date',

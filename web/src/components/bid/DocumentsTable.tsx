@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { AlertDialog, Button, DialogTrigger, Item, NumberField, Picker, ProgressCircle } from '@adobe/react-spectrum';
-import { canConfirm, levelLabel, missingWords, rowsInOrder } from '../../bid';
+import { canConfirm, levelLabel, missingWords, playbookLabel, rowsInOrder } from '../../bid';
 import type { UploadItem } from '../../bidFlow';
 import type { Bid, BidDocument, BidDocumentPatch, BidPlaybook, SpeakerSide } from '../../types';
 import { SpeakersPanel } from './SpeakersPanel';
@@ -87,9 +87,10 @@ function Row({ doc, bid, onPatch, onRemove, onSpeakers }: {
                 onSelectionChange={(k) => k != null && set({ playbook: String(k) })}
                 width="size-2400"
               >
-                {(p) => <Item key={p.name}>{p.name}</Item>}
+                {(p) => <Item key={p.name}>{playbookLabel(p.name)}</Item>}
               </Picker>
               {draft.playbook === doc.proposed.playbook && <span className="pg-tag">suggested</span>}
+              {pb?.description && <span className="muted pg-help">{pb.description}</span>}
               {draft.playbook === 'reissued-rfp' && (
                 <Picker
                   label="Replaces"
@@ -105,7 +106,7 @@ function Row({ doc, bid, onPatch, onRemove, onSpeakers }: {
             </div>
           ) : (
             <div>
-              <span title={pb?.description}>{doc.playbook}</span>
+              <span title={pb?.description}>{playbookLabel(doc.playbook)}</span>
               {doc.playbook === 'reissued-rfp' && doc.previous && <div className="muted">Replaces {replacesNo ? `d${replacesNo}` : doc.previous}</div>}
             </div>
           )}

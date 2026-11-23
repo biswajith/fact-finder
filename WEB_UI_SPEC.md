@@ -550,11 +550,76 @@ confirmation.
 - **Compare page**: two run pickers (run B limited to the same `doc_id`), the three
   agreement figures, the per-category table, code differences, and the table of source
   IDs filed under different codes.
-- **New run page**: pick a PDF from the working directory or upload one; deal ID, doc
-  ID (default: file name without extension), model, votes per unit; the planned
-  calls; the notice and "Open the stored result" when the PDF already has a stored
-  result; the "I understand this spends API tokens" checkbox; "Start extraction" /
-  "Extract again", disabled until confirmed, the key is set and nothing is missing;
-  progress while running; on finish the result line and the new run opened.
+- **Documents page** (replaces the New run page; `#/new` still opens it, and so does `#/documents`):
+  it sits first in the Review group. Pick a bid or start one, add its documents
+  (PDF, spreadsheet, call transcript, deal notes), say what each one is (type, issue
+  number and date; the proposal is marked "suggested"), confirm the speakers of a
+  transcript, list the team, set the order of precedence if the buyer gave one, see the
+  planned calls, tick "I understand this spends API tokens" and extract. The old
+  single-PDF routes in 11.1 still exist; the page no longer uses them. A bid
+  with facts opens like a run (`_bids/<bid_id>`). Section 11.3 lists the routes.
 - **Header**: pages and PDF name beside the run; when the run has no PDF, a control
   to pick one from the working directory or upload one.
+
+### 11.3 Bids: many documents, one fact list
+
+A bid is a folder `runs/_bids/<bid_id>/`. It opens like a run, as `_bids/<bid_id>`.
+Everything below is shown only in a bid: `GET /facts` adds `documents` only for a bid,
+and the page treats a non-empty `documents` as "this is a bid". A single-document run
+looks as before.
+
+Routes (all under `/api`; errors are `{"detail"}` with 400, 404, 409 or 413):
+
+| Method and path | Body | Returns |
+| --- | --- | --- |
+| `GET /bids`, `POST /bids` | `{name, deal_id?}` | list of `{bid_id, name, run, documents, facts, modified}`; the new bid |
+| `GET /bids/{bid}`, `PATCH /bids/{bid}` | `{name?, team?, precedence?}` | the manifest plus `order` (doc IDs in issue order), `run` and `playbooks` |
+| `POST /bids/{bid}/documents?name=` | the raw file | the new document entry, with a proposed type, issue number and date |
+| `PATCH /bids/{bid}/documents/{no}`, `DELETE ...` | `{doc_id?, playbook?, issue_number?, issue_date?, previous?, confirmed?, speakers?, speakers_confirmed?}` | the entry; `{ok}` |
+| `POST /bids/{bid}/plan` | `{votes?}` | planned calls per document; no model call |
+| `POST /bids/{bid}/process` | `{confirm: true, votes?, model?}` | `{job_id}`; `GET /extract/{job_id}` then lists `steps` per document |
+| `POST /relations/{rid}/reject?run=` | | `{ok, relation_id, rejected, facts}`. The relation leaves the facts. Undo it on the Changes page |
+| `POST /groups/{gid}/ungroup?run=` | | `{ok, group_id, ungrouped, facts}`. Undo it on the Changes page |
+| `GET /facts?run=` | | for a bid, also `documents: [{no, doc_id, file_name, playbook, level, visibility, issue_date, issue_number, has_pdf}]` |
+| `GET /facts/list`, `GET /facts.csv` | `docs=1,2`, `levels=1,4` | as before; the CSV also takes `audience=external` (internal citations left out, and a fact with none left) |
+| `GET /page?run=&page=&fact_id=&doc=` | | the page image of document `doc` (a doc ID) |
+
+New fields on a fact in a bid: `doc_no`, `level` (1 buyer document, 2 buyer on a
+call, 3 our side on a call, 4 deal notes), `playbook`, `relations` (each
+`{id, kind, from, to, rejected}`, on both facts), `replaced_by` (a fact ID or ""),
+`stale` ("" or a warning). New flags: `tentative`, `precedence`, `both-sides`. New
+category codes: `PRIORITY` (Buyer priority), `DECIDER` (Decision maker), `BUDGET`,
+`QUESTION` (Open question), `COMPETITOR`, `ACTION` (Action for our team). New fields
+on a citation: `doc_id`, `doc_no`, `speaker`, `side`, `level`, `visibility`. For a
+transcript the page label is the time.
+
+A conflict of kind `document` has a `reason` (`user-edited fact replaced`,
+`old value elsewhere`, `depends on changed value`, `levels disagree`,
+`unfound target` or `issued together`) and `closed_by` (the doc ID of a later
+document that settled it, or ""). An option may have `question: true` and a change
+may have `add_flag`.
+
+Changes entries of the ops `reject_relation` and `ungroup` carry a `description` line
+and an Undo button like any other entry.
+
+Screens in a bid:
+
+- **Facts page**: a citation reads `d2 · p.4` (`d1 · 00:04:12 · Dana Whitcomb` for a
+  transcript), its tooltip is the file name, and an internal source is marked
+  "Internal". Each fact shows a level chip ("L1 · Buyer document" to "L4 · Deal notes").
+  A replaced fact is dimmed and has a "Replaced" pill; a `stale` fact has a line "Check: ...".
+  A point stated in several documents is one row with every citation and an "Ungroup"
+  button. Filters: Documents, Levels, and "Hide replaced", which is on by default and
+  is applied in the browser to the list the server returns. Two downloads:
+  "CSV for the team" and "CSV to share (no internal sources)".
+- **Fact detail**: "Replaced by" with a link to the fact that governs it ("Removed by
+  a later document" when a REMOVES relation points at it); each relation as one line
+  ("Replaces ...", "Confirmed by ...") with a "Reject" button; clicking a citation
+  chip opens the page image only when that document has a PDF, and the cited text
+  with its speaker and time is always shown.
+- **Conflicts page**: a `document` conflict shows its reason in words, each fact with
+  its document and level, a "tentative" mark where the flag is set, and for each
+  option a line saying what it changes ("Marks ... replaced", "Changes the text to
+  ...", "No change"). An option with `question: true` ("Ask the buyer") is a third,
+  quieter choice. "Settled by <document>" shows when a later document closed it.
+- **Overview page**: the counts row also shows "Replaced" and "Internal only".

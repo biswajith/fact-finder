@@ -7,12 +7,13 @@ export const PAGE_SIZES = [60, 120, 240] as const;
 export const emptyFilters = (): FactsListFilters => ({
   q: '', categories: [], statuses: [...ALL_STATUSES], flags: [], pageFrom: null, pageTo: null,
   view: 'All', splitOnly: false, edited: false, includeDeleted: false,
+  docs: [], levels: [], hideReplaced: false,
 });
 
 /**
  * Query string for GET /facts/list and /facts.csv. Parameters equal to "no filter" are left
  * out: all statuses, no categories or flags, the view All, no page range, switches off.
- * List values are comma-separated.
+ * List values are comma-separated. `hideReplaced` is not sent: the page applies it to the list.
  */
 export function factsListQuery(run: string, f: FactsListFilters): string {
   const s = new URLSearchParams();
@@ -31,6 +32,8 @@ export function factsListQuery(run: string, f: FactsListFilters): string {
   if (f.splitOnly) s.set('split_only', '1');
   if (f.edited) s.set('edited', '1');
   if (f.includeDeleted) s.set('include_deleted', '1');
+  if (f.docs.length) s.set('docs', f.docs.join(','));
+  if (f.levels.length) s.set('levels', f.levels.join(','));
   return s.toString();
 }
 
@@ -51,19 +54,35 @@ export function pagesOf(facts: Fact[]): string {
   return [...seen].join('; ');
 }
 
+export const isReplaced = (f: Fact): boolean => f.flags.includes('replaced');
+
+function entryOf(kind: FactItem['kind'], fs: Fact[]): ListEntry {
+  const first = fs[0];
+  return {
+    kind, facts: fs, first,
+    stated: kind === 'same' ? fs.length : 1,
+    title: kind === 'list' ? first.group_title || first.text : first.text,
+    pages: pagesOf(fs),
+  };
+}
+
 /** Resolve the server's items against the loaded facts (by ID); items whose facts are missing are dropped. */
 export function listEntries(items: FactItem[], byId: ReadonlyMap<string, Fact>): ListEntry[] {
   const out: ListEntry[] = [];
   for (const it of items) {
     const fs = it.fact_ids.map((id) => byId.get(id)).filter((f): f is Fact => !!f);
-    if (fs.length === 0) continue;
-    const first = fs[0];
-    out.push({
-      kind: it.kind, facts: fs, first,
-      stated: it.kind === 'same' ? fs.length : 1,
-      title: it.kind === 'list' ? first.group_title || first.text : first.text,
-      pages: pagesOf(fs),
-    });
+    if (fs.length > 0) out.push(entryOf(it.kind, fs));
+  }
+  return out;
+}
+
+/** Leave out replaced facts. A group keeps its other facts; a group whose facts are all replaced disappears. */
+export function withoutReplaced(entries: ListEntry[]): ListEntry[] {
+  const out: ListEntry[] = [];
+  for (const e of entries) {
+    const fs = e.facts.filter((f) => !isReplaced(f));
+    if (fs.length === e.facts.length) out.push(e);
+    else if (fs.length > 0) out.push(entryOf(e.kind, fs));
   }
   return out;
 }

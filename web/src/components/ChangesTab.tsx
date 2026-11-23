@@ -13,6 +13,8 @@ const OP_LABEL: Record<CorrectionEntry['op'], string> = {
   raise: 'Conflict found',
   resolve: 'Choice made',
   undo: 'Undo',
+  reject_relation: 'Link rejected',
+  ungroup: 'Ungrouped',
 };
 
 /** The changes still in effect: not undone, and not the undo entries themselves. The sidebar pill and this page's header both count these. */
@@ -42,7 +44,7 @@ export function ChangesTab() {
         <ol className="tl">
           {list.map((c) => {
             // A raise names its conflict above; a choice shows the chosen option instead of its index.
-            const fields = c.op === 'raise' || c.op === 'resolve' ? {} : c.fields ?? {};
+            const fields = c.op === 'raise' || c.op === 'resolve' || c.op === 'reject_relation' || c.op === 'ungroup' ? {} : c.fields ?? {};
             return (
               <li key={c.id} className={`tl-item${c.undone ? ' undone' : ''}`} aria-label={`${OP_LABEL[c.op]} ${c.fact_id ?? c.conflict_id ?? ''}`}>
                 <div className="tl-head">
@@ -64,6 +66,7 @@ export function ChangesTab() {
                     {c.fact_text && <span className="wrap-text muted">{c.fact_text}</span>}
                   </div>
                 )}
+                {c.description && <div className="wrap-text">{c.description}</div>}
                 {c.conflict_id && !c.fact_id && (
                   <div className="wrap-text">Conflict: {c.conflict_title ?? <span className="muted">no longer listed</span>}</div>
                 )}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canConfirm, extractCount, levelLabel, missingWords, rowsInOrder, stepsByDocument } from './bid';
+import { canConfirm, extractCount, levelLabel, missingWords, playbookLabel, rowsInOrder, stepsByDocument } from './bid';
 import type { BidDocument, BidPlan, JobStep } from './types';
 
 const doc = (no: number, over: Partial<BidDocument> = {}) =>
@@ -12,6 +12,16 @@ describe('levelLabel', () => {
     expect(levelLabel({ level: 'by speaker' })).toBe('Level 2/3 · by speaker');
     expect(levelLabel({ level: '4' })).toBe('Level 4 · deal notes');
     expect(levelLabel(undefined)).toBe('');
+  });
+});
+
+describe('playbookLabel', () => {
+  it('names every playbook in words and leaves an unknown one as it is', () => {
+    expect(['rfp', 'reissued-rfp', 'change-addendum', 'qa-addendum', 'fill-in-template', 'call-transcript', 'deal-notes'].map(playbookLabel)).toEqual([
+      'RFP', 'Reissued RFP', 'Change addendum', 'Q&A addendum', 'Fill-in template', 'Call transcript', 'Deal notes',
+    ]);
+    expect(playbookLabel('something-new')).toBe('something-new');
+    expect(playbookLabel(null)).toBe('');
   });
 });
 

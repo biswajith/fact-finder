@@ -1,32 +1,68 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Button, Checkbox, CheckboxGroup, Dialog, DialogContainer, DialogTrigger, RangeSlider, SearchField, Switch } from '@adobe/react-spectrum';
 import * as api from '../api';
-import { emptyFilters, ALL_STATUSES, listEntries, paginate, PAGE_SIZES, type ListEntry } from '../factsQuery';
+import { useBidDocs, levelChip } from '../bidDocs';
+import { emptyFilters, ALL_STATUSES, listEntries, paginate, PAGE_SIZES, withoutReplaced, type ListEntry } from '../factsQuery';
 import { useAsync, useDebounced } from '../hooks';
 import { useRun } from '../store';
 import type { Fact, FactsListFilters, FactStatus, Flag, ViewName } from '../types';
-import { CATEGORY_CODES, FLAGS } from '../types';
+import { BID_FLAGS, CATEGORY_CODES, FLAGS } from '../types';
+import { DocCite } from './CitationChip';
 import { ErrorBox, Loading, ViewSwitch, firstPage } from './common';
 import { AddFactDialog } from './FactDetail';
 import { PageHeader } from './shell/PageHeader';
-import { CatPill, FactTags, STATUS_LABEL, categoryName } from './facts/parts';
+import { CatPill, FactTags, STATUS_LABEL, categoryName, flagName } from './facts/parts';
 import './facts.css';
 
-function FactRow({ f, stated = 1, pages }: { f: Fact; stated?: number; pages?: string }) {
+function FactRow({ f, stated = 1, pages, noCites }: { f: Fact; stated?: number; pages?: string; noCites?: boolean }) {
   const { openFact, openFactId } = useRun();
+  const { inBid } = useBidDocs();
   const label = pages ?? firstPage(f);
+  const replaced = inBid && f.flags.includes('replaced');
   return (
     <button
       type="button"
-      className={`fx-row${f.deleted ? ' deleted' : ''}`}
+      className={`fx-row${f.deleted ? ' deleted' : ''}${replaced ? ' replaced' : ''}`}
       aria-current={openFactId === f.fact_id ? 'true' : undefined}
       aria-label={`Open fact ${f.fact_id}: ${f.text}`}
       onClick={() => openFact(f.fact_id)}
     >
       <CatPill code={f.category} />
-      <span className="fx-text"><span className="fx-t">{f.text}</span><span className="fx-meta"><FactTags f={f} stated={stated} /></span></span>
-      <span className="fx-pg">{label ? `p. ${label}` : ''}</span>
+      <span className="fx-text">
+        <span className="fx-t">{f.text}</span><span className="fx-meta"><FactTags f={f} stated={stated} /></span>
+        {inBid && f.stale && <span className="fx-stale">Check: {f.stale}</span>}
+      </span>
+      {inBid ? (
+        <span className="fx-pg fx-cites">{!noCites && f.citations.map((c) => <DocCite key={`${c.doc_id}|${c.id}`} c={c} />)}</span>
+      ) : (
+        <span className="fx-pg">{label ? `p. ${label}` : ''}</span>
+      )}
     </button>
+  );
+}
+
+/** A point stated in several documents: the governing fact once, every member's citations, and Ungroup. */
+function SameRow({ e }: { e: ListEntry }) {
+  const { run, act, openFact } = useRun();
+  const { inBid } = useBidDocs();
+  const [busy, setBusy] = useState(false);
+  const gid = e.first.group_id;
+  if (!inBid || !gid) return <FactRow f={e.first} stated={e.stated} pages={e.pages} />;
+  const ungroup = async () => {
+    setBusy(true);
+    await act(() => api.ungroup(run, gid), 'Ungrouped. Undo it on the Changes page.');
+    setBusy(false);
+  };
+  return (
+    <div className="fx-same">
+      <FactRow f={e.first} stated={e.stated} pages={e.pages} noCites />
+      <div className="fx-same-foot">
+        <span className="fx-cites">
+          {e.facts.flatMap((m) => m.citations.map((c) => <DocCite key={`${m.fact_id}|${c.doc_id}|${c.id}`} c={c} onPress={() => openFact(m.fact_id)} />))}
+        </span>
+        <Button variant="secondary" isDisabled={busy} onPress={ungroup} aria-label={`Ungroup: ${e.first.text}`}>Ungroup</Button>
+      </div>
+    </div>
   );
 }
 
@@ -65,6 +101,7 @@ function CategoryMenu({ f, set, byCat, codes }: {
 }
 
 function FiltersMenu({ f, set, pages, count }: { f: FactsListFilters; set: (p: Partial<FactsListFilters>) => void; pages: number; count: number }) {
+  const { inBid, docs } = useBidDocs();
   const [range, setRange] = useState({ start: f.pageFrom ?? 1, end: f.pageTo ?? Math.max(1, pages) });
   useEffect(() => setRange({ start: f.pageFrom ?? 1, end: f.pageTo ?? Math.max(1, pages) }), [f.pageFrom, f.pageTo, pages]);
   return (
@@ -83,9 +120,25 @@ function FiltersMenu({ f, set, pages, count }: { f: FactsListFilters; set: (p: P
           <div className="fx-pop-group">
             <h4>Flags (any of)</h4>
             <CheckboxGroup aria-label="Flags" value={f.flags} onChange={(v) => set({ flags: v as Flag[] })}>
-              {FLAGS.map((x) => <Checkbox key={x} value={x}>{x}</Checkbox>)}
+              {(inBid ? [...FLAGS, ...BID_FLAGS] : FLAGS).map((x) => <Checkbox key={x} value={x}>{flagName(x)}</Checkbox>)}
             </CheckboxGroup>
           </div>
+          {inBid && (
+            <div className="fx-pop-group">
+              <h4>Documents</h4>
+              <CheckboxGroup aria-label="Documents" value={f.docs.map(String)} onChange={(v) => set({ docs: v.map(Number) })}>
+                {docs.map((d) => <Checkbox key={d.no} value={String(d.no)}>{`d${d.no} ${d.file_name}`}</Checkbox>)}
+              </CheckboxGroup>
+            </div>
+          )}
+          {inBid && (
+            <div className="fx-pop-group">
+              <h4>Levels</h4>
+              <CheckboxGroup aria-label="Levels" value={f.levels.map(String)} onChange={(v) => set({ levels: v.map(Number) })}>
+                {[1, 2, 3, 4].map((n) => <Checkbox key={n} value={String(n)}>{levelChip(n)}</Checkbox>)}
+              </CheckboxGroup>
+            </div>
+          )}
           {pages > 1 && (
             <RangeSlider
               label="Pages"
@@ -110,6 +163,8 @@ function FiltersMenu({ f, set, pages, count }: { f: FactsListFilters; set: (p: P
 
 export function FactsTab() {
   const { run, facts, factById, reloadAll, factsPreset, clearFactsPreset } = useRun();
+  const docs = useBidDocs();
+  const { inBid } = docs;
   const [filters, setFilters] = useState<FactsListFilters>(emptyFilters);
   const [query, setQuery] = useState('');
   const [size, setSize] = useState<number>(PAGE_SIZES[0]);
@@ -126,21 +181,34 @@ export function FactsTab() {
 
   // A new run starts with fresh filters. Declared before the preset effect so a preset set at the
   // same moment (mount, or a run change) is applied on top of the reset and not wiped by it.
+  const seeded = useRef('');
   useEffect(() => {
     setFilters(emptyFilters());
     setQuery('');
+    seeded.current = '';
   }, [run]);
+  // In a bid, replaced facts are hidden until the reader asks for them. The documents arrive with the facts, so this
+  // runs once the run turns out to be a bid. It is declared before the preset effect so a preset still wins.
+  useEffect(() => {
+    if (!inBid || seeded.current === run) return;
+    seeded.current = run;
+    setFilters((cur) => ({ ...cur, hideReplaced: true }));
+  }, [inBid, run]);
 
   // A preset from another page (e.g. the overview's "risks" link) replaces the filters.
   useEffect(() => {
     if (!factsPreset) return;
     const { q, ...rest } = factsPreset;
-    setFilters({ ...emptyFilters(), ...rest, q: '' });
+    setFilters({ ...emptyFilters(), hideReplaced: inBid, ...rest, q: '' });
     setQuery(q ?? '');
     clearFactsPreset();
-  }, [factsPreset, clearFactsPreset]);
+  }, [factsPreset, clearFactsPreset, inBid]);
 
-  const entries = useMemo(() => (list.data ? listEntries(list.data.items, factById) : []), [list.data, factById]);
+  const hiding = inBid && filters.hideReplaced;
+  const entries = useMemo(() => {
+    const all = list.data ? listEntries(list.data.items, factById) : [];
+    return hiding ? withoutReplaced(all) : all;
+  }, [list.data, factById, hiding]);
   const pg = paginate(entries, size, page);
   const allFacts = facts.data?.facts ?? [];
   const liveCount = allFacts.filter((f) => !f.deleted).length;
@@ -153,7 +221,14 @@ export function FactsTab() {
       subtitle={facts.data ? (list.data && list.data.total !== liveCount ? `${list.data.total} of ${liveCount} facts` : `${liveCount} facts`) : undefined}
       actions={
         <>
-          <Button variant="secondary" elementType="a" href={api.factsCsvUrl(run, effective)} aria-label="Download CSV of the filtered facts">Download CSV</Button>
+          {inBid ? (
+            <>
+              <Button variant="secondary" elementType="a" href={api.factsCsvUrl(run, effective)} aria-label="Download CSV of the filtered facts, for the team">CSV for the team</Button>
+              <Button variant="secondary" elementType="a" href={api.factsCsvUrl(run, effective, 'external')} aria-label="Download CSV of the filtered facts to share, without internal sources">CSV to share (no internal sources)</Button>
+            </>
+          ) : (
+            <Button variant="secondary" elementType="a" href={api.factsCsvUrl(run, effective)} aria-label="Download CSV of the filtered facts">Download CSV</Button>
+          )}
           <Button variant="accent" onPress={() => setAdding(true)}>Add fact</Button>
         </>
       }
@@ -185,9 +260,15 @@ export function FactsTab() {
   if (filters.splitOnly) chips.push({ key: 'split', label: 'Split votes only', remove: () => set({ splitOnly: false }) });
   if (filters.edited) chips.push({ key: 'edited', label: 'Changed only', remove: () => set({ edited: false }) });
   if (filters.includeDeleted) chips.push({ key: 'deleted', label: 'Showing deleted', remove: () => set({ includeDeleted: false }) });
+  for (const n of filters.docs) {
+    const d = docs.byNo.get(n);
+    chips.push({ key: `d${n}`, label: `Document d${n}${d ? ` ${d.file_name}` : ''}`, remove: () => set({ docs: filters.docs.filter((x) => x !== n) }) });
+  }
+  for (const n of filters.levels) chips.push({ key: `l${n}`, label: `Level ${n}`, remove: () => set({ levels: filters.levels.filter((x) => x !== n) }) });
   const filterCount = (statusActive ? 1 : 0) + (filters.flags.length ? 1 : 0) + (filters.pageFrom !== null ? 1 : 0)
-    + (filters.splitOnly ? 1 : 0) + (filters.edited ? 1 : 0) + (filters.includeDeleted ? 1 : 0);
-  const clearAll = () => { setFilters((cur) => ({ ...emptyFilters(), view: cur.view })); setQuery(''); };
+    + (filters.splitOnly ? 1 : 0) + (filters.edited ? 1 : 0) + (filters.includeDeleted ? 1 : 0)
+    + (filters.docs.length ? 1 : 0) + (filters.levels.length ? 1 : 0);
+  const clearAll = () => { setFilters((cur) => ({ ...emptyFilters(), view: cur.view, hideReplaced: cur.hideReplaced })); setQuery(''); };
 
   return (
     <div>
@@ -198,6 +279,7 @@ export function FactsTab() {
           <CategoryMenu f={filters} set={set} byCat={byCat} codes={codes} />
           <ViewSwitch view={filters.view} onChange={(v: ViewName) => set({ view: v })} hasPostAward={hasPostAward} />
           <FiltersMenu f={filters} set={set} pages={totalPages} count={filterCount} />
+          {inBid && <Switch isSelected={filters.hideReplaced} onChange={(v) => set({ hideReplaced: v })}>Hide replaced</Switch>}
         </div>
         {chips.length > 0 && (
           <div className="fx-chips" aria-label="Active filters">
@@ -221,7 +303,7 @@ export function FactsTab() {
       ) : list.data && entries.length === 0 ? (
         <div className="fx-state">
           <strong>No facts match these filters</strong>
-          <span>Try a different search or remove a filter.</span>
+          <span>{hiding ? 'Try a different search, remove a filter, or turn off Hide replaced.' : 'Try a different search or remove a filter.'}</span>
           {(chips.length > 0 || query) && <Button variant="secondary" onPress={clearAll}>Clear all</Button>}
         </div>
       ) : list.data ? (
@@ -229,7 +311,7 @@ export function FactsTab() {
           <div className="fx-list" role="list" aria-label="Facts" aria-busy={list.loading} style={list.loading ? { opacity: 0.6 } : undefined}>
             {pg.slice.map((e) => (
               <div role="listitem" key={e.first.fact_id}>
-                {e.kind === 'list' ? <GroupCard e={e} /> : <FactRow f={e.first} stated={e.stated} pages={e.kind === 'same' ? e.pages : undefined} />}
+                {e.kind === 'list' ? <GroupCard e={e} /> : e.kind === 'same' ? <SameRow e={e} /> : <FactRow f={e.first} stated={e.stated} />}
               </div>
             ))}
           </div>

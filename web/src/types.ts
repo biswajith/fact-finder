@@ -1,7 +1,9 @@
 // Shapes of the JSON the backend returns (WEB_UI_SPEC.md sections 4 to 6).
 
-export type CategoryCode = 'B' | 'C' | 'G' | 'X' | 'D' | 'S' | 'E' | 'R' | 'Q';
-export type Flag = 'mandatory' | 'desirable' | 'risk' | 'unclear' | 'replaced' | 'post-award';
+export type CategoryCode = 'B' | 'C' | 'G' | 'X' | 'D' | 'S' | 'E' | 'R' | 'Q'
+  | 'PRIORITY' | 'DECIDER' | 'BUDGET' | 'QUESTION' | 'COMPETITOR' | 'ACTION';
+export type Flag = 'mandatory' | 'desirable' | 'risk' | 'unclear' | 'replaced' | 'post-award'
+  | 'tentative' | 'precedence' | 'both-sides';
 export type FactStatus = 'valid' | 'needs_review' | 'conflict';
 
 export const CATEGORY_CODES: CategoryCode[] = ['B', 'C', 'G', 'X', 'D', 'S', 'E', 'R', 'Q'];
@@ -15,8 +17,18 @@ export const CATEGORY_NAMES: Record<CategoryCode, string> = {
   E: 'Evaluation criterion',
   R: 'Requirement',
   Q: 'Contradiction',
+  PRIORITY: 'Buyer priority',
+  DECIDER: 'Decision maker',
+  BUDGET: 'Budget',
+  QUESTION: 'Open question',
+  COMPETITOR: 'Competitor',
+  ACTION: 'Action for our team',
 };
+/** Codes only the call-transcript and deal-notes playbooks give; they appear in a bid only. */
+export const BID_CATEGORY_CODES: CategoryCode[] = ['PRIORITY', 'DECIDER', 'BUDGET', 'QUESTION', 'COMPETITOR', 'ACTION'];
 export const FLAGS: Flag[] = ['mandatory', 'desirable', 'risk', 'unclear', 'replaced', 'post-award'];
+/** Flags that only a bid's facts carry. */
+export const BID_FLAGS: Flag[] = ['tentative', 'precedence', 'both-sides'];
 
 export interface Status {
   model: string;
@@ -45,6 +57,42 @@ export interface Citation {
   section: string;
   text: string;
   bbox: [number, number, number, number] | null;
+  // Added for a bid (runs.normalize gives every citation these; outside a bid they are empty).
+  doc_id?: string;
+  doc_no?: number;
+  /** Transcripts: who said it (the page label is then the time). */
+  speaker?: string;
+  side?: string;
+  level?: number;
+  visibility?: 'external' | 'internal';
+}
+
+/** One end of a relation between two documents. `fact_id` is "" when no fact stands on that unit. */
+export interface RelationEnd {
+  doc_id: string;
+  unit: string;
+  fact_id: string;
+}
+export type RelationKind = 'REPLACES' | 'REMOVES' | 'ADDS' | 'CLARIFIES' | 'CONFIRMS' | 'DISAGREES';
+export interface Relation {
+  id: string;
+  kind: RelationKind;
+  from: RelationEnd;
+  to: RelationEnd;
+  rejected: boolean;
+}
+
+/** A document of a bid as GET /facts lists it (issue order). */
+export interface FactsDocument {
+  no: number;
+  doc_id: string;
+  file_name: string;
+  playbook: string;
+  level: string;
+  visibility: 'external' | 'internal';
+  issue_date: string | null;
+  issue_number: number | null;
+  has_pdf: boolean;
 }
 
 export interface Resolution {
@@ -87,6 +135,16 @@ export interface Fact {
   group_id?: string;
   group_kind?: string;
   group_title?: string;
+  // Added in a bid's facts.json.
+  doc_no?: number;
+  /** 1 buyer document, 2 buyer on a call, 3 our side on a call, 4 deal notes; absent outside a bid. */
+  level?: number;
+  playbook?: string;
+  relations?: Relation[];
+  /** The fact that governs this one now, when it is replaced; "" when none (or a later document removed it). */
+  replaced_by?: string;
+  /** "" or a warning, as the server words it ("section partly replaced", "may conflict with <fact id>"). */
+  stale?: string;
 }
 
 export interface FactsResponse {
@@ -94,6 +152,8 @@ export interface FactsResponse {
   run_id: string;
   pages: number;
   facts: Fact[];
+  /** Only for a bid, in issue order. */
+  documents?: FactsDocument[];
 }
 
 export interface NewFact {
@@ -116,6 +176,8 @@ export interface ConflictChange {
   op: 'edit' | 'delete';
   fact_id: string;
   fields?: Record<string, unknown>;
+  /** A flag the workspace adds to the flags the fact has when the choice is made. */
+  add_flag?: string;
 }
 
 export interface ConflictOption {
@@ -123,11 +185,22 @@ export interface ConflictOption {
   text: string;
   citation?: { id: string; page: number; page_label: string; section: string } | null;
   changes: ConflictChange[];
+  /** "Ask the buyer": nothing is applied. */
+  question?: boolean;
 }
+
+export type DocumentConflictReason =
+  | 'user-edited fact replaced' | 'old value elsewhere' | 'depends on changed value' | 'levels disagree'
+  | 'unfound target' | 'issued together';
 
 export interface Conflict {
   id: string;
-  kind: 'source' | 'raised';
+  kind: 'source' | 'raised' | 'document';
+  /** Document conflicts only. */
+  reason?: DocumentConflictReason | string;
+  /** Document conflicts only: the doc_id of the later document that settled it, or "". */
+  closed_by?: string;
+  doc_id?: string;
   title: string;
   description: string;
   fact_ids: string[];
@@ -142,7 +215,7 @@ export interface CorrectionEntry {
   id: string;
   at: string;
   source: 'chat' | 'ui';
-  op: 'edit' | 'delete' | 'add' | 'raise' | 'resolve' | 'undo';
+  op: 'edit' | 'delete' | 'add' | 'raise' | 'resolve' | 'undo' | 'reject_relation' | 'ungroup';
   fact_id: string | null;
   fields: Record<string, unknown> | null;
   reason: string | null;
@@ -156,6 +229,8 @@ export interface CorrectionEntry {
   conflict_title?: string | null;
   /** Choices: the chosen option's label, or "Your own answer: ...". */
   choice?: string | null;
+  /** `reject_relation` and `ungroup` entries: a line in words from the server. */
+  description?: string;
 }
 
 export interface SummaryRow {
@@ -269,6 +344,11 @@ export interface FactsListFilters {
   splitOnly: boolean;
   edited: boolean;
   includeDeleted: boolean;
+  /** Bid only: document numbers (sent as `docs`) and levels (sent as `levels`). */
+  docs: number[];
+  levels: number[];
+  /** Bid only, applied on the client to the list the server returns; never sent. */
+  hideReplaced: boolean;
 }
 
 export interface FactItem {

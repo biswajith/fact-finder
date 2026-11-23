@@ -22,6 +22,9 @@ export function FactForm({
   onCancel: () => void;
 }) {
   const [category, setCategory] = useState<CategoryCode>(fact?.category ?? 'R');
+  // A bid's facts can carry a category or flags the form does not offer for a new fact; keep them choosable.
+  const codes = CATEGORY_CODES.includes(category) ? CATEGORY_CODES : [...CATEGORY_CODES, category];
+  const flagChoices = [...FLAGS, ...(fact?.flags ?? []).filter((x) => !FLAGS.includes(x))];
   const [text, setText] = useState(fact?.text ?? '');
   const [flags, setFlags] = useState<Flag[]>(fact?.flags ?? []);
   const [note, setNote] = useState(fact?.note ?? '');
@@ -37,12 +40,12 @@ export function FactForm({
     >
       <TextArea label="Text" value={text} onChange={setText} isRequired width="100%" />
       <Picker label="Category" selectedKey={category} onSelectionChange={(k) => setCategory(String(k) as CategoryCode)}>
-        {CATEGORY_CODES.map((c) => (
+        {codes.map((c) => (
           <Item key={c}>{`${c}: ${CATEGORY_NAMES[c]}`}</Item>
         ))}
       </Picker>
       <CheckboxGroup label="Flags" orientation="horizontal" value={flags} onChange={(v) => setFlags(v as Flag[])}>
-        {FLAGS.map((f) => (
+        {flagChoices.map((f) => (
           <Checkbox key={f} value={f}>
             {f}
           </Checkbox>

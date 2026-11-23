@@ -251,10 +251,20 @@ npm --prefix web run build
 uv run fact-extractor web --runs runs      # http://127.0.0.1:8765
 ```
 
-It has eight pages: Overview (counts, key dates and one row summary per section), Facts
+It has eight pages: Documents, Overview (counts, key dates and one row summary per section), Facts
 (filters, grouping, CSV download, the cited PDF page), Conflicts, Changes, Report,
-Compare, Chat log (what each chat message cost and did) and New run. New run starts
-an extraction and asks for confirmation first, because it spends API tokens.
+Compare and Chat log (what each chat message cost and did). Documents replaces the old
+New run page. You start a bid, add its documents (RFP, addenda, call transcripts,
+deal notes), say what each one is, and extract. It asks for confirmation first,
+because it spends API tokens.
+
+In a bid, the Facts page shows which document and level each fact comes from, dims
+facts a later document replaced ("Hide replaced" is on by default), lists the links
+between documents with a Reject button, and groups one point stated in several
+documents with an Ungroup button. Conflicts between documents show the reason in
+words and what each choice changes. Facts has two CSV downloads: one for the team and
+one to share, without internal sources. Reject and Ungroup are undone on the Changes
+page.
 
 - Corrections never change `facts.json`. They are appended to
   `<run>/workspace/corrections.jsonl`, and every one can be undone on the Changes tab.

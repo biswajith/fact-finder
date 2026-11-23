@@ -20,12 +20,17 @@ function writeRunParam(run: string) {
 
 /** With no runs yet, the app is the Documents page: only "New bid" until a bid exists, then that bid's documents. */
 function NoRuns({ status, flow, recheck }: { status: Status | null; flow: BidFlow; recheck: () => void }) {
+  const hasBid = !!flow.bid || (flow.bids?.length ?? 0) > 0;
   return (
     <main className="page">
-      <div className="pg-note">
-        No runs yet{status ? ` in ${status.runs_folder}` : ''}. Start a bid below and add its documents, or start the server with --runs
-        pointing at a folder of runs. <Button variant="secondary" onPress={recheck}>Check again</Button>
-      </div>
+      {hasBid ? (
+        <div className="pg-note">This bid has no facts yet. Confirm its documents and extract them below.</div>
+      ) : (
+        <div className="pg-note">
+          No runs yet{status ? ` in ${status.runs_folder}` : ''}. Start a bid below and add its documents, or start the server with --runs
+          pointing at a folder of runs. <Button variant="secondary" onPress={recheck}>Check again</Button>
+        </div>
+      )}
       <DocumentsPage flow={flow} status={status} />
     </main>
   );
