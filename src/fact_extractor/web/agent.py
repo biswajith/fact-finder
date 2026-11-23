@@ -11,6 +11,7 @@ import hashlib
 import inspect
 import json
 import math
+import os
 import re
 import time
 import unicodedata
@@ -37,6 +38,10 @@ WRAP_UP = ("You have used all your tool rounds. Do not look anything up again. A
 # gpt-6-luna rejects function tools together with a reasoning effort on Chat Completions
 # (HTTP 400, seen 2026-11-20), so the chat loop runs without reasoning.
 CHAT_EFFORT = "none"
+# The last step of a turn that used tools, writing the reply, is a separate call with no tools and a
+# reasoning effort. FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT sets it ("off", "none" or empty: no compose step).
+COMPOSE_EFFORT = "low"
+COMPOSE_TOKENS = 12000  # reasoning counts against the completion limit
 # Chat history sent to the model is trimmed in blocks, not as a sliding window, so the prefix the API
 # caches stays identical from turn to turn (see _history_start).
 MAX_TIMELINE_IDS = 12  # facts one [[timeline:...]] block may name
@@ -63,7 +68,9 @@ class ChatModel(Protocol):
         A model whose `stream` also takes a `cache_key` keyword is given a stable per-run key.
         A model whose `stream` takes `allow_tools` is sent the tool list even on calls that must not
         use tools, with allow_tools=False, so the request starts the same and stays cached; any
-        other model gets an empty tool list on those calls."""
+        other model gets an empty tool list on those calls.
+        A model whose `stream` takes `effort` can write the final reply with a reasoning effort: that
+        call gets no tools at all."""
         ...
 
 
@@ -75,21 +82,22 @@ class OpenAIChatModel:
         self._client = None
 
     async def stream(self, messages: list[dict], tools: list[dict], cache_key: str | None = None,
-                     allow_tools: bool = True) -> AsyncIterator[str | ToolCall | CallUsage]:
+                     allow_tools: bool = True, effort: str | None = None) -> AsyncIterator[str | ToolCall | CallUsage]:
         require_api_key()
         if self._client is None:
             import openai
 
             self._client = openai.AsyncOpenAI(timeout=self.timeout, max_retries=1)
-        extra: dict[str, Any] = {"tools": tools} if tools else {}  # the API rejects an empty tools list
-        if tools and not allow_tools:
+        # the API rejects an empty tools list; a call with an effort is the compose call and sends no tools
+        extra: dict[str, Any] = {"tools": tools} if tools and effort is None else {}
+        if tools and not allow_tools and effort is None:
             # The tools stay in the request (it is cached as a prefix, tools first); the model may not call them.
             extra["tool_choice"] = "none"
         if cache_key:  # routes every turn of one run to the same prompt cache
             extra["prompt_cache_key"] = cache_key
         stream = await self._client.chat.completions.create(
-            model=model_name(), messages=messages, reasoning_effort=CHAT_EFFORT,
-            max_completion_tokens=8000, stream=True, stream_options={"include_usage": True}, **extra,
+            model=model_name(), messages=messages, reasoning_effort=effort or CHAT_EFFORT,
+            max_completion_tokens=COMPOSE_TOKENS if effort else 8000, stream=True, stream_options={"include_usage": True}, **extra,
         )
         calls: dict[int, dict] = {}  # tool-call deltas arrive in pieces, keyed by index
         usage = None
@@ -134,6 +142,7 @@ Rules you always follow:
 10. Be concrete and complete. The customer is a bid manager, not an engineer: no filler, but give every item the question asks for, each on its own row or line. Do not shorten several items into one phrase.
 
 11. A bid holds several documents. Each fact's `source` says which document it is from and, for a call, which side was speaking. Describe a document from its own facts: what someone said on a call or wrote in our notes about a document is their statement, not the document's, so attribute it (for example "on the call the buyer said"). When a fact is one row of a list or table, give every row. When linked facts disagree, or a conflict is open, say what each source says and that it is unresolved; do not pick one side.
+12. When the customer asks what to consider, weigh, watch out for or prepare for a decision (pricing, bid or no-bid, staffing, risk, the schedule), do not search for the words of the question. First name to yourself what drives that decision, then look up each driver, including facts filed under another topic that never use the question's words. For a price the drivers are: volumes (users, employees, sites, transactions), the scope and modules asked for, the contract term and renewals, how long the price must stay valid, payment and invoicing terms, how price is scored in the evaluation, any budget signal, the format the price must be given in, terms that carry cost or risk (insurance, bonds, penalties, liability, service levels), what the buyer said on calls, and what our notes say about competitors. For bid or no-bid they are: the mandatory qualifications and gates, the disqualifiers, the deadlines against our capacity, how the evaluation is weighted against our strengths, the contract risks, and what we know of the buyer's preferences and the competition. Say which drivers the documents are silent on.
 
 Fact categories: {categories}.
 Fact flags: {flags}.
@@ -204,6 +213,21 @@ ANSWER_FORM = ("Form of your final reply: the answer in one sentence, then, when
                "A [[source:ID]] or [[timeline:ID,ID]] marker goes on a line of its own. "
                "Name the source of anything that does not come from the buyer's own document. When the answer rests on a "
                "list or table from the documents, give every row of it, never a few rows after the word including.")
+
+
+COMPOSE_INSTRUCTION = ("Write the final reply to the customer's last message now, from what the tools returned above. "
+                       "Before you write, work out: what the customer has to decide or do; which of the facts you read "
+                       "bear on it, including facts filed under another topic that do not use the customer's words "
+                       "(volumes, terms, dates, constraints, what was said on calls); what the documents are silent on; "
+                       "and which sources disagree. Leave out facts that only restate how to fill in a form unless the "
+                       "customer asked for that. Do not call tools. ") + ANSWER_FORM
+
+
+def compose_effort() -> str | None:
+    """The reasoning effort of the compose step, read at call time; None when the step is switched off."""
+    value = os.environ.get("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT")
+    value = (COMPOSE_EFFORT if value is None else value).strip().lower()
+    return None if value in ("", "off", "none") else value
 
 
 def state_message(ws: Workspace) -> str:
@@ -862,7 +886,8 @@ def _no_tools(model: ChatModel, tools: list[dict], extra: dict) -> tuple[list[di
 
 
 async def _stream(model: ChatModel, messages: list[dict], specs: list[dict], kw: dict, tlog: TurnLog,
-                  purpose: str, round_no: int | None = None) -> AsyncIterator[str | ToolCall]:
+                  purpose: str, round_no: int | None = None,
+                  log_extra: dict | None = None) -> AsyncIterator[str | ToolCall]:
     """One model call, as `model.stream`, written to the session log when it ends: what it was for,
     the tool calls it asked for, its tokens (when the model reports them) and how long it took."""
     started = time.monotonic()
@@ -884,10 +909,26 @@ async def _stream(model: ChatModel, messages: list[dict], specs: list[dict], kw:
         error = f"{type(e).__name__}: {e}"[:300]
         raise
     finally:
+        if log_extra is not None and error and log_extra.get("compose"):
+            log_extra["compose_error"] = error
         tlog.llm_call(purpose=purpose, round_no=round_no, messages=len(messages), tools_offered=len(specs),
                       tools_allowed=bool(specs) and kw.get("allow_tools", True),
                       tool_calls=[{"name": c.name, "args": _clip(_parsed_args(c))} for c in calls],
-                      text_chars=chars, seconds=time.monotonic() - started, usage=usage, error=error)
+                      text_chars=chars, seconds=time.monotonic() - started, usage=usage, error=error, extra=log_extra)
+
+
+async def _compose(model: ChatModel, messages: list[dict], extra: dict, effort: str, round_no: int,
+                   tlog: TurnLog) -> AsyncIterator[str]:
+    """The final reply written with reasoning: the same messages plus COMPOSE_INSTRUCTION, no tools.
+    Yields text deltas; a failure is logged and ends the stream (the caller falls back to the draft)."""
+    ask = [*messages, {"role": "user", "content": COMPOSE_INSTRUCTION}]
+    info = {"compose": True, "effort": effort}
+    try:
+        async for item in _stream(model, ask, [], {**extra, "effort": effort}, tlog, "compose", round_no, info):
+            if isinstance(item, str):
+                yield item
+    except Exception:
+        pass  # _stream logged it as compose_error
 
 
 async def _plan_call(model: ChatModel, messages: list[dict], extra: dict, prompt: str, tlog: TurnLog,
@@ -1038,6 +1079,7 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
             mode = route.mode if route else "direct"
             rounds = HEAVY_ROUNDS if mode == "heavy" and ctx.plan else MAX_ROUNDS
             tool_specs = HEAVY_TOOL_SPECS if ctx.plan else TOOL_SPECS
+            effort = compose_effort() if "effort" in inspect.signature(model.stream).parameters else None
             for round_no in range(rounds + 1):
                 calls: list[ToolCall] = []
                 turn: list[str] = []
@@ -1045,13 +1087,33 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
                 if last:  # out of tool rounds: no tools, so the model must answer with what it has found
                     messages.append({"role": "system", "content": WRAP_UP})
                 specs, kw = _no_tools(model, tool_specs, extra) if last else (tool_specs, extra)
+                # After a tool round the draft is held back: when it has no tool calls, the facts are in and the
+                # reply is written again by the compose call (reasoning on); the draft is the fallback.
+                hold = round_no > 0 and effort is not None
+                draft: list[str] = []
                 async for item in _stream(model, messages, specs, kw, tlog, "final" if last else "loop", round_no + 1):
                     if isinstance(item, ToolCall):
                         calls.append(item)
                     else:
                         turn.append(item)
+                        if hold:
+                            draft.append(item)
+                            continue
                         text_parts.append(item)
                         yield {"type": "text", "delta": item}
+                if hold and calls:  # text that comes with tool calls is shown, as without a hold
+                    if draft:
+                        text_parts.extend(draft)
+                        yield {"type": "text", "delta": "".join(draft)}
+                elif hold:
+                    composed = False
+                    async for delta in _compose(model, messages, extra, effort, round_no + 1, tlog):
+                        composed = True
+                        text_parts.append(delta)
+                        yield {"type": "text", "delta": delta}
+                    if not composed and draft:
+                        text_parts.extend(draft)
+                        yield {"type": "text", "delta": "".join(draft)}
                 if not calls:
                     break
                 if last:

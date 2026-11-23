@@ -98,11 +98,14 @@ class Feedback:
     confidence: float | None = None
     note: str = ""
     call: dict | None = None  # the Decisions call, for the session log
+    probabilities: dict[str, float] | None = None
 
     def record(self) -> dict:
         out: dict[str, Any] = {"verdict": self.verdict, "source": self.source}
         if self.confidence is not None:
             out["confidence"] = round(self.confidence, 3)
+        if self.probabilities:
+            out["probabilities"] = {k: round(v, 3) for k, v in self.probabilities.items()}
         if self.note:
             out["note"] = self.note
         return out
@@ -214,19 +217,26 @@ class DecisionsRouter:
         self.min_confidence = min_confidence
         self._client = client  # anything with `async ainvoke(request) -> DecisionResponse`; built on first use
 
-    def _call(self, started: float, usage: Any = None, error: str = "") -> dict:
-        """What the session log keeps about one Decisions call."""
+    def _call(self, started: float, response: Any = None, error: str = "") -> dict:
+        """What the session log keeps about one Decisions call, including the whole response (every
+        label's probability, the confidence, the request id) so a decision can be reviewed later."""
         out: dict[str, Any] = {"model": self.model, "seconds": round(time.monotonic() - started, 3)}
+        usage = getattr(response, "usage", None)
         if usage is not None:
             out["input_tokens"] = getattr(usage, "input_tokens", None)
             out["output_tokens"] = getattr(usage, "output_tokens", None)
+        if response is not None and hasattr(response, "model_dump"):
+            try:
+                out["response"] = response.model_dump(mode="json")
+            except Exception:  # the log must not break the chat
+                pass
         if error:
             out["error"] = error[:300]
         return out
 
     async def _ask(self, inputs: list[str], instructions: str, choices: dict) -> tuple[Any, Any]:
-        """One Choice question; returns the ChoiceAnswer and the usage. Raises on any failure or a
-        non-choice answer."""
+        """One Choice question; returns the ChoiceAnswer and the whole DecisionResponse. Raises on any
+        failure or a non-choice answer."""
         from langchain_core.messages import HumanMessage
         from langchain_openai.decisions import Choice, ChoiceAnswer
 
@@ -241,19 +251,19 @@ class DecisionsRouter:
         answer = response.answers.get("q")
         if not isinstance(answer, ChoiceAnswer) or answer.choice not in choices:
             raise ValueError(f"no usable choice ({getattr(answer, 'type', 'missing')})")
-        return answer, response.usage
+        return answer, response
 
     async def route(self, context: str, user_text: str) -> Route:
         if self._client is None:
             require_api_key()
         started = time.monotonic()
         try:
-            a, usage = await self._ask([context, f"LATEST CUSTOMER MESSAGE\n{user_text}"], ROUTE_INSTRUCTIONS,
+            a, response = await self._ask([context, f"LATEST CUSTOMER MESSAGE\n{user_text}"], ROUTE_INSTRUCTIONS,
                                        ROUTE_CHOICES)
         except Exception as e:  # the chat must still answer: fall back to the plain loop
             note = f"router failed: {type(e).__name__}: {e}"[:300]
             return Route("direct", "fallback", note=note, call=self._call(started, error=note))
-        call = self._call(started, usage)
+        call = self._call(started, response)
         probs = {str(k): float(v) for k, v in (a.probabilities or {}).items()}
         if a.confidence < self.min_confidence:
             if clear_pick(str(a.choice), probs) and a.confidence >= self.min_confidence - BORDERLINE:
@@ -270,16 +280,18 @@ class DecisionsRouter:
             require_api_key()
         started = time.monotonic()
         try:
-            a, usage = await self._ask([context, f"PLAN\n{plan}", f"CUSTOMER REPLY\n{reply}"], FEEDBACK_INSTRUCTIONS,
+            a, response = await self._ask([context, f"PLAN\n{plan}", f"CUSTOMER REPLY\n{reply}"], FEEDBACK_INSTRUCTIONS,
                                        FEEDBACK_CHOICES)
         except Exception as e:
             note = f"judge failed: {type(e).__name__}: {e}"[:300]
             return Feedback("revise", "fallback", note=note, call=self._call(started, error=note))
-        call = self._call(started, usage)
+        call = self._call(started, response)
+        probs = {str(k): float(v) for k, v in (a.probabilities or {}).items()}
         if a.confidence < self.min_confidence:
             return Feedback("revise", "fallback", a.confidence,
-                            note=f"judge unsure (picked {a.choice} at confidence {a.confidence:.2f})", call=call)
-        return Feedback(str(a.choice), "judge", a.confidence, call=call)
+                            note=f"judge unsure (picked {a.choice} at confidence {a.confidence:.2f})", call=call,
+                            probabilities=probs)
+        return Feedback(str(a.choice), "judge", a.confidence, call=call, probabilities=probs)
 
 
 def planning_from_env() -> Planning:

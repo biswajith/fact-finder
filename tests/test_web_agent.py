@@ -708,3 +708,103 @@ def test_the_prompt_and_answer_form_tell_the_model_about_documents_and_lists(ws)
     assert "11. A bid holds several documents." in p and "give every row" in p and "do not pick one side" in p
     assert "Name the source of anything that does not come from the buyer's own document" in A.ANSWER_FORM
     assert "give every row of it" in A.ANSWER_FORM
+
+
+class ComposeChat(ScriptedChat):
+    """Like ScriptedChat, but its `stream` takes `effort` and records every call."""
+
+    def __init__(self, *turns):
+        super().__init__(*turns)
+        self.calls: list[dict] = []
+
+    async def stream(self, messages, tools, effort=None):
+        self.calls.append({"messages": json.loads(json.dumps(messages)), "tools": list(tools), "effort": effort})
+        async for item in super().stream(messages, tools):
+            yield item
+
+
+def _text(events):
+    return "".join(e["delta"] for e in events if e["type"] == "text")
+
+
+async def test_compose_call_writes_the_answer_after_a_tool_round(ws, svc, monkeypatch):
+    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", raising=False)
+    model = ComposeChat([call("search", queries=["bids"])], ["draft text"], ["Composed ", "answer."])
+    events = await run_chat(ws, svc, model, "What should we weigh?")
+    assert _text(events) == "Composed answer." and events[-1]["message"]["text"] == "Composed answer."
+    assert len(model.calls) == 3
+    assert model.calls[0]["tools"] and model.calls[0]["effort"] is None
+    compose = model.calls[2]
+    assert compose["tools"] == [] and compose["effort"] == "low"
+    assert compose["messages"][-1] == {"role": "user", "content": A.COMPOSE_INSTRUCTION}
+    assert A.ANSWER_FORM in A.COMPOSE_INSTRUCTION
+    assert all("draft text" not in str(m.get("content")) for m in compose["messages"])
+    assert any(m["role"] == "tool" for m in compose["messages"])
+    logged = [e for e in ws.chat_events(ws.chat_session()) if e["event"] == "llm_call"]
+    assert logged[-1]["purpose"] == "compose" and logged[-1]["compose"] is True and logged[-1]["effort"] == "low"
+
+
+async def test_compose_failure_falls_back_to_the_draft(ws, svc, monkeypatch):
+    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", raising=False)
+    model = ComposeChat([call("search", queries=["bids"])], ["the draft"], RuntimeError("boom"))
+    events = await run_chat(ws, svc, model)
+    assert _text(events) == "the draft" and events[-1]["message"]["text"] == "the draft"
+    assert "error" not in types(events)
+    logged = [e for e in ws.chat_events(ws.chat_session()) if e["event"] == "llm_call"]
+    assert "boom" in logged[-1]["compose_error"]
+
+
+async def test_compose_returning_no_text_falls_back_to_the_draft(ws, svc, monkeypatch):
+    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", raising=False)
+    model = ComposeChat([call("search", queries=["bids"])], ["the draft"], [])
+    assert _text(await run_chat(ws, svc, model)) == "the draft"
+
+
+@pytest.mark.parametrize("value", ["off", "none", ""])
+async def test_compose_can_be_switched_off(ws, svc, monkeypatch, value):
+    monkeypatch.setenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", value)
+    model = ComposeChat([call("search", queries=["bids"])], ["the draft"])
+    events = await run_chat(ws, svc, model)
+    assert len(model.calls) == 2 and all(c["effort"] is None for c in model.calls)
+    assert _text(events) == "the draft"
+
+
+async def test_no_compose_without_a_tool_round(ws, svc, monkeypatch):
+    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", raising=False)
+    model = ComposeChat(["Hello ", "there."])
+    events = await run_chat(ws, svc, model)
+    assert types(events) == ["text", "text", "done"] and len(model.calls) == 1
+
+
+async def test_compose_effort_is_read_from_the_environment(ws, svc, monkeypatch):
+    monkeypatch.setenv("FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT", "medium")
+    model = ComposeChat([call("search", queries=["bids"])], ["draft"], ["final"])
+    await run_chat(ws, svc, model)
+    assert model.calls[2]["effort"] == "medium"
+
+
+async def test_openai_model_compose_call_sends_no_tools_and_an_effort(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-real")
+    sent = []
+
+    async def create(**kw):
+        sent.append(kw)
+
+        async def gen():
+            return
+            yield
+        return gen()
+
+    model = A.OpenAIChatModel()
+    model._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    msgs = [{"role": "user", "content": "x"}]
+    [x async for x in model.stream(msgs, A.TOOL_SPECS, cache_key="k", effort="low")]
+    [x async for x in model.stream(msgs, A.TOOL_SPECS)]
+    assert "tools" not in sent[0] and "tool_choice" not in sent[0]
+    assert sent[0]["reasoning_effort"] == "low" and sent[0]["max_completion_tokens"] == 12000
+    assert sent[0]["prompt_cache_key"] == "k"
+    assert sent[1]["tools"] == A.TOOL_SPECS and sent[1]["reasoning_effort"] == A.CHAT_EFFORT
+
+
+def test_prompt_has_the_drivers_first_rule(ws):
+    assert "First name to yourself what drives that decision" in A.system_prompt(ws)

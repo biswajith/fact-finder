@@ -386,3 +386,13 @@ async def test_router_trusts_clear_probabilities_when_confidence_is_just_under_t
 
     r = await P.DecisionsRouter(client=FakeDecisions(answer(clear, 0.4))).route("c", "m")
     assert (r.mode, r.source) == ("light", "fallback")
+
+
+async def test_decisions_calls_keep_the_whole_response_and_every_label_probability():
+    route = await P.DecisionsRouter(client=FakeDecisions(choice("light", confidence=0.7))).route("c", "m")
+    answer = route.call["response"]["answers"]["q"]
+    assert answer["choice"] == "light" and set(answer["probabilities"]) == set(P.MODES)
+    assert route.call["response"]["model"] == "gpt-6-luna"
+    fb = await P.DecisionsRouter(client=FakeDecisions(verdict("approve"))).judge("c", "plan", "yes")
+    assert set(fb.record()["probabilities"]) == set(P.VERDICTS)
+    assert fb.call["response"]["answers"]["q"]["confidence"] == 0.9
