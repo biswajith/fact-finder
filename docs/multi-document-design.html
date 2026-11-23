@@ -157,6 +157,17 @@ h3 .who { vertical-align: 3px; }
   .lanes .card.c::before { content: "Code"; color: var(--accent); }
 }
 .calls { min-width: 780px; }
+
+/* where the document types differ */
+.types { min-width: 860px; font-size: 0.86rem; }
+.types th { white-space: nowrap; }
+.types th small { display: block; font: 500 0.68rem var(--font-mono); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.types td { line-height: 1.45; }
+.types td:first-child { font-family: var(--font-head); font-weight: 600; white-space: nowrap; }
+.types td.same { color: var(--muted); }
+.types td.diff { background: var(--warn-soft); box-shadow: inset 3px 0 0 var(--warn); }
+.types tfoot td { background: var(--surface-2); color: var(--muted); font-size: 0.84rem; }
+.legend .lf { background: var(--warn-soft); border-color: var(--warn); }
 .calls td:first-child { font: 600 0.82rem var(--font-mono); white-space: nowrap; }
 </style>
 </head>
@@ -200,7 +211,7 @@ h3 .who { vertical-align: 3px; }
 </details>
 
 <h2 id="dataflow">Dataflow</h2>
-<p>The whole proposed system in three pictures, read in order. Each starts with a dashed box naming what the previous one handed over.</p>
+<p>The whole proposed system in three pictures, read in order. Each starts with a dashed box naming what the previous one handed over. The pictures are the same for every kind of document; the <a href="#types">table after them</a> shows where each kind departs from the path an RFP takes.</p>
 <div class="legend"><span><i class="lc"></i>Code</span><span><i class="lm"></i>Model answers, code checks</span><span><i class="lx"></i>User</span><span><i class="ld"></i>Data kept or shown</span><span><i class="ls"></i>Hand-over between pictures</span></div>
 
 <h3>1. A document becomes units</h3>
@@ -360,6 +371,72 @@ h3 .who { vertical-align: 3px; }
 </svg>
 </div>
 <p>The pair check, the ladder and the user's decisions settle what disagrees; the decisions go into the correction log. The stored facts and relations, applied in issue order with the log replayed over them, give the bid's fact list, its summaries and the exports.</p>
+<h3 id="types">4. Where the document types differ</h3>
+<p>Every document goes through the three pictures. Its playbook changes only the steps below; a highlighted cell is where a type departs from the RFP.</p>
+<div class="legend"><span><i class="lf"></i>Differs from the RFP</span><span><i class="ld"></i>Same as the RFP</span></div>
+<div class="scroll"><table class="types">
+<thead><tr>
+  <th>Document</th>
+  <th>Cut into units<small>picture 1</small></th>
+  <th>Before labelling<small>picture 1</small></th>
+  <th>Label round<small>picture 2</small></th>
+  <th>RELATE<small>picture 2</small></th>
+  <th>Level<small>picture 3</small></th>
+  <th>Visibility<small>picture 3</small></th>
+</tr></thead>
+<tbody>
+<tr><td>RFP</td>
+  <td class="same">PDF pages and headings</td>
+  <td class="same">Confirm type, number, date</td>
+  <td class="same">All buyer categories, as today</td>
+  <td class="same">Not run: it is the base</td>
+  <td class="same">1</td>
+  <td class="same">Set by the playbook</td></tr>
+<tr><td>Reissued RFP</td>
+  <td class="same">Same as RFP</td>
+  <td class="same">Same as RFP</td>
+  <td class="same">Same as RFP</td>
+  <td class="diff">Not run. Aligned with the previous version by text; corrections move to the new fact IDs</td>
+  <td class="same">1</td>
+  <td class="same">Same as RFP</td></tr>
+<tr><td>Change addendum</td>
+  <td class="same">Same as RFP</td>
+  <td class="diff">Put in issue order (number, then date); the user confirms any stated precedence</td>
+  <td class="diff">As RFP, but a section reference is held back until RELATE answers</td>
+  <td class="diff">Every unit, against earlier buyer units and headings: replaces, removes, adds</td>
+  <td class="diff">1; the later issue wins unless a stated precedence says otherwise</td>
+  <td class="same">Same as RFP</td></tr>
+<tr><td>Q&amp;A addendum</td>
+  <td class="same">Same as RFP</td>
+  <td class="diff">Put in issue order, as a change addendum</td>
+  <td class="same">Same as RFP</td>
+  <td class="diff">Every unit: mostly clarifies or adds; "no change" is none</td>
+  <td class="same">1</td>
+  <td class="same">Same as RFP</td></tr>
+<tr><td>Attachment</td>
+  <td class="diff">Spreadsheet or PDF: pricing workbook, forms, sample contract</td>
+  <td class="same">Same as RFP</td>
+  <td class="same">Same as RFP</td>
+  <td class="same">Not run: a base document</td>
+  <td class="diff">1; issued with the RFP, so a disagreement with it is a Q fact, not a replacement</td>
+  <td class="same">Same as RFP</td></tr>
+<tr><td>Call transcript</td>
+  <td class="diff">Sentences inside speaker turns; the speaker is stored on each unit</td>
+  <td class="diff">Speaker map: code proposes sides, the user confirms and names unknown speakers</td>
+  <td class="diff">Transcript playbook: its own categories, a tentative flag, the question-and-answer rule</td>
+  <td class="diff">Against buyer documents: confirms, clarifies, disagrees, adds</td>
+  <td class="diff">2 for buyer units, 3 for ours, set from the speakers of a fact's units</td>
+  <td class="diff">Internal by default</td></tr>
+<tr><td>Deal notes</td>
+  <td class="diff">Notes cutter: entries and their lines</td>
+  <td class="same">Same as RFP</td>
+  <td class="diff">Notes playbook</td>
+  <td class="diff">Against buyer documents, as a transcript</td>
+  <td class="diff">4</td>
+  <td class="diff">Internal</td></tr>
+</tbody>
+<tfoot><tr><td colspan="7">The same for every type: building facts, GROUP across the bid, the pair check, the ladder, the user's decisions, the correction log and the outputs.</td></tr></tfoot>
+</table></div>
 <p>Today only the PDF cutter, the label round, the fact building, GROUP and BRIEF within one document, the fact check, the stored results and the correction log exist; everything else in the pictures is proposed.</p>
 
 <p class="hint">How the rest of the page is ordered: first <a href="#today">today's one-document pipeline</a>; then the ideas a bid needs (<a href="#properties">document properties</a>, <a href="#playbooks">playbooks</a>, the <a href="#ladder">priority ladder</a>); then <a href="#flow">the steps</a> and <a href="#calls">model calls</a> of the pictures above; then the three mechanisms, in build order (<a href="#merge">duplicates</a>, <a href="#addenda">addenda</a>, <a href="#speakers">transcripts</a>); then the <a href="#log">correction-log changes</a> they share, <a href="#risks">risks</a> and the <a href="#order">build order</a>.</p>
