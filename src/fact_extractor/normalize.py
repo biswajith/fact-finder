@@ -56,6 +56,65 @@ _WORDS = {
      "hundred": 100, "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
 
 
+_TENS = {"twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"}
+_BIG = {"thousand": 1000, "million": 1_000_000, "billion": 1_000_000_000}
+
+
+def _spelled(text: str) -> set[str]:
+    """Numbers written out in words, read whole: "ninety-five thousand" -> 95000,
+    "two hundred and fifty" -> 250, "a million" -> 1000000. Only runs of more than one
+    word are read here; single number words are handled on their own."""
+    toks = [(m.group(), m.start(), m.end()) for m in re.finditer(r"[a-z]+", text.lower())]
+    out: set[str] = set()
+    run: list[str] = []
+
+    def close() -> None:
+        while run and run[-1] in ("and", "a"):
+            run.pop()
+        if len(run) > 1:
+            total = cur = 0
+            for w in run:
+                if w == "a":
+                    cur = 1
+                elif w == "hundred":
+                    cur = (cur or 1) * 100
+                elif w in _BIG:
+                    total += (cur or 1) * _BIG[w]
+                    cur = 0
+                elif w != "and":
+                    cur += _WORDS[w]
+            out.add(str(total + cur))
+        run.clear()
+
+    for i, (w, start, _end) in enumerate(toks):
+        nxt = toks[i + 1][0] if i + 1 < len(toks) else ""
+        joined = bool(run) and re.fullmatch(r"[\s-]+", text[toks[i - 1][2]:start] or "x") is not None
+        prev = run[-1] if run and joined else None
+        if w == "a":
+            ok_here = nxt in ("hundred", *_BIG)
+        elif w == "and":
+            ok_here = prev in ("hundred", *_BIG) and nxt in _WORDS and _WORDS[nxt] < 100
+        elif w == "hundred" or w in _BIG:
+            ok_here = True
+        elif w in _WORDS and _WORDS[w] < 100 and w not in ("first", "second", "third", "fourth", "fifth"):
+            # a unit after a tens word ("ninety-five"); otherwise a number word starts a new run
+            ok_here = True
+            if prev is not None and prev not in ("hundred", "and", *_BIG) and not (prev in _TENS and 0 < _WORDS[w] < 10):
+                close()
+                prev = None
+        else:
+            close()
+            continue
+        if not ok_here:
+            close()
+            continue
+        if prev is None and run:
+            close()
+        run.append(w)
+    close()
+    return out
+
+
 def _num(s: str, scale: str | None = None) -> str | None:
     s = s.replace(",", "")
     try:
@@ -127,6 +186,7 @@ def values(text: str, *, generous: bool = False) -> set[str]:
         for w in re.findall(r"[a-z]+", text.lower()):
             if w in _WORDS:
                 out.add(str(_WORDS[w]))
+        out |= _spelled(text)
         # "noon"/"midnight" may also be written as 12:00 in a fact
     return out
 
