@@ -637,3 +637,24 @@ All under `/api`. Errors are `{detail}` with 400/404/409/413.
   the CSV takes `audience=external`.
 - `GET /runs` rows for a bid add `kind: "bid"`, `name`, `documents`.
 - `GET /page?run=&page=&fact_id=&doc=<doc_id>`.
+
+## After WP10: changes made on the branch since
+
+Recorded here so the plan matches the code; the details are in `README.md` and `WEB_UI_SPEC.md`.
+
+- **RELATE asked again for what it left unanswered.** `relate(only=[unit IDs])` re-asks just those
+  units, in the same batches, and keeps every other stored answer. `Bid.incomplete_relations()` lists
+  them per document. `fact-extractor bid relate BID` does it from the CLI; the web process job does it
+  after the confirmed documents are read, before settling and building.
+- **The chat reads a bid as points** (`web/points.py`): a search hit or `get_fact` carries its source
+  document and side, the rest of its list or table, the facts of other documents linked to it, and the
+  open conflicts about it. Bid units are cited `d<no>:<unit ID>`, and adding a fact whose cited units
+  are all unknown is refused.
+- **Documents page:** a dedicated New bid screen; the bid page numbered 1. Add documents, 2. Check each
+  document, 3. Extract (hidden with no documents); progress as a checklist, with the job's steps shown
+  under the names "Cut into units", "Label the units and build facts", "Link to earlier documents",
+  "Save the result", "Group repeated points", "Check facts that disagree", "Build the fact list".
+- Not bid-specific, made on the same branch: the chat's answer form and compose call, the drivers-first
+  rule, the near-cut-off router rule, light plans as JSON shown as plan cards with approval buttons, the
+  resizable chat panel, Decisions probabilities in the chat log, the Changes page as an activity feed,
+  number words in the summaries' figure check, and `./start.sh --dev`.

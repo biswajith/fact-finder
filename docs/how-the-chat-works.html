@@ -163,7 +163,7 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
     <tr><td><b>Conflict</b></td><td>A disagreement the customer must settle. It has two or more options, each carrying the changes it would make.</td></tr>
     <tr><td><b>Stale summary</b></td><td>A section’s row summary written from facts that have since changed. It is rebuilt in the background.</td></tr>
     <tr><td><b>Round</b></td><td>One call to the chat model inside a turn. The model reads everything so far and either answers or asks for tools; each request for more tools starts another round.</td></tr>
-    <tr><td><b>Planning mode</b></td><td>How much the chat plans before it acts on a message: <i>direct</i> (no plan), <i>light</i> (a one-line plan) or <i>heavy</i> (a list of steps).</td></tr>
+    <tr><td><b>Planning mode</b></td><td>How much the chat plans before it acts on a message: <i>direct</i> (no plan), <i>light</i> (a few numbered steps, written before any lookup) or <i>heavy</i> (a list of steps).</td></tr>
     <tr><td><b>Decisions API</b></td><td>An OpenAI service that answers fixed-choice questions (“which of these three?”, “is this true?”) with a probability, and bills input tokens only. The chat uses it to pick the planning mode, to read your reply to a plan, and to check new facts for contradictions.</td></tr>
     <tr><td><b>Session and turn</b></td><td>A session runs from your first message to the next “clear chat”. A turn is one of your messages and everything the chat did to answer it.</td></tr>
     <tr><td><b>Not verified</b></td><td>A summary row whose wording had a figure that is not in the facts it cites. Its wording is not shown; the facts it cites are shown instead.</td></tr>
@@ -187,8 +187,9 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
     <li><b>The prompt is built.</b> It holds the system prompt (rules, the nine category names, the flag names), the recent conversation, a short “Current state” note with counts such as “388 facts” and “2 open conflicts”, and your new message. It does not hold any fact text. A later section shows the exact order and why it matters.</li>
     <li><b>The model replies, streamed.</b> Words appear in the panel as they arrive. The model is called through the OpenAI chat API with tools attached, no extended reasoning, and a cache key for the run. The model name comes from <code>FACT_EXTRACTOR_MODEL</code> and defaults to <code>gpt-6-luna</code>.</li>
     <li><b>If the reply asks for tools, code runs them.</b> One reply can ask for several tools at once, and the rules tell the model to do so for lookups that do not depend on each other. Each result goes back to the model, and it replies again. This loop runs at most 8 rounds (16 in heavy mode). On the last round the tools are still sent but switched off, so the model must answer, and the start of the request still matches the cache.</li>
+    <li><b>When tools were used, the answer is written once more, with reasoning on.</b> The loop runs without reasoning (the model will not take tools and reasoning together), so its last reply is held back as a draft. One more call, with the same messages, no tools and reasoning effort <code>low</code> (<code>FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT</code>; <code>off</code> skips it), is asked to work out what you have to decide, which of the facts found bear on it, what the documents are silent on and which sources disagree, and then to write the reply. That is what you see. If the call fails, the draft is shown instead. A message answered with no tool call is not written twice.</li>
     <li><b>Each tool shows as a line in the panel</b> with a tick or a cross, such as “Searched the document” or “Read 2 facts”. Hovering over the line shows the query it ran. Tools that change something also tell the screen to reload facts, conflicts and summaries. A fact that is added or edited is checked against the facts around it (see <a href="#checks">Checks</a>).</li>
-    <li><b>The final answer is stored</b> with each tool step’s arguments and a short result (for example “9 hits”), plus any conflict it raised, and the turn’s log gets its totals: model calls, tokens and estimated cost. The stream ends with a <code>done</code> event.</li>
+    <li><b>The final answer is stored</b> after one clean-up: a <code>[[source:…]]</code> or <code>[[timeline:…]]</code> marker written inside a sentence is moved to a line of its own, and a marker naming a fact the run does not have is dropped. It is stored with each tool step’s arguments and a short result (for example “9 hits”), plus any conflict it raised, and the turn’s log gets its totals: model calls, tokens and estimated cost. The stream ends with a <code>done</code> event.</li>
   </ol>
 
   <h2 id="planning">Planning: when the chat plans first, and asks</h2>
@@ -196,10 +197,10 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
   <div class="scroll"><table>
     <tr><th>Mode</th><th>Used for</th><th>What happens</th></tr>
     <tr><td><b>direct</b></td><td>One question or one change about one thing</td><td>The plain loop: the model decides one round at a time.</td></tr>
-    <tr><td><b>light</b></td><td>A few steps that are clear from the start</td><td>The model writes a one-line plan (“Plan: 1) … 2) …”) and then carries it out.</td></tr>
+    <tr><td><b>light</b></td><td>A few steps that are clear from the start</td><td>A planning call with no tools writes the plan as JSON: one to five short steps, each with the topics it looks at (“Look up the pricing drivers” covering scope, volumes, term). The chat shows it as a card of numbered steps with the topics as tags under each; the model reads it back as numbered lines, and then carries it out. A planner reply that is not JSON is kept as written.</td></tr>
     <tr><td><b>heavy</b></td><td>Many facts, a review across sections, or steps that depend on earlier results</td><td>A separate call writes a list of steps. The loop then carries them out with an extra tool, <code>update_plan</code>, which ticks steps off; it gets 16 rounds instead of 8.</td></tr>
   </table></div>
-  <p><b>Who picks the mode.</b> One Decisions API question, given the last six messages, the counts and your new message, picks one of the three by the work the message needs, not by how long it is. When the answer is less than 60% sure, light is used. When the call fails, direct is used, which is how the chat worked before planning existed. <code>FACT_EXTRACTOR_CHAT_PLANNING</code> can force one mode for every message (<code>direct</code>, <code>light</code> or <code>heavy</code>); the default is <code>auto</code>.</p>
+  <p><b>Who picks the mode.</b> One Decisions API question, given the last six messages, the counts and your new message, picks one of the three by the work the message needs, not by how long it is. When the answer is less than 60% sure, light is used, with one exception: at 50% to 60% sure, a pick that holds at least 0.60 of the probability and leads every other mode by 0.25 is trusted (seen: direct at 0.72 against 0.25 with confidence 0.58 had made a plain lookup ask for approval). When the call fails, direct is used, which is how the chat worked before planning existed. <code>FACT_EXTRACTOR_CHAT_PLANNING</code> can force one mode for every message (<code>direct</code>, <code>light</code> or <code>heavy</code>); the default is <code>auto</code>.</p>
   <p><b>Approval.</b> In light and heavy mode the chat writes the plan without using any tools, shows it, asks “Shall I go ahead? You can also tell me what to change”, and ends the turn having changed nothing. Your next message is read by a second Decisions API question:</p>
   <div class="scroll"><table>
     <tr><th>Your reply is read as</th><th>What happens</th></tr>
@@ -208,14 +209,15 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
     <tr><td><b>cancel</b> (“no, leave it”)</td><td>A fixed reply, no model call, nothing changed.</td></tr>
     <tr><td><b>new request</b></td><td>The plan is dropped and your message is handled like any other.</td></tr>
   </table></div>
-  <p>Anything short of a confident “approve” is treated as “revise”, so no plan runs without a clear yes. <code>FACT_EXTRACTOR_CHAT_PLAN_APPROVAL</code> sets which modes ask: <code>on</code> (light and heavy, the default), <code>heavy</code>, or <code>off</code>.</p>
+  <p>Under a plan that is waiting, the panel shows two buttons. <b>Yes, proceed</b> sends “Yes, go ahead.” <b>No, change the plan</b> opens the plan’s steps in a text box, with <b>Send the changed plan</b> and <b>Drop the plan</b>. Each sends an ordinary message, read by the same question as anything you type.</p>
+  <p>Anything short of a confident “approve” is treated as “revise”, so no plan runs without a clear yes; the 50%-to-60% exception of the mode picker does not apply here. <code>FACT_EXTRACTOR_CHAT_PLAN_APPROVAL</code> sets which modes ask: <code>on</code> (light and heavy, the default), <code>heavy</code>, or <code>off</code>.</p>
 
   <h2 id="prompt">What the model is sent</h2>
   <p>Every request to the model has the same four parts, always in this order:</p>
   <div class="stack" role="list" aria-label="One request, top to bottom">
     <div class="msg cached" role="listitem"><span class="who">system prompt</span><span class="what">Rules, category names and flag names. Fixed for the whole run.</span><span class="tag ok">reused</span></div>
     <div class="msg cached" role="listitem"><span class="who">history</span><span class="what">The earlier questions and answers, as text, oldest first.</span><span class="tag ok">reused</span></div>
-    <div class="msg fresh" role="listitem"><span class="who">current state</span><span class="what">Live counts: facts per category and open conflicts.</span><span class="tag warn">new each turn</span></div>
+    <div class="msg fresh" role="listitem"><span class="who">current state</span><span class="what">Live counts: facts per category and open conflicts, then a one-line reminder of the form the answer takes.</span><span class="tag warn">new each turn</span></div>
     <div class="msg fresh" role="listitem"><span class="who">your message</span><span class="what">The question you just typed.</span><span class="tag warn">new each turn</span></div>
   </div>
 
@@ -271,13 +273,13 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
   <div class="scroll"><table>
     <tr><th>Tool</th><th>Type</th><th>What it does</th></tr>
     <tr><td><code>search</code></td><td><span class="tag">read</span></td><td>Searches every passage (unit) of the document and the facts written from them. Give one <code>query</code>, or several in <code>queries</code> (up to 10) to look up different things in one call. A hit is a <i>fact row</i> (fact ID, category, the fact, page and section) or, for a passage the extraction made no fact from, a <i>unit row</i> (its text, cut at 400 characters, and its label). Filters: <code>section</code>, label, category, flag, status, edited. See <a href="#search">Search</a>.</td></tr>
-    <tr><td><code>get_fact</code></td><td><span class="tag">read</span></td><td>Facts in full: text, flags, note, the source text they cite with its section, and their original values if changed. One <code>fact_id</code>, or up to 20 in <code>fact_ids</code>. Empty fields are left out.</td></tr>
+    <tr><td><code>get_fact</code></td><td><span class="tag">read</span></td><td>Facts in full: text, flags, note, the source text they cite with its section, and their original values if changed, plus the whole point the fact belongs to, as in <code>search</code>. One <code>fact_id</code>, or up to 20 in <code>fact_ids</code>. Empty fields are left out. In a bid each citation reads <code>d&lt;no&gt;:&lt;unit&gt;</code>, the form <code>add_fact</code> needs.</td></tr>
     <tr><td><code>list_conflicts</code></td><td><span class="tag">read</span></td><td>Lists conflicts with their options, optionally only open or resolved ones.</td></tr>
     <tr><td><code>get_summary</code></td><td><span class="tag">read</span></td><td>Reads the summary rows of each section, the facts each row cites, and whether the section is out of date.</td></tr>
     <tr><td><code>facts_not_in_summary</code></td><td><span class="tag">read</span></td><td>Lists facts that no summary row cites.</td></tr>
     <tr><td><code>edit_fact</code></td><td><span class="tag warn">changes</span></td><td>Corrects a fact the customer says is wrong. The extracted value is kept so it can be undone, and a reason is needed. A new text that drops more figures (amounts, dates, numbers) than it adds is refused, unless <code>values_removed</code> says the correction itself removes them. After the edit, the facts that may still state the old value are sent back to the model.</td></tr>
     <tr><td><code>delete_fact</code></td><td><span class="tag warn">changes</span></td><td>Rejects a fact the customer says is wrong. Needs a reason.</td></tr>
-    <tr><td><code>add_fact</code></td><td><span class="tag warn">changes</span></td><td>Adds a fact: something the extraction missed, or new information from the buyer. It cites the source passage of the fact it relates to, and is checked for contradictions (see <a href="#checks">Checks</a>).</td></tr>
+    <tr><td><code>add_fact</code></td><td><span class="tag warn">changes</span></td><td>Adds a fact: something the extraction missed, or new information from the buyer. It cites the source passage of the fact it relates to, and is checked for contradictions (see <a href="#checks">Checks</a>). A fact none of whose cited passages can be found is refused, so no fact is saved without a source.</td></tr>
     <tr><td><code>restore_fact</code></td><td><span class="tag warn">changes</span></td><td>Brings a changed or deleted fact back to its extracted value.</td></tr>
     <tr><td><code>raise_conflict</code></td><td><span class="tag warn">changes</span></td><td>Records a conflict with at least two options. Each option’s changes must do everything its text says; an option with no changes leaves every fact as it is.</td></tr>
     <tr><td><code>resolve_conflict</code></td><td><span class="tag warn">changes</span></td><td>Resolves a conflict, only when the customer stated the choice in this conversation.</td></tr>
@@ -305,7 +307,8 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
     <tr><td>Fields at their usual value are left out: status “valid”, no flags, not edited, votes that all agree</td><td>They were in every row and told the model nothing.</td></tr>
     <tr><td>A row already sent earlier in the turn comes back as its ID with <code>sent_before</code></td><td>The model already has it.</td></tr>
     <tr><td><code>more</code> says how many matches were not shown</td><td>So the model knows to raise the limit or narrow the search, rather than assume it has seen everything.</td></tr>
-    <tr><td>The <code>section</code> filter keeps only rows under one heading</td><td>To read everything in a section once the right one is found.</td></tr>
+    <tr><td>The <code>section</code> filter returns the whole section, in document order, up to 50 rows, whatever the query</td><td>To read everything in a section once the right one is found.</td></tr>
+    <tr><td>A fact hit is its whole point: the other rows of its list or table, the facts of other documents linked to it (“replaced by”, “disagrees with”, disagreements first, at most 12), and any open conflict about it. In a bid it also names its document and, on a call, who was speaking. The facts inside a hit are not listed again as hits of their own</td><td>So the model never answers from one row of eight, or from one side of a disagreement.</td></tr>
   </table></div>
   <p class="hint">Why this changed: measured on one RFP, a broad first search returned about 6,000 tokens, and its top ten included the buyer’s name, an evaluation criterion and an Oracle requirement. Replaying the same searches now returns about 2,100 tokens with the insurance clauses on top. In another run, a question about insurance missed the coverage limits because only 5 of the 17 insurance facts used the word “insurance”; with headings searched, the whole section is found.</p>
 
@@ -321,8 +324,12 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
     <tr><td>7</td><td>Do not make up facts about the document. Search the document, or say you do not know.</td><td>A bid manager relies on the answer.</td></tr>
     <tr><td>8</td><td>Summaries rebuild themselves after a change. Call <code>generate_summary</code> only when asked, or for a section that has no rows yet.</td><td>Avoids wasted calls.</td></tr>
     <tr><td>9</td><td>Every reply that calls tools costs a round trip, so do in one reply everything that does not depend on a result not yet seen: several queries in one search, independent tools together.</td><td>Measured: the model used to ask for one search per round, so one request took 9 to 11 model calls; it now takes 3 to 6.</td></tr>
-    <tr><td>10</td><td>Be brief and concrete.</td><td>The customer is a bid manager, not an engineer.</td></tr>
+    <tr><td>10</td><td>Be concrete and complete: no filler, but every item the question asks for, each on its own row or line.</td><td>Under “be brief”, an outline of several parts came back as one long sentence.</td></tr>
+    <tr><td>11</td><td>A bid holds several documents. Say where a fact comes from; what a call or our notes say about a document is their statement, so attribute it. Give every row of a list or table. When linked facts disagree or a conflict is open, say what each source says and do not pick a side.</td><td>A call or a note is not the buyer’s document, and a disagreement is the bid manager’s to settle.</td></tr>
+    <tr><td>12</td><td>For “what should we consider for …” (price, bid or no-bid, staffing, risk, the schedule), name what drives that decision and look up each driver, including facts filed under other topics that never use the question’s words. Say which drivers the documents are silent on.</td><td>What bears on a price or a bid decision is spread over many topics whose facts rarely use the words of the question.</td></tr>
   </table></div>
+  <h3>The form of the answer</h3>
+  <p>The prompt ends with “How to write the answer”: one sentence that answers, then the model counts the items. One or two: sentences. Three or more that share details: a table, one row per item, with a Source column of fact IDs. Three or more with one detail each, or steps in order: a list. An outline or a set of requirements is never a paragraph. Two markers ask the screen to draw from the stored facts rather than from the model’s words: <code>[[source:ID]]</code> shows a fact’s source wording, and <code>[[timeline:ID,ID,…]]</code> shows facts by date. Because the chat model runs without reasoning and did not apply a rule that sat only at the top of a long prompt, the same rule is repeated in one line next to every message you send.</p>
 
   <h2 id="store">How the change history is kept</h2>
   <p>The extraction run is never edited. Every change, from you on screen or from the chat, is added to one log that only grows: <code>workspace/corrections.jsonl</code>. The facts you see are not stored anywhere; they are worked out again from the extracted originals and that log every time anything reads them.</p>
@@ -457,7 +464,7 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
   <ul>
     <li><b>Figures are kept.</b> When a row cannot hold every item in 60 words, it keeps the amounts, limits, dates and durations and shortens the words around them; it may not replace a figure with a word such as “specified”.</li>
     <li><b>Your choices are included.</b> Each decision on a conflict that touches the section goes in as “conflict title → your choice”, including conflicts the chat raised.</li>
-    <li><b>Rows are checked against their facts.</b> Every figure in a row must appear in the facts it cites. When one does not, or the row cites no facts, the row’s wording is not shown: the screen shows the facts it cites instead, marked <b>Not verified</b>, and names the figure that failed. Meaning is not checked, only figures.</li>
+    <li><b>Rows are checked against their facts.</b> Every figure in a row must appear in the facts it cites. When one does not, or the row cites no facts, the row’s wording is not shown: the screen shows the facts it cites instead, marked <b>Not verified</b>, and names the figure that failed. Meaning is not checked, only figures. A figure written out in words in a fact counts: “ninety-five thousand” supports 95,000, but “three and two” is not read as one number.</li>
     <li><b>Summaries follow your facts, not the RFP.</b> After you change a date, a row with the new date passes the check because the facts say so. The RFP’s wording stays visible on the Changes page and in each edited fact’s original value.</li>
   </ul>
   <p class="hint">Cost: a rebuild is one model call per section, roughly the size of the section’s facts. These calls are not part of a chat turn, so they do not appear in the Chat log or its costs.</p>
@@ -467,10 +474,10 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
   <div class="scroll"><table>
     <tr><th>Logged</th><th>What it holds</th></tr>
     <tr><td>Your message</td><td>The text.</td></tr>
-    <tr><td>Planning mode</td><td>Direct, light or heavy, chosen by whom (router, forced, fallback), how sure, and the Decisions API call’s tokens, time and cost.</td></tr>
-    <tr><td>Feedback on a plan</td><td>The plan you answered and how your reply was read (approve, revise, cancel, new request).</td></tr>
-    <tr><td>Plan</td><td>The steps or the one-line plan, ticked off as the turn goes; its status.</td></tr>
-    <tr><td>Each model call</td><td>What it was for (write the plan, a tool round, the final answer), which round, the tools it asked for with their arguments, input tokens, how many of them came from the cache, output tokens, seconds and estimated cost.</td></tr>
+    <tr><td>Planning mode</td><td>Direct, light or heavy, chosen by whom (router, forced, fallback), how sure, the probability of each mode (a bar each on the page, the model’s own pick marked, since a fallback can override it), the whole Decisions API response (folded), and the call’s tokens, time and cost.</td></tr>
+    <tr><td>Feedback on a plan</td><td>The plan you answered and how your reply was read (approve, revise, cancel, new request), with the probability of each reading and the raw response, as above.</td></tr>
+    <tr><td>Plan</td><td>The steps (with the topics each covers, for a light plan), ticked off as the turn goes; its status.</td></tr>
+    <tr><td>Each model call</td><td>What it was for (write the plan, a tool round, the final answer, the compose call with its reasoning effort), which round, the tools it asked for with their arguments, input tokens, how many of them came from the cache, output tokens, seconds and estimated cost.</td></tr>
     <tr><td>Each tool run</td><td>Name, arguments, whether it worked, a short result, seconds.</td></tr>
     <tr><td>Each check</td><td>Which facts a new or edited fact was compared with, the probability for each, and any conflict raised.</td></tr>
     <tr><td>The reply and the totals</td><td>Model calls, tool calls, Decisions API calls, tokens, time and estimated cost for the turn.</td></tr>
@@ -487,6 +494,7 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
     <tr><td>8 rounds of tools (16 in heavy mode) without a final answer</td><td>The model is told to stop looking things up and answer with what it found, saying plainly what it could not confirm. The tools are still sent, switched off, so the request still matches the cache.</td></tr>
     <tr><td>The planning-mode question fails</td><td>The message runs in direct mode, as the chat did before planning existed. When the answer is unsure, light mode is used.</td></tr>
     <tr><td>Your reply to a plan cannot be read with confidence</td><td>It is treated as “revise”: the plan is shown again, and nothing runs without a clear yes.</td></tr>
+    <tr><td>The compose call fails or writes nothing</td><td>The loop’s own last reply (the draft) is shown, and the failure is logged on the call.</td></tr>
     <tr><td>The contradiction check cannot run (no key, service error)</td><td>The fact is still added or edited; the result says the check was skipped.</td></tr>
     <tr><td>Writing the chat log fails</td><td>The chat goes on; the number of failed writes is noted at the end of the turn.</td></tr>
     <tr><td>The connection drops mid-reply</td><td>Your message was already saved. The panel keeps what arrived.</td></tr>
@@ -497,7 +505,8 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
   <h2 id="code">Where to find each part in the code</h2>
   <div class="scroll"><table>
     <tr><th>File</th><th>What it holds</th></tr>
-    <tr><td><code>src/fact_extractor/web/agent.py</code></td><td>The system prompt and the current-state note, the 13 tools, search ranking, the edit guard, history trimming, and the <code>chat()</code> loop</td></tr>
+    <tr><td><code>src/fact_extractor/web/agent.py</code></td><td>The system prompt, the answer-form reminder and the current-state note, the 13 tools, search ranking, the edit guard, history trimming, the compose call, <code>clean_blocks</code>, and the <code>chat()</code> loop</td></tr>
+    <tr><td><code>src/fact_extractor/web/points.py</code></td><td>A fact’s whole point (its list, linked facts, open conflicts) and where it comes from, for <code>search</code> and <code>get_fact</code></td></tr>
     <tr><td><code>src/fact_extractor/web/planning.py</code></td><td>Planning modes, the Decisions API router and the reader of your reply to a plan, the plan prompts</td></tr>
     <tr><td><code>src/fact_extractor/web/consistency.py</code></td><td>The contradiction check for added and edited facts, and the conflicts it raises</td></tr>
     <tr><td><code>src/fact_extractor/web/chatlog.py</code></td><td>The per-session turn log</td></tr>
@@ -505,7 +514,9 @@ pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); bo
     <tr><td><code>src/fact_extractor/web/server.py</code></td><td>The <code>/api/chat</code> endpoint that streams events; read and clear history; list, read and delete chat sessions</td></tr>
     <tr><td><code>src/fact_extractor/web/workspace.py</code></td><td>The corrections log, replay, conflicts, <code>chat.jsonl</code> and the session folders</td></tr>
     <tr><td><code>src/fact_extractor/web/summaries.py</code></td><td>Row summaries per section, decisions, stale detection, background rebuilds, and why a row is not verified</td></tr>
-    <tr><td><code>web/src/components/ChatPanel.tsx</code></td><td>The panel: sends the message, reads the stream, shows tool lines (with the query on hover) and conflict cards</td></tr>
+    <tr><td><code>web/src/components/ChatPanel.tsx</code></td><td>The panel: sends the message, reads the stream, shows tool lines (with the query on hover), conflict cards, plan cards and the buttons that answer a plan</td></tr>
+    <tr><td><code>web/src/chatBlocks.ts</code>, <code>web/src/components/chat/SourceSnippet.tsx</code>, <code>Timeline.tsx</code></td><td>Splits an answer into text, source and timeline blocks, and reads a plan into numbered steps</td></tr>
+    <tr><td><code>web/src/chatWidth.ts</code></td><td>The panel’s width: dragged from its left edge, 340 to 960 px, kept in the browser</td></tr>
     <tr><td><code>web/src/components/chat/Markdown.tsx</code></td><td>Renders the answer’s formatting and turns fact IDs into chips</td></tr>
     <tr><td><code>web/src/components/CitationChip.tsx</code></td><td>The fact chip used in the chat and on the Overview</td></tr>
     <tr><td><code>web/src/api.ts</code></td><td><code>streamChat</code>, which reads the server-sent events, and the chat session calls</td></tr>

@@ -70,6 +70,11 @@ are skipped, so it is also the everyday way to start it. Extra arguments go to
 `fact-extractor web`, e.g. `./start.sh --port 9000`. Node.js/npm is needed
 on top of the requirements above.
 
+For work on the code, `./start.sh --dev` skips the build and runs two servers: the
+Python server on port 8765 restarts itself when its code changes
+(`fact-extractor web --reload`), and the Vite dev server on
+http://localhost:5173 reloads the page when `web/src` changes. Open the second one.
+
 By hand:
 
 ```bash
@@ -95,6 +100,7 @@ Without the dev group, ask for what you need: `uv sync --extra evals`,
 | `FACT_EXTRACTOR_CHAT_PLANNING` | Chat workspace: `auto` (default; the Decisions API picks per message), `direct`, `light` or `heavy`. See WEB_UI_SPEC.md 7.1. |
 | `FACT_EXTRACTOR_CHAT_PLAN_APPROVAL` | Chat workspace: which planning modes show their plan and wait for the customer: `on` (light and heavy, default), `heavy`, `off`. |
 | `FACT_EXTRACTOR_DECISIONS_MODEL` | Model for the chat's Decisions API questions. Default `gpt-6-luna`. |
+| `FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT` | Chat workspace: reasoning effort of the call that writes the final reply after tool lookups: `low` (default), `medium`, `high`; `off` (or `none`, or empty) skips that call and keeps the loop's own reply. See WEB_UI_SPEC.md 7. |
 | `OPENAI_BASE_URL` | Optional proxy or compatible endpoint (read by the `openai` SDK). |
 | `LANGSMITH_API_KEY`, `LANGSMITH_TRACING` | Optional. Trace every LangChain call that the golden-dataset builder makes. |
 | `DEEPEVAL_TELEMETRY_OPT_OUT` | `1` in `.env.example`: turns off DeepEval's usage telemetry (see "DeepEval suite"). |
@@ -253,10 +259,30 @@ uv run fact-extractor web --runs runs      # http://127.0.0.1:8765
 
 It has eight pages: Documents, Overview (counts, key dates and one row summary per section), Facts
 (filters, grouping, CSV download, the cited PDF page), Conflicts, Changes, Report,
-Compare and Chat log (what each chat message cost and did). Documents replaces the old
-New run page. You start a bid, add its documents (RFP, addenda, call transcripts,
-deal notes), say what each one is, and extract. It asks for confirmation first,
-because it spends API tokens.
+Compare and Chat log (what each chat message cost and did, down to the router's
+probability for each planning mode). Documents replaces the old New run page
+(`#/new` still opens it). A new bid gets its own screen (a name, and files dropped in
+straight away); the bid's page then has three numbered steps: 1. Add documents,
+2. Check each document (RFP, addenda, call transcripts, deal notes: what each one is,
+and who spoke on a call), 3. Extract. It asks for confirmation first, because it spends
+API tokens, and shows its progress as a checklist: one line per finished document, the
+running document's steps ("Cut into units", "Label the units and build facts", "Link to
+earlier documents", ...) with a live clock.
+
+The Changes page is an activity feed: one line per change, what happened, from chat
+or the UI and when, with the removed and added words marked inside an edited fact, and a
+quiet Undo link.
+
+The chat panel on the right can be resized by dragging its left edge (340 to 960 px,
+kept in the browser; double-click resets it). Answers come as a sentence, then a table
+or a list when they hold three or more items; the model can also ask the interface to
+show a fact's source wording or a timeline of dates, both drawn from the stored facts,
+never from text the model writes. A question about a decision (price, bid or no-bid)
+looks up what drives it, not only the words of the question, and a turn that used tools
+has its final reply written by a second call with reasoning on. When the chat plans
+before it acts, the plan shows as a card of numbered steps with the topics each covers,
+and a plan waiting for approval has two buttons: "Yes, proceed" and "No, change the
+plan" (which opens the steps for editing).
 
 In a bid, the Facts page shows which document and level each fact comes from, dims
 facts a later document replaced ("Hide replaced" is on by default), lists the links
@@ -274,7 +300,12 @@ page.
   shows those facts. The extraction writes the first five; they start as "extraction"
   rows. A change to a fact in a section, or a decision on a conflict touching it, marks
   the section out of date and rebuilds it in the background. Contract and requirements
-  are written only when you ask (Generate or chat).
+  are written only when you ask (Generate or chat). The check of a row's figures reads
+  numbers written out in words too ("ninety-five thousand" supports "95,000").
+- In a bid, the chat sees a whole point, not one row: a search hit carries its source
+  document (and who spoke, on a call), the other rows of its list or table, the facts of
+  other documents linked to it and how, and any open conflict. It cites a bid's units as
+  `d<no>:<unit ID>`, and a fact it adds whose cited units cannot be found is refused.
 - Chat and summaries need `OPENAI_API_KEY`. Everything else works without it.
 - For frontend work: `npm --prefix web run dev` (port 5173, proxies `/api` to 8765).
 
@@ -305,12 +336,15 @@ uv run fact-extractor bid add ulster-county-actuarial add1.pdf --type change-add
 uv run fact-extractor bid speakers ulster-county-actuarial 3 "Dana Pike=buyer" "Tom Okafor=ours"
 uv run fact-extractor bid show ulster-county-actuarial            # issue order, what each still needs
 uv run fact-extractor bid run ulster-county-actuarial             # extract, relate, group, check, build
+uv run fact-extractor bid relate ulster-county-actuarial          # ask RELATE again for the units it left unanswered
 uv run fact-extractor bid eval ulster-county-actuarial key.json   # score against a hand-made key; no model call
 ```
 
 `bid add` prints what each file looks like and who suggested it (rules or the model); nothing is
 read until you confirm it (`--yes`). Without `OPENAI_API_KEY`, `bid run` builds the list from what
-is stored and records the cross-document checks as not done.
+is stored and records the cross-document checks as not done. A unit RELATE gave no usable
+answer for is asked again on its own: by `bid relate`, and at the end of every extraction from
+the web; the other units keep their stored answers.
 
 **What is stored where.** Each document keeps its own result under `runs/<doc_id>/<run_id>/`, as
 for a single RFP, and gains `units.json` (its units, with the speaker's side), and `relations.json`
@@ -518,6 +552,7 @@ Their thresholds are untested defaults. Compare them with the hand labels in
 | `score.py` | Recall against a reference list by source ID |
 | `golden.py` | Builds a reference list for an RFP with goldset (needs the `evals` extra) |
 | `evalsuite.py` | DeepEval test cases and metrics over `score.py` and `precision.py` |
+| `web/` (Python) and `web/` (frontend, repo root) | The chat workspace; module by module in WEB_UI_SPEC.md 3 |
 | `src/goldset/` | The golden-dataset builder, copied from another repo; its own CLI is `goldset` |
 
 `evals/` holds the DeepEval tests, `examples/goldset/` goldset's examples,
@@ -584,7 +619,7 @@ counts as the same code.
 
 **Development**
 
-- `uv run pytest` makes no network calls. It runs 395 tests, all offline;
+- `uv run pytest` makes no network calls. It runs 626 tests, all offline;
   goldset's pass on Python 3.11, 3.12 and 3.13.
 - `.env` holds a real key. `.gitignore` excludes it; confirm `git status` never
   lists `.env`.

@@ -1,6 +1,8 @@
 # Web UI spec: chat workspace for facts and summaries
 
-Status: built 2026-11-20. Checked live on one run: editing, undo, conflict choice, one summary section and its rebuild, chat corrections, a conflict raised by the agent. Libraries: FastAPI (backend), React +
+Status: built 2026-11-20; bids, the Documents page, whole-point chat search, the compose
+call, plan cards and the Changes feed added on `feature/multi-document-bid` (to 2026-11-23).
+Checked live on one run: editing, undo, conflict choice, one summary section and its rebuild, chat corrections, a conflict raised by the agent. Libraries: FastAPI (backend), React +
 TypeScript + Vite + React Spectrum (`@adobe/react-spectrum`) (frontend).
 
 This is the only UI of the package; it replaced the earlier Streamlit review app.
@@ -43,18 +45,24 @@ src/fact_extractor/web/__init__.py
 src/fact_extractor/web/runs.py        # find and load runs, document order, page rendering
 src/fact_extractor/web/workspace.py   # corrections, effective facts, conflicts; no FastAPI, no model
 src/fact_extractor/web/summaries.py   # sections, staleness, coverage, generation
-src/fact_extractor/web/agent.py       # chat agent: tools and the tool loop
-src/fact_extractor/web/server.py      # FastAPI app factory, routes, SSE
+src/fact_extractor/web/agent.py       # chat agent: tools, the tool loop, the compose call
+src/fact_extractor/web/planning.py    # chat planning: router, plan approval judge, plan prompts (7.1)
+src/fact_extractor/web/points.py      # a fact's whole point: its list, linked facts, conflicts (7)
+src/fact_extractor/web/consistency.py # checks added and edited facts against existing ones (7.3)
+src/fact_extractor/web/chatlog.py     # chat sessions and their event log (7.2)
+src/fact_extractor/web/pricing.py     # price table for the chat log's cost estimates
+src/fact_extractor/web/server.py      # FastAPI app factory, routes, SSE, background jobs
 src/fact_extractor/web/static/        # built frontend (git-ignored)
 web/                                  # frontend source (Vite project)
-tests/test_web_runs.py, test_web_workspace.py, test_web_summaries.py, test_web_agent.py, test_web_server.py
+tests/test_web_*.py                   # runs, workspace, summaries, agent, planning, points, bids, server
 ```
 
 - Optional extra `web = ["fastapi", "uvicorn"]`, also in the dev group (with `httpx`
   for the test client). The core package and its tests pass without it
   (`pytest.importorskip`).
-- `fact-extractor web [--runs FOLDER] [--port 8765]` starts uvicorn on 127.0.0.1 and
-  prints the URL. Missing extra: print the install command, exit 1.
+- `fact-extractor web [--runs FOLDER] [--port 8765] [--reload]` starts uvicorn on 127.0.0.1 and
+  prints the URL. Missing extra: print the install command, exit 1. `--reload` restarts the
+  server when its Python code changes; `./start.sh --dev` uses it, beside the Vite dev server.
 - `src/fact_extractor/web/runs.py` holds `find_runs`, `load_run`, `normalize`,
   `document_order` and `render_page` (no FastAPI, no model).
 
@@ -219,7 +227,10 @@ Section as returned by the API:
 - **Not verified**: a row whose wording has a figure (amount, date, number) that is not in the
   facts it cites, or that cites no facts, fails the figure check. Its wording is never shown:
   the screen shows the cited facts instead (or nothing), flagged "Not verified" with the
-  figures that failed (`unverified` on the row).
+  figures that failed (`unverified` on the row). Numbers written out in words in a cited
+  fact count (`normalize.py`): a run of number words is read whole ("ninety-five thousand"
+  supports 95,000; tens, units, hundred, thousand, million, billion, "and", "a"), but words
+  that only sit side by side ("three and two") are not joined into one number.
 - **Uncovered** ("in the facts, not in the summary"): the section's facts that no
   point cites, in document order. Empty when the section was never generated.
 - **Pin**: `pinned` fact IDs must appear in the summary. Pinning makes the section
@@ -280,8 +291,9 @@ Each event is one line `data: <json>` followed by a blank line.
 ```
 
 `plan` is sent only when planning is on (section 7.1): once when the mode is known, and
-again after each `update_plan` call. The frontend may ignore it; the plan and the
-approval question are also in the `text` deltas.
+again after each `update_plan` call. A light plan's event also carries `plan_text` and
+`plan_steps` (`[{"step", "covers": [topic]}]`). The plan and the approval question are
+also in the `text` deltas.
 
 Chat message:
 
@@ -289,7 +301,8 @@ Chat message:
 {"id": "m_1a2b3c4d", "role": "assistant", "at": "...", "text": "...",
  "tools": [{"name": "edit_fact", "label": "...", "ok": true}],
  "conflict_ids": ["k_1a2b3c4d"],
- "planning": {"mode": "light", "source": "router", "status": "awaiting_approval", "plan_text": "Plan: 1) ..."}}
+ "planning": {"mode": "light", "source": "router", "status": "awaiting_approval", "plan_text": "Plan:\n1. ...",
+              "plan_steps": [{"step": "...", "covers": ["..."]}]}}
 ```
 
 Every message also carries `session_id` and `turn_id` (7.2); a reply has the turn id of
@@ -297,6 +310,8 @@ the customer message it answers.
 
 `planning` is on assistant messages only when planning is on; it is the `plan` event's
 content at the end of the turn, and how the next turn finds a plan waiting for approval.
+A light plan keeps `plan_steps` there; an older message, or a planner reply that was not
+JSON, has only `plan_text`, and the frontend reads the steps from that text.
 
 The assistant refers to a fact as `[f_65ed2f51cf]` in its text; the frontend shows
 these as links that open the fact.
@@ -307,19 +322,44 @@ these as links that open the fact.
 tool calls (model from `FACT_EXTRACTOR_MODEL`, default `gpt-6-luna`; check the
 installed `openai` package for the exact streaming tool-call shapes). The model is
 behind a small protocol so tests use a scripted model and never call the API. At
-most 8 tool rounds per message; the last 20 chat messages are sent as history.
+most 8 tool rounds per message (16 in heavy planning). History is trimmed in blocks so the
+cached prefix stays the same from turn to turn: up to 40 stored messages are sent whole;
+past that the start jumps forward 20 at a time, and always lands on a customer message.
 
-The system prompt holds the rules of section 2, the category names, the counts per
-category and the number of open conflicts. Facts are not in the prompt; the agent
-reads them with tools.
+The system prompt holds the rules of section 2, the category names and flags, and the
+answer form (7.1b). It does not change while the workspace changes, so the API can cache
+it. The counts per category and the number of open conflicts come in a "Current state"
+message just before each customer message, together with a one-line reminder of the
+answer form. Facts are not in the prompt; the agent reads them with tools.
+
+Rules added for bids and advice questions:
+
+- A fact's `source` names its document and, on a call, the side that spoke. What a call or
+  our notes say about a document is attributed to them, not to the document. Every row of a
+  list or table the answer rests on is given. Linked facts that disagree, or an open
+  conflict, are reported with what each source says, and no side is picked.
+- **Drivers first.** For a question about what to consider for a decision (pricing, bid or
+  no-bid, staffing, risk, the schedule) the agent names the decision's drivers and looks up
+  each one, including facts filed under another topic that never use the question's words,
+  and says which drivers the documents are silent on. The prompt lists the drivers of a
+  price and of a bid/no-bid decision.
+
+**The compose call.** When a turn used tools, the loop's last reply (the one with no tool
+calls) is held back as a draft, and the reply is written again by one more call with the
+same messages plus an instruction (work out what the customer must decide, which facts
+bear on it, what the documents are silent on, which sources disagree; then the answer
+form), no tools, and reasoning effort `FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT` (default `low`;
+`off`, `none` or empty skip the step). That call is logged with purpose `compose`. If it
+fails or writes nothing, the draft is shown. A turn with no tool calls is not composed
+again. Text that comes with tool calls is streamed as before.
 
 | Tool | Does |
 | --- | --- |
-| `search(query?, queries?, section?, label?, category?, flag?, status?, edited?, limit=10)` | Word search over the labelled text of the whole document (`labels.json`) and the facts; each row's section heading is searched with it, since a section's sentences often do not repeat the topic of the heading. A hit is a fact row (`fact_id`, category, fact line, page, section; flags, status and `edited` only when set) or, for source text with no fact, a unit row (`unit_id`, label, `unit_text` cut at 400 characters); `votes` only when they disagreed. Ranked by the sum of the squared rarity (inverse frequency) of the query terms a row matches, so rare words outweigh common ones; rows under 25% of the best score are left out. `queries` runs up to 10 searches in one call under the same filters, at most 6 hits each. A row already returned in full earlier in the turn comes back as its ID with `sent_before`. `more` counts matches not shown; `section` (part of a heading) keeps only that section's rows |
-| `get_fact(fact_id? , fact_ids?)` | Full effective fact with cited source text and section and its original values; `fact_ids` reads up to 20 in one call; empty fields are left out |
+| `search(query?, queries?, section?, label?, category?, flag?, status?, edited?, limit=10)` | Word search over the labelled text of the whole document (`labels.json`) and the facts; each row's section heading is searched with it, since a section's sentences often do not repeat the topic of the heading. A hit is a fact row (`fact_id`, category, fact line, page, section; flags, status and `edited` only when set) or, for source text with no fact, a unit row (`unit_id`, label, `unit_text` cut at 400 characters); `votes` only when they disagreed. Ranked by the sum of the squared rarity (inverse frequency) of the query terms a row matches, so rare words outweigh common ones; rows under 25% of the best score are left out. `queries` runs up to 10 searches in one call under the same filters, at most 6 hits each. A row already returned in full earlier in the turn comes back as its ID with `sent_before`. `more` counts matches not shown; `section` (part of a heading) returns that whole section in document order, up to 50 rows, whatever the query. **A fact hit is its whole point** (`points.py`): in a bid it carries `source` (document, type and, on a call, the speaking side), `replaced` and `stale` when set; and in any run `list` or `same` (the group's title and its other members), `linked` (facts of other documents joined to it by a relation that stands, one hop, with the relation in words such as "replaced by" or "disagrees with"; disagreements and replacements first, at most 12, then `more_linked`) and `conflicts` (open conflicts naming it). The facts inside a hit are not hits of their own, and count as sent this turn |
+| `get_fact(fact_id? , fact_ids?)` | Full effective fact with cited source text and section and its original values, plus its `source` and point as in `search`; `fact_ids` reads up to 20 in one call; empty fields are left out. In a bid a citation's `id` is `d<no>:<unit ID>`, the form `add_fact` takes |
 | `edit_fact(fact_id, text?, category?, flags?, note?, reason, values_removed?)` | Correction of a fact that is wrong. A new text that drops more figures (amounts, dates, numbers) than it adds is refused unless `values_removed` is true |
 | `delete_fact(fact_id, reason)` | Correction |
-| `add_fact(category, text, flags?, citation_ids?, note?)` | New customer fact: something the extraction missed, or new information from the buyer (a clarification or update), cited to the related source unit. New information never rewrites an extracted fact. The new fact is checked for contradictions (7.3) |
+| `add_fact(category, text, flags?, citation_ids?, note?)` | New customer fact: something the extraction missed, or new information from the buyer (a clarification or update), cited to the related source unit. New information never rewrites an extracted fact. The new fact is checked for contradictions (7.3). A fact whose `citation_ids` all fail to resolve is refused (400 on `POST /facts`), with a hint in a bid to cite as `d<no>:<unit ID>`; some unknown IDs among found ones still go to `unresolved_ids` |
 | `restore_fact(fact_id)` | Back to the extracted value |
 | `list_conflicts(status?)` | Conflicts with their options |
 | `raise_conflict(title, description, fact_ids, options)` | Record a conflict for the customer to choose; use when a correction could apply to several facts in ways that differ, or facts disagree |
@@ -340,13 +380,15 @@ There are three modes, so each can be measured against the others:
 | Mode | What happens |
 | --- | --- |
 | `direct` | The plain tool loop above: the model decides one round at a time. |
-| `light` | The model writes its steps in one line (`Plan: 1) ... 2) ...`) and follows them. |
+| `light` | A planning call with no tools answers JSON only: `{"steps": [{"step", "covers": [topic]}]}`, 1 to 5 short steps, each with the topics it looks at. They are stored as `plan_steps`; the history and the approval judge read them as numbered lines (`Plan:` then `1. step (covers: a, b)`). A reply that is not JSON is kept as written text. |
 | `heavy` | A planning call with no tools writes the steps as JSON. The loop carries them out with an extra tool, `update_plan(done?, revise?)`, that ticks steps off or replaces the ones not yet done, and gets 16 tool rounds, not 8. |
 
 **Which mode.** `FACT_EXTRACTOR_CHAT_PLANNING`: `auto` (default) asks the OpenAI Decisions
 API one `Choice` question (`direct` / `light` / `heavy`, judged by the work the message
 needs) over the last 6 chat messages, the workspace counts and the new message. A pick
-below confidence 0.6 runs `light`; a failed call runs `direct`. `direct` (or `off`),
+below confidence 0.6 runs `light`, except just under the cut-off: at confidence 0.5 or
+more, a pick that holds at least 0.60 of the probability and leads every other mode by
+0.25 stands (the route's `note` says so). A failed call runs `direct`. `direct` (or `off`),
 `light` and `heavy` force one mode for every message (the baselines).
 `FACT_EXTRACTOR_DECISIONS_MODEL` sets the Decisions model (default `gpt-6-luna`).
 
@@ -364,12 +406,15 @@ having changed nothing. The customer's next message is judged by a second Decisi
 | `new_request` | The plan is dropped and the message is routed like any other. |
 
 Anything but a confident `approve` counts as `revise`, so no plan runs without a clear yes.
+The near-cut-off rule of the router does not apply here. The chat panel offers the usual
+answers as buttons under a waiting plan (section 8), each of which sends an ordinary
+message that this judge reads.
 Without an approval mode, `light` plans inline in the loop and `heavy` shows its steps and
 carries them out in the same turn.
 
 ### 7.1b Answer formats
 
-The system prompt asks for the form that serves the answer: plain sentences first, a table to compare facts on the same attributes (Source column with fact IDs), a list for parallel items, `[[source:FACT_ID]]` on its own line to show the wording a fact rests on (at most three), and `[[timeline:ID,ID,...]]` on its own line when the answer is mostly dates (2 to 12 IDs). The model only chooses facts; the frontend (`chatBlocks.ts`, `SourceSnippet`, `Timeline`) draws the quote, speaker, page and dates from the stored facts, and the timeline rows come from `GET /timeline`. Before an assistant message is stored, `agent.clean_blocks` drops block lines naming facts the run does not have (a timeline left with fewer than two facts is dropped); streamed deltas are not changed, and the frontend holds back an unfinished `[[` line while streaming.
+The system prompt ends with a section "How to write the answer": line 1 answers in one sentence; then the model counts the items. One or two: sentences. Three or more that share details: a Markdown table, one row per item, last column "Source" with fact IDs (the prompt shows the shape). Three or more with one detail each, or parts or steps in order: a list, numbered when order matters. An outline, a set of requirements or terms is never a paragraph. The same rule, plus "name the source of anything not from the buyer's own document" and "give every row of a list or table you rely on", travels as a one-line reminder in the state message before each customer message, because the chat model runs without reasoning and did not apply a rule that sat only in the long prompt. The answer may also hold `[[source:FACT_ID]]` on its own line to show the wording a fact rests on (at most three), and `[[timeline:ID,ID,...]]` on its own line when the answer is mostly dates (2 to 12 IDs). The model only chooses facts; the frontend (`chatBlocks.ts`, `SourceSnippet`, `Timeline`) draws the quote, speaker, page and dates from the stored facts, and the timeline rows come from `GET /timeline`. Before an assistant message is stored, `agent.clean_blocks` gives a marker written inside a sentence a line of its own, and drops block lines naming facts the run does not have (a timeline keeps at most 12 known IDs and is dropped with fewer than two); the frontend splits such a marker onto its own line as well; streamed deltas are not changed, and the frontend holds back an unfinished `[[` line while streaming.
 
 ### 7.2 Chat sessions and their log
 
@@ -383,10 +428,10 @@ session). Clearing the chat ends the session but keeps its folder. Each event ha
 | Event | Fields |
 | --- | --- |
 | `user_message` | `text` |
-| `feedback` | the plan shown, `verdict`, `source`, `confidence`, `note`, and `call` (the Decisions call: `model`, `input_tokens`, `seconds`, `error`) |
+| `feedback` | the plan shown, `verdict`, `source`, `confidence`, `probabilities` (per verdict), `note`, and `call` (the Decisions call: `model`, `input_tokens`, `seconds`, `error`, and `response`, the whole Decisions response with every label's probability and the request id) |
 | `route` | `mode`, `source`, `confidence`, `probabilities`, `note`, `call` as above |
-| `plan` | the plan record (`steps` or `plan_text`, `status`); again after each `update_plan` |
-| `llm_call` | `purpose` (`plan_heavy`, `plan_light`, `loop`, `final`), `round`, `messages`, `tools_offered`, `tools_allowed`, `tool_calls` (name and clipped arguments), `text_chars`, `input_tokens`, `cached_tokens`, `output_tokens`, `seconds`, `error` |
+| `plan` | the plan record (`steps`, `plan_text` or `plan_steps`, `status`); again after each `update_plan` |
+| `llm_call` | `purpose` (`plan_heavy`, `plan_light`, `loop`, `final`, `compose`; a compose call also has `compose: true`, `effort` and, when it failed, `compose_error`), `round`, `messages`, `tools_offered`, `tools_allowed`, `tool_calls` (name and clipped arguments), `text_chars`, `input_tokens`, `cached_tokens`, `output_tokens`, `seconds`, `error` |
 | `tool` | `name`, `round`, `args`, `ok`, `summary`, `seconds` |
 | `consistency_check` | `fact_id`, `checked_against`, `findings` (fact ID and probability each), `conflicts_raised`, `skipped`, `call` (the Decisions call) |
 | `assistant_message` | `text`, `tools` (count), `conflict_ids`, `planning` |
@@ -457,13 +502,19 @@ One screen:
   - **Conflicts**: one card per conflict, open first. Title, description, the options
     as a radio group with their text and page, a text field for a custom answer, and
     "Use this choice". Resolved conflicts show the choice and "Reopen".
-  - **Changes**: the correction log, newest first: what changed (before and after),
-    when, from chat or UI, and "Undo".
+  - **Changes**: the correction log, newest first, as an activity feed
+    (`changesView.ts`): one line per change with an icon, what happened, from chat or
+    UI and when, and a quiet "Undo" link. An added fact is quoted once with its category
+    name and page; an edit marks the removed and added words inside the sentence; a
+    deletion strikes the text through. An added fact whose citations could not be found
+    says so. No raw field dumps.
   - **Chat log** (`#/chatlog`, under Run): the chat sessions of the run (7.2), newest
     first; for the selected one, its totals (turns, LLM, tool and Decisions calls,
     input tokens and the cached share, output tokens, estimated cost) and each turn
     with its cost: the customer's
-    message, the feedback on a plan, the planning mode and why, the plan and its
+    message, the feedback on a plan, the planning mode and why (a bar per label with its
+    probability, the model's own pick marked, since a fallback can override it, and the
+    raw Decisions response in a collapsible), the plan and its
     status, a table of the LLM calls (purpose, round, tokens, time) with the tool runs
     each asked for under it, and the reply (folded). "Delete session" and "Delete all"
     remove session logs after a confirmation; when the current session goes, the
@@ -472,6 +523,19 @@ One screen:
   ones. Messages stream in. Tool steps show as small status lines. A conflict the
   agent raised shows inline as the same choice card as on the Conflicts page. Fact
   links open the fact. Starter prompts when the history is empty. "Clear chat".
+  - **Width**: dragging the panel's left edge resizes it (`chatWidth.ts`): 340 to 960
+    px, always leaving 320 px for the page, kept in the browser's local storage. The
+    handle also moves with the arrow keys; double-click resets it to 420 px.
+  - **Answer blocks** (`chatBlocks.ts`): Markdown tables and lists, `[[source:ID]]` as a
+    source snippet and `[[timeline:...]]` as a timeline (7.1b).
+  - **Plan card**: a plan message shows as a card of numbered steps, the topics a step
+    covers as tags under it, done steps ticked, and the approval question below a
+    divider; a waiting plan says so in the card's header. Steps come from `plan_steps`,
+    or are read from the plan text of older messages.
+  - **Answering a plan**: under a plan the assistant is waiting on, two buttons: "Yes,
+    proceed" (sends "Yes, go ahead.") and "No, change the plan", which opens the plan's
+    steps in a text box with "Send the changed plan" and "Drop the plan" (sends "No,
+    cancel that plan."). Typing a reply works as before.
 
 After a `changed` event or any write, the frontend reloads facts, conflicts,
 corrections and summaries. While summaries are `updating`, it polls
@@ -489,7 +553,13 @@ agent loop with a scripted model (edit, raise conflict, tool error, round limit)
 every route with FastAPI's test client, path escape in `run`, SSE format.
 
 Frontend: `npm run build` and `npx tsc --noEmit` pass; unit tests (vitest) for the
-API client's SSE parsing and for turning `[f_...]` tokens into links.
+API client's SSE parsing, turning `[f_...]` tokens into links, answer blocks and plan
+cards (`chatBlocks.test.ts`), the chat width, the Changes feed, the bid helpers and the
+bid views of facts and conflicts (`bid.test.ts`, `bidView.test.ts`).
+
+Backend tests added with bids: `test_web_bids.py` (routes and the process job),
+`test_web_points.py` (whole points), and planning cases for the near-cut-off router and the
+JSON light plan in `test_web_planning.py`.
 
 ## 10. Done when
 
@@ -556,14 +626,25 @@ confirmation.
   agreement figures, the per-category table, code differences, and the table of source
   IDs filed under different codes.
 - **Documents page** (replaces the New run page; `#/new` still opens it, and so does `#/documents`):
-  it sits first in the Review group. Pick a bid or start one, add its documents
+  it sits first in the Review group, and the run picker lists bids first. Starting a bid is a
+  screen of its own (`NewBidScreen`): a bid name and files that can be dropped in at once; Create
+  adds them. The bid's page then has three numbered steps: **1. Add documents** (drop zone, one
+  upload at a time), **2. Check each document** (the table, in issue order; the status pill sits
+  under the file name so the actions fit at 1280 px), **3. Extract** (hidden while the bid has no
+  documents). State lives in `bidFlow.ts` above the pages; pure helpers in `bid.ts`. Add its documents
   (PDF, spreadsheet, call transcript, deal notes), say what each one is (type, issue
   number and date; the proposal is marked "suggested"), confirm the speakers of a
   transcript (each is placed on the Buyer's side, Our side or Other party, such as an
   advisor or a subcontractor, with the organisation and title the call's header gives; a
   small model call proposes the side from the attendee list and the opening of the call,
   and "Suggest again" asks once more; the user confirms every side), list the team, set the order of precedence if the buyer gave one, see the
-  planned calls, tick "I understand this spends API tokens" and extract. The old
+  planned calls, tick "I understand this spends API tokens" and extract. While it runs,
+  progress is one checklist card: a pulsing dot and an elapsed clock; a finished document
+  folds to one line with a drawn check; the running document lists its steps, named for
+  what they do ("Cut into units", "Label the units and build facts", "Link to earlier
+  documents", "Save the result"; bid-wide "Group repeated points", "Check facts that
+  disagree", "Build the fact list"), reused ones marked. Motion stops under
+  `prefers-reduced-motion`. The old
   single-PDF routes in 11.1 still exist; the page no longer uses them. A bid
   with facts opens like a run (`_bids/<bid_id>`). Section 11.3 lists the routes.
 - **Header**: pages and PDF name beside the run; when the run has no PDF, a control
@@ -586,9 +667,9 @@ Routes (all under `/api`; errors are `{"detail"}` with 400, 404, 409 or 413):
 | `POST /bids/{bid}/documents/{no}/speakers/suggest` | none | the entry, with the model's new proposal for the speakers of an unconfirmed call; 400 without a key |
 | `PATCH /bids/{bid}/documents/{no}`, `DELETE ...` | `{doc_id?, playbook?, issue_number?, issue_date?, previous?, confirmed?, speakers?, speakers_confirmed?}` | the entry; `{ok}` |
 | `POST /bids/{bid}/plan` | `{votes?}` | planned calls per document; no model call |
-| `POST /bids/{bid}/process` | `{confirm: true, votes?, model?}` | `{job_id}`; `GET /extract/{job_id}` then lists `steps` per document |
-| `POST /relations/{rid}/reject?run=` | | `{ok, relation_id, rejected, facts}`. The relation leaves the facts. Undo it on the Changes page |
-| `POST /groups/{gid}/ungroup?run=` | | `{ok, group_id, ungrouped, facts}`. Undo it on the Changes page |
+| `POST /bids/{bid}/process` | `{confirm: true, votes?, model?}` | `{job_id}`; `GET /extract/{job_id}` then lists `steps` per document (`{doc_no, step, status, detail}`; steps `cut`, `extract`, `relate`, `save`, bid-wide `plan`, `group`, `pairs`, `build`). After the confirmed documents are read, every unit RELATE left without a usable answer is asked once more on its own (`Bid.incomplete_relations`), before the bid is settled and built |
+| `POST /relations/{rid}/reject?run=`, `POST /relations/{rid}/restore?run=` | | `{ok, relation_id, rejected, facts}`. The relation leaves the facts, or comes back. Reject is also undone on the Changes page |
+| `POST /groups/{gid}/ungroup?run=`, `POST /groups/{gid}/regroup?run=` | | `{ok, group_id, ungrouped, facts}`. Ungroup is also undone on the Changes page |
 | `GET /facts?run=` | | for a bid, also `documents: [{no, doc_id, file_name, playbook, level, visibility, issue_date, issue_number, has_pdf}]` |
 | `GET /facts/list`, `GET /facts.csv` | `docs=1,2`, `levels=1,4` | as before; the CSV also takes `audience=external` (internal citations left out, and a fact with none left) |
 | `GET /page?run=&page=&fact_id=&doc=` | | the page image of document `doc` (a doc ID) |
