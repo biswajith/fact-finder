@@ -517,7 +517,9 @@ def _fact_full(f: dict, state=None, documents: dict[int, dict] | None = None) ->
     out = {k: f[k] for k in _FACT_FIELDS if f.get(k) not in (None, "", [], {}, False)}
     if out.get("status") == "valid":
         del out["status"]
-    out["citations"] = [{k: c[k] for k in ("id", "page_label", "section", "text")} for c in f["citations"]]
+    # In a bid a unit is cited as d<no>:<unit ID> (workspace._BidAnchors), so add_fact can find it again.
+    out["citations"] = [{**{k: c[k] for k in ("id", "page_label", "section", "text")},
+                         **({"id": f"d{c['doc_no']}:{c['id']}"} if c.get("doc_no") else {})} for c in f["citations"]]
     if state is not None:
         documents = documents or {}
         source = PT.source_label(f, documents)
@@ -737,7 +739,7 @@ TOOLS: tuple[Tool, ...] = (
          _schema({"fact_id": _ID, "reason": _S}, ["fact_id", "reason"]), t_delete_fact, _FACTS, "Deleted fact {fact_id}"),
     Tool("add_fact", "Add a fact the customer states: something the extraction missed, or new information from the buyer (a clarification, an answer, an update) that does not make an existing fact wrong. Give citation_ids: the source unit IDs of the fact it relates to (from get_fact citations or search). The new fact is checked against the related existing facts, and a likely contradiction is raised as a conflict for the customer.",
          _schema({"category": _CATEGORY, "text": _S, "flags": _FLAGS, "note": _S,
-                  "citation_ids": {"type": "array", "items": _S, "description": "source unit IDs, from search"}},
+                  "citation_ids": {"type": "array", "items": _S, "description": "source unit IDs exactly as get_fact shows them (in a bid: d<no>:<unit>)"}},
                  ["category", "text"]), t_add_fact, _FACTS, "Added a fact"),
     Tool("restore_fact", "Bring a changed or deleted fact back to its extracted value.",
          _schema({"fact_id": _ID}, ["fact_id"]), t_restore_fact, _FACTS, "Restored fact {fact_id}"),

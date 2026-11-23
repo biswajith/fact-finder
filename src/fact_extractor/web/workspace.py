@@ -631,9 +631,29 @@ class Workspace:
             if "category" not in clean:
                 raise BadRequest(f"category must be one of {', '.join(CATEGORIES)}")
             clean["citation_ids"] = ids
+            unknown = self._unknown_citations(ids)
+            if ids and len(unknown) == len(ids):  # some may miss; a fact with no source found at all is refused
+                hint = " In a bid, cite a unit as d<no>:<unit ID>, as get_fact shows it." if self.is_bid() else ""
+                raise BadRequest(f"no source unit {', '.join(unknown)}.{hint}")
             fid = new_id("u_", 10)
             self._append([self._entry("add", source, fact_id=fid, fields=clean, reason=reason)])
             return self._fact(fid)
+
+    def _unknown_citations(self, ids: list[str]) -> list[str]:
+        """The citation IDs no source unit has. Empty when the run's units cannot be read, since
+        then nothing can be checked."""
+        if not ids:
+            return []
+        if self.is_bid():
+            if self._bid_anchors is None:
+                self._bid_anchors = SimpleNamespace(anchors=_BidAnchors(self.facts_path.parent))
+            anchors = self._bid_anchors.anchors
+        else:
+            doc = self.document()
+            if doc is None:
+                return []
+            anchors = doc.anchors
+        return [i for i in ids if anchors.get(i) is None]
 
     def restore(self, fact_id: str, source: str = "ui") -> dict:
         """Cancel every live entry on the fact except the one that created it."""

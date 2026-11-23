@@ -366,3 +366,27 @@ def test_bid_relate_asks_again_then_builds(tmp_path, monkeypatch, capsys):
     assert (bid.folder / "facts.json").is_file()
     assert cli.main(["bid", "relate", bid.bid_id, "--store", str(tmp_path)]) == 0
     assert "no unit is waiting for an answer" in capsys.readouterr().out
+
+
+async def test_a_fact_added_to_a_bid_with_no_findable_source_is_refused(tmp_path):
+    from fact_extractor.web.workspace import BadRequest
+
+    bid, store, client, saved, steps, rfp_no, add_no = await make_bid(tmp_path)
+    B.build(bid)
+    ws = Workspace(bid.folder / "facts.json")
+    with pytest.raises(BadRequest, match=r"d<no>:<unit ID>"):
+        ws.add({"category": "D", "text": "Proposals are due June 24", "citation_ids": ["p1.1"]})
+    assert ws.log() == []
+
+
+async def test_chat_sees_bid_citations_with_their_document(tmp_path):
+    from fact_extractor.web.agent import _fact_full
+
+    bid, store, client, saved, steps, rfp_no, add_no = await make_bid(tmp_path)
+    B.build(bid)
+    ws = Workspace(bid.folder / "facts.json")
+    f = next(x for x in ws.state().facts if x["citations"])
+    ids = [c["id"] for c in _fact_full(f)["citations"]]
+    assert ids[0] == f"d{f['citations'][0]['doc_no']}:{f['citations'][0]['id']}"
+    added = ws.add({"category": "D", "text": "Proposals are due June 24", "citation_ids": ids[:1]})
+    assert added["citations"] and not added["unresolved_ids"]
