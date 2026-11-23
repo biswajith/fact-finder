@@ -353,9 +353,17 @@ class Config:
 
 def chunks(doc: TaggedDocument, size: int) -> list[list[str]]:
     """Whole pages, in order, about `size` units per call."""
+    return chunk_ids(doc, list(doc.anchors), size)
+
+
+def chunk_ids(doc: TaggedDocument, ids: list[str], size: int) -> list[list[str]]:
+    """`chunks` over the given unit IDs only (in document order): whole pages of them, about `size` per call."""
+    want = set(ids)
     out: list[list[str]] = [[]]
     page = None
     for a in doc.anchors.values():
+        if a.id not in want:
+            continue
         if a.page != page and len(out[-1]) >= size:
             out.append([])
         page = a.page
@@ -541,6 +549,7 @@ class RunResult:
     labels: list[dict] = field(default_factory=list)  # every unit with its votes, coded or not
     held_refs: list[dict] = field(default_factory=list)  # {unit, text, rule}: section references held back for RELATE
     section_units: list[str] = field(default_factory=list)  # units with a reference to a section (candidates for RELATE)
+    alignment: dict = field(default_factory=dict)  # a reissue's `alignment.json`; empty for any other run
 
 
 class _Run:
@@ -651,17 +660,29 @@ class _Run:
 async def extract(
     doc: TaggedDocument, client: LLMClient, *, deal_id: str, cfg: Config | None = None, run_id: str | None = None,
     playbook: Playbook | None = None, hold_section_refs: bool = False,
+    only: list[str] | None = None, carried: dict[str, Voted] | None = None,
+    statements: dict[str, str] | None = None,
 ) -> RunResult:
     """`hold_section_refs`: a reference to a section that has no target in this document is not
     written as a Q fact but returned on `RunResult.held_refs`, for a document that points at
-    earlier documents (an addendum); RELATE answers for it later."""
+    earlier documents (an addendum); RELATE answers for it later.
+
+    `only` (a reissue): LABEL and STATE are asked about these unit IDs alone; the votes of the
+    other units are `carried`, and `statements` holds the statements already written for their
+    coded units. CHECK and XREF still read the whole document. With none of the three given
+    every unit is labelled and stated."""
     pb = playbook or _RFP
     cfg = cfg or Config()
     run_id = run_id or f"run_{datetime.now(timezone.utc):%Y_%m_%d}_{uuid.uuid4().hex[:6]}"
     run = _Run(doc, client, cfg, pb)
     units = list(doc.anchors)
-    label_parts = chunks(doc, cfg.units_per_label_call)
-    state_parts = chunks(doc, cfg.units_per_state_call) if cfg.statements and "STATE" in pb.calls else []
+    carried = carried or {}
+    if only is None:
+        label_parts = chunks(doc, cfg.units_per_label_call)
+        state_parts = chunks(doc, cfg.units_per_state_call) if cfg.statements and "STATE" in pb.calls else []
+    else:
+        label_parts = chunk_ids(doc, only, cfg.units_per_label_call)
+        state_parts = chunk_ids(doc, only, cfg.units_per_state_call) if cfg.statements and "STATE" in pb.calls else []
     t0 = time.monotonic()
 
     async def label(vote_no: int, k: int, ids: list[str], started: asyncio.Event | None = None) -> dict[str, Label]:
@@ -702,11 +723,12 @@ async def extract(
 
     # One call first, so the document is in the provider's cache before the rest are sent.
     started = asyncio.Event()
-    first = asyncio.create_task(label(1, 1, label_parts[0], started))
-    try:
-        await asyncio.wait_for(started.wait(), cfg.warmup_timeout)
-    except asyncio.TimeoutError:
-        pass
+    first = asyncio.create_task(label(1, 1, label_parts[0], started)) if label_parts else None
+    if first is not None:
+        try:
+            await asyncio.wait_for(started.wait(), cfg.warmup_timeout)
+        except asyncio.TimeoutError:
+            pass
     label_jobs = [
         (v, k, asyncio.create_task(label(v, k, ids)) if (v, k) != (1, 1) else first)
         for v in range(1, cfg.votes + 1) for k, ids in enumerate(label_parts, start=1)
@@ -717,7 +739,7 @@ async def extract(
     passes: list[dict[str, Label]] = [{} for _ in range(cfg.votes)]
     for v, _, job in label_jobs:
         passes[v - 1].update(await job)
-    statements: dict[str, str] = {}
+    statements = dict(statements or {})
     for job in state_jobs:
         statements.update(await job)
     q_lines = await check_job
@@ -729,7 +751,8 @@ async def extract(
                 for p in xres.problems if p not in keep_p]
         xres.problems = keep_p
 
-    voted = vote(passes, units, pb)
+    fresh = vote(passes, [u for u in units if u not in carried], pb)
+    voted = {u: carried[u] if u in carried else fresh[u] for u in units}
     groups = group(voted, units, pb)
     records = to_records(groups, doc, statements, deal_id, run_id, pb)
     first_round = time.monotonic() - t0

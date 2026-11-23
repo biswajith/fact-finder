@@ -29,7 +29,7 @@ from datetime import date as _date
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import classify, cutters, ladder, playbooks, relate, results
+from . import classify, cutters, ladder, playbooks, relate, reissue, results
 
 BIDS = "_bids"
 SIDES = ("buyer", "ours", "unknown")
@@ -535,6 +535,19 @@ async def _relate_stored(bid: Bid, no: int, pb: playbooks.Playbook, found: resul
     return found
 
 
+def _previous_result(bid: Bid, d: dict, pb: playbooks.Playbook) -> results.Stored | None:
+    """The stored result of the version a reissued RFP replaces; None for any other document, or when
+    that version is not extracted."""
+    if pb.name != "reissued-rfp" or not d.get("previous"):
+        return None
+    old = next((o for o in bid.manifest()["documents"] if o["doc_id"] == d["previous"]), None)
+    if old is None or not old.get("run"):
+        return None
+    folder = bid.root / old["run"]
+    meta = _read(folder / "meta.json", None)
+    return results.Stored(folder, meta) if meta and (folder / "facts.json").is_file() else None
+
+
 async def extract_document(
     bid: Bid, no: int, client, *, votes: int | None = None, store: results.ResultStore,
     on_step: Step | None = None, cfg=None, relate_only: bool = False,
@@ -593,10 +606,16 @@ async def extract_document(
         say("cut", "done", f"{len(tagged.anchors)} units")
         say("extract", "running")
         cfg = dataclasses.replace(cfg or U.Config(votes=pb.votes), votes=votes or (cfg.votes if cfg else pb.votes))
-        result = await U.extract(
-            tagged, client, deal_id=bid.manifest()["deal_id"], cfg=cfg, run_id=runs.new_run_id(), playbook=pb,
-            hold_section_refs="RELATE" in pb.calls,
-        )
+        before = _previous_result(bid, d, pb)
+        if before is not None:  # a reissued RFP: units that align to the previous version keep its votes
+            result = await reissue.extract(
+                tagged, before, client, pb, cfg, deal_id=bid.manifest()["deal_id"], run_id=runs.new_run_id(),
+            )
+        else:
+            result = await U.extract(
+                tagged, client, deal_id=bid.manifest()["deal_id"], cfg=cfg, run_id=runs.new_run_id(), playbook=pb,
+                hold_section_refs="RELATE" in pb.calls,
+            )
         for r in result.facts:
             apply_levels(r, pb)
         say("extract", "done", f"{len(result.facts)} facts")
@@ -614,6 +633,8 @@ async def extract_document(
         )
         if rel is not None:
             _write_json(saved.folder / "relations.json", rel)
+        if result.alignment:
+            _write_json(saved.folder / "alignment.json", result.alignment)
         mark(run=_run_path(saved), status="extracted", error="")
         say("save", "done")
         return saved
@@ -650,6 +671,37 @@ def _stamp(bid: Bid, manifest: dict, records: Records, out: dict) -> Records:
     return records
 
 
+def _apply_reissues(bid: Bid, manifest: dict, records: Records, out: dict) -> Records:
+    """The facts of a version that a reissued RFP replaces leave the current list: the ones the
+    reissue carried are dropped (their counterpart in the new version continues), the rest stay,
+    flagged `replaced`, with `stale` saying why. Reads each reissue's `alignment.json`.
+    The report's `reissues` lists the changed, new and removed unit counts."""
+    carried: dict[str, set[str]] = {}
+    for d in issue_order(manifest):
+        if d.get("playbook") != "reissued-rfp" or not d.get("run") or not d.get("previous"):
+            continue
+        a = reissue.read_alignment(bid.root / d["run"])
+        if a:
+            carried.setdefault(d["previous"], set()).update((a.get("facts") or {}).keys())
+            out.setdefault("reissues", []).append({
+                "doc_no": d["no"], "doc_id": d["doc_id"], "previous": d["previous"], "changed": len(a.get("changed") or []),
+                "new": len(a.get("new") or []), "removed": len(a.get("removed") or []), "carried_facts": len(a.get("facts") or {}),
+            })
+    if not carried:
+        return records
+    kept = []
+    for r in records:
+        gone = carried.get(r["doc_id"])
+        if gone is None:
+            kept.append(r)
+        elif r["fact_id"] not in gone:
+            if "replaced" not in r["flags"]:
+                r["flags"] = [*r["flags"], "replaced"]
+            r["replaced_by"], r["stale"] = "", "not in the reissued RFP"
+            kept.append(r)
+    return kept
+
+
 def _apply_relations(bid: Bid, manifest: dict, records: Records, out: dict) -> Records:
     """Apply every document's stored relations in issue order (`ladder.apply`). Reads the user's
     correction log for two things only: the relations the user rejected and the facts the user
@@ -672,7 +724,8 @@ def _apply_relations(bid: Bid, manifest: dict, records: Records, out: dict) -> R
         ]
     live = live_entries(read_jsonl(bid.folder / "workspace" / "corrections.jsonl"))
     rejected = {(e.get("fields") or {}).get("relation_id") for e in live if e.get("op") == "reject_relation"}
-    edited = {e["fact_id"] for e in live if e.get("op") == "edit" and not e.get("conflict_id")}
+    ids = reissue.bid_map(bid.folder)  # a user edit on a fact of an older version belongs to its carried counterpart
+    edited = {ids.get(e["fact_id"], e["fact_id"]) for e in live if e.get("op") == "edit" and not e.get("conflict_id")}
     applied = ladder.apply(
         docs, by_doc, rels, rejected, manifest.get("precedence"), units_by_doc=units, edited=edited,
     )
@@ -705,7 +758,7 @@ def _apply_pairs(bid: Bid, manifest: dict, records: Records, out: dict) -> Recor
 
 
 # later packages add their steps here, in order
-FACT_STEPS: list[FactStep] = [_stamp, _apply_relations, _apply_groups, _apply_pairs]
+FACT_STEPS: list[FactStep] = [_stamp, _apply_reissues, _apply_relations, _apply_groups, _apply_pairs]
 
 
 def build(bid: Bid) -> Records:
@@ -750,6 +803,8 @@ def build(bid: Bid) -> Records:
             "bid_id": bid.bid_id, "documents": parts, "facts": len(records), "pages": pages,
             "doc_id": bid.bid_id, "run_id": "bid", "summaries": summaries,
         }
+        if out.get("reissues"):
+            report["reissues"] = out["reissues"]
         _write_json(bid.folder / "report.json", report)
         _write_json(bid.folder / "conflicts.json", out["conflicts"])
         _write_json(bid.folder / "facts.json", records)

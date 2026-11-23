@@ -580,8 +580,17 @@ class Workspace:
                     doc = self._bid_anchors
                 elif needs_doc:
                     doc = self.document()
+                if self.is_bid():
+                    log = self._follow_reissues(log)
                 self._state, self._state_key = replay(run.records, log, doc, derived), key
             return self._state
+
+    def _follow_reissues(self, log: list[dict]) -> list[dict]:
+        """The log with the fact IDs of older versions of a reissued RFP sent through the bid's merged
+        old-to-new map, so corrections follow the carried fact. The log file is not changed."""
+        from ..reissue import bid_map, map_log
+
+        return map_log(log, bid_map(self.facts_path.parent))
 
     def _entry(self, op: str, source: str, **kw) -> dict:
         if source not in ("chat", "ui", "document"):
