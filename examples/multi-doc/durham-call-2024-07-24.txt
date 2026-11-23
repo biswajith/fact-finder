@@ -1,0 +1,97 @@
+Meeting: RFP #24-0031 Oracle ERP Implementation Partner - short-list briefing
+Date: Wednesday, July 24, 2024, 2:00 PM - 2:05 PM ET
+Platform: Zoom, recorded by Gong
+Readable source of durham-call-2024-07-24.gong.json, which to_gong.py builds from this file.
+Attendees:
+  Marco Delgado - Info-Tech Research Group, Advisory Director (the City's selection advisor)
+  Renee Caldwell - City of Durham, ERP Program Manager
+  Kevin Osei - City of Durham, Water Management, Customer Billing Services
+  Nadia Brooks - Corvane Consulting, Engagement Partner
+  Sam Whitfield - Corvane Consulting, Bid Manager
+  +1 919 555 0187 (joined by phone)
+
+[00:00:03] Marco Delgado: Good afternoon, everyone. Congratulations again on the short-list. Just so it's on the record, Info-Tech set this call up, so this is the sanctioned channel. Please keep going through me for anything else.
+
+[00:00:14] Sam Whitfield: Understood, thanks Marco. And thanks for having us.
+
+[00:00:18] Marco Delgado: Renee, do you want to cover the presentations first?
+
+[00:00:21] Renee Caldwell: Sure. The partner presentations will be the week of September 16th. Each one is three hours, in person at City Hall. We'll send the agenda about two weeks ahead.
+
+[00:00:32] Nadia Brooks: Three hours including the demo portion?
+
+[00:00:35] Renee Caldwell: Including everything. Plan on ninety minutes of scripted scenarios, the rest is your approach and Q and A.
+
+[00:00:42] Marco Delgado: And the refined pricing is due one week before your presentation slot. Same pricing template, updated.
+
+[00:00:49] Sam Whitfield: On pricing, can we hold our numbers for ninety days? Our standard validity is ninety.
+
+[00:00:55] Marco Delgado: The RFP asks for a hundred and eighty days from the due date. I'd keep it at that.
+
+[00:01:00] Sam Whitfield: Okay, a hundred and eighty it is.
+
+[00:01:03] Nadia Brooks: Can I ask about phasing? The RFP leaves the approach to us. Do you have a preference?
+
+[00:01:09] Renee Caldwell: We do, honestly. Finance and procurement first, then HR and payroll, then utility billing last. We want payroll to go live on a January first, so the tax year is clean. January 2026 if that's realistic.
+
+[00:01:22] Nadia Brooks: That's useful. We'd propose phased anyway.
+
+[00:01:26] Kevin Osei: For utility billing, just so you can size it, we have about ninety-five thousand customer accounts. Monthly billing, mostly water and sewer, some stormwater.
+
+[00:01:36] Nadia Brooks: And how many staff will work in the billing system day to day?
+
+[00:01:40] Kevin Osei: The table in the RFP says forty full users. It's closer to sixty now, we added a call center team in the spring.
+
+[00:01:48] Sam Whitfield: Sixty full users for Meter to Cash. Got it.
+
+[00:01:51] Marco Delgado: Kevin, the RFP table stands unless we issue something in writing. Proponents, price to the RFP and note the difference as an assumption.
+
+[00:02:00] Kevin Osei: Fair, yes. Go by the table.
+
+[00:02:03] Sam Whitfield: On data migration, how much history do you want brought over from Munis?
+
+[00:02:08] Renee Caldwell: Seven years of financial history. Open items and balances for everything else.
+
+[00:02:14] Renee Caldwell: And Kronos is being retired. Oracle Time and Labor replaces it, so plan for that cutover.
+
+[00:02:20] Sam Whitfield: Thanks. A paperwork question. Section 3.15 says Attachment A is the EBOP form, but the list in 3.17 calls the workforce diversity form Attachment A and EBOP Attachment B. Which is right?
+
+[00:02:33] Marco Delgado: 3.15 is right. Attachment A is EBOP. The diversity questionnaire is the online form. We'll put that in the meeting notes we send to all short-listed firms.
+
+[00:02:43] Sam Whitfield: Great, thank you.
+
+[00:02:45] Nadia Brooks: On the contract. The thirty-day termination for convenience is tough for a multi-year implementation. We'd want ninety days.
+
+[00:02:53] Renee Caldwell: That's standard City language. I wouldn't count on it moving.
+
+[00:02:57] Marco Delgado: You can raise it as an exception in negotiation. The RFP does let the City negotiate terms.
+
+[00:03:03] Nadia Brooks: We'll list it as an exception, then.
+
+[00:03:06] Renee Caldwell: On the term itself, it's three years with two one-year options. Realistically we expect to use both options.
+
+[00:03:13] Sam Whitfield: Insurance. Do you need cyber liability? It isn't in section 3.8.
+
+[00:03:18] +1 919 555 0187: Sorry, this is Lauren from Budget and Management Services, I'm on my phone. Risk Management will probably ask for cyber at five million. Don't quote me, it isn't final.
+
+[00:03:27] Marco Delgado: If that becomes a requirement it'll come in writing. Price to 3.8 for now.
+
+[00:03:32] Sam Whitfield: Understood.
+
+[00:03:34] Sam Whitfield: One more. The livable wage in 3.13 is seventeen sixty through June 2023. What's the current rate?
+
+[00:03:41] Renee Caldwell: That figure's out of date, it's been reset since. Purchasing can give you the current number.
+
+[00:03:47] Marco Delgado: Send that one to me and I'll get the rate from Purchasing.
+
+[00:03:51] Renee Caldwell: References. We'll call them in August, so have contact names ready when we ask.
+
+[00:03:57] Nadia Brooks: Will do. We've done Oracle for two North Carolina municipalities in the hundred to five hundred thousand range, so we'll lead with those.
+
+[00:04:05] Renee Caldwell: Good, that's the mandatory one.
+
+[00:04:08] Marco Delgado: Last thing from me. The presentations are recorded, so assume anything you say there is on the record.
+
+[00:04:14] Sam Whitfield: Noted. Thanks all.
+
+[00:04:16] Renee Caldwell: Thanks, see you in September.
