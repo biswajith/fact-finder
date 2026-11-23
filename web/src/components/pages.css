@@ -199,3 +199,5 @@
 .pg-newbid-files .grow { min-width: 0; }
 .pg-newbid-foot { max-width: 640px; margin: 12px auto 0; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 @media (max-width: 640px) { .pg-newbid { padding: 20px; margin-top: 12px; } }
+.pg-speaker-group { display: flex; flex-direction: column; gap: 10px; }
+.pg-speaker-org { margin-top: 4px; font-size: 12px; }

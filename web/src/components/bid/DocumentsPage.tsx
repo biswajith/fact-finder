@@ -78,7 +78,7 @@ export function DocumentsPage({ flow, status }: { flow: BidFlow; status: Status 
               {docs.length === 0 && flow.uploads.length === 0 ? (
                 <div className="pg-note">Add a document above to start.</div>
               ) : (
-                <DocumentsTable bid={bid} uploads={flow.uploads} onDismiss={flow.dismissUpload} onPatch={flow.patchDocument} onRemove={flow.removeDocument} />
+                <DocumentsTable bid={bid} uploads={flow.uploads} onDismiss={flow.dismissUpload} onPatch={flow.patchDocument} onSuggest={flow.suggestSpeakers} hasKey={!!status?.has_key} onRemove={flow.removeDocument} />
               )}
             </Step>
             {showTeam(bid) && (

@@ -430,7 +430,8 @@ export interface ExtractJob {
 // ---- Bids: many documents, one fact list (docs/multi-document-build-plan.md, "Web API as built") ----
 
 export type BidRole = 'base' | 'change' | 'context';
-export type SpeakerSide = 'buyer' | 'ours' | 'unknown' | '';
+/** `other`: a named party that is neither the buyer nor us (an advisor, a partner, a subcontractor). */
+export type SpeakerSide = 'buyer' | 'ours' | 'other' | 'unknown' | '';
 
 export interface BidPlaybook {
   name: string;
@@ -456,6 +457,11 @@ export interface BidSpeaker {
   side: SpeakerSide;
   proposed: SpeakerSide;
   why: string;
+  organisation?: string;
+  title?: string;
+  note?: string;
+  /** For an `other` party: whom they act for, "buyer", "ours" or "". */
+  acts_for?: string;
 }
 export type BidDocStatus = 'uploaded' | 'confirmed' | 'extracting' | 'extracted' | 'failed';
 export interface BidDocument {

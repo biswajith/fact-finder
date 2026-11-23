@@ -43,6 +43,16 @@ export function missingWords(missing: string[]): string {
   return `To do: ${text}.`;
 }
 
+/** A speaker's side as a reader says it: "Buyer", "Our side", "Other party"; empty for none or not decided. */
+export function sideLabel(side: string | null | undefined): string {
+  switch (side) {
+    case 'buyer': return 'Buyer';
+    case 'ours': return 'Our side';
+    case 'other': return 'Other party';
+    default: return '';
+  }
+}
+
 /** The bid's documents in issue order; a document the order does not name goes last, by number. */
 export function rowsInOrder(bid: Pick<Bid, 'documents' | 'order'>): BidDocument[] {
   const byId = new Map(bid.documents.map((d) => [d.doc_id, d]));

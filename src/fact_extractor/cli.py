@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--number", type=int, default=None, help="issue number, e.g. of an addendum")
     b.add_argument("--date", default=None, help="issue date YYYY-MM-DD")
     b.add_argument("--yes", action="store_true", help="confirm the type, number and date shown")
-    b = bsub.add_parser("speakers", help="show or set who is on which side in a call; NAME=buyer|ours|unknown")
+    b = bsub.add_parser("speakers", help="show or set who is on which side in a call; NAME=buyer|ours|other|unknown")
     b.add_argument("bid")
     b.add_argument("no", type=int)
     b.add_argument("sides", nargs="*", metavar="NAME=side")
@@ -289,6 +289,24 @@ def _web(args) -> int:
     return 0
 
 
+def _suggest_speakers(bid, doc: dict) -> dict:
+    """For a call with unconfirmed speakers: ask the model who is on which side, when a key is set.
+    Any failure leaves the rules' proposal."""
+    from . import playbooks
+    from .web import has_api_key
+
+    if doc["speakers"] and not doc["speakers_confirmed"] and playbooks.load(doc["playbook"]).cutter == "transcript" and has_api_key():
+        try:
+            from . import speakers
+            from .llm import OpenAIClient
+
+            got = asyncio.run(speakers.suggest(bid, doc["no"], OpenAIClient()))
+            return got or doc
+        except Exception:
+            pass
+    return doc
+
+
 def _bid(args) -> int:
     from . import bid as B
 
@@ -311,6 +329,7 @@ def _bid(args) -> int:
                     fields["confirmed"] = True
                 if fields:
                     doc = bid.update_document(doc["no"], **fields)
+                doc = _suggest_speakers(bid, doc)
             except (ValueError, OSError) as e:
                 print(f"{path}: {e}", file=sys.stderr)
                 code = 1
@@ -338,7 +357,8 @@ def _bid(args) -> int:
             print(e, file=sys.stderr)
             return 1
         for s in doc["speakers"]:
-            print(f"{s['name']}: {s['side'] or '-'} (proposed {s['proposed']}, {s['why']})")
+            org = f" [{s['organisation']}]" if s.get("organisation") else ""
+            print(f"{s['name']}{org}: {s['side'] or '-'} (proposed {s['proposed']}, {s['why']})")
         print("speakers confirmed" if doc["speakers_confirmed"] else "not confirmed: give NAME=side for the speakers")
         return 0
     if args.bid_cmd == "eval":

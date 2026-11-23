@@ -44,7 +44,7 @@ class Anchor:
     bbox: tuple[float, float, float, float] | None
     kind: Kind
     speaker: str = ""  # who said it (transcripts); "" elsewhere
-    side: str = ""  # "buyer", "ours", "unknown" or "" (not a spoken source)
+    side: str = ""  # "buyer", "ours", "other", "unknown" or "" (not a spoken source)
 
     def citation(self) -> dict:
         out = {

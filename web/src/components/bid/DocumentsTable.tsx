@@ -25,12 +25,14 @@ function Reads({ playbook }: { playbook: BidPlaybook | undefined }) {
   );
 }
 
-function Row({ doc, bid, onPatch, onRemove, onSpeakers }: {
+function Row({ doc, bid, onPatch, onRemove, onSpeakers, onSuggest, hasKey }: {
   doc: BidDocument;
   bid: Bid;
   onPatch: (no: number, body: BidDocumentPatch) => Promise<boolean>;
   onRemove: (no: number) => Promise<boolean>;
   onSpeakers: (no: number, speakers: { id: string; name: string; side: SpeakerSide }[]) => Promise<boolean>;
+  onSuggest: (no: number) => Promise<boolean>;
+  hasKey: boolean;
 }) {
   const known = (name: string) => bid.playbooks.some((p) => p.name === name);
   const [draft, setDraft] = useState<Draft>(() => ({
@@ -156,9 +158,10 @@ function Row({ doc, bid, onPatch, onRemove, onSpeakers }: {
           <td />
           <td colSpan={6}>
             <SpeakersPanel
-              key={doc.speakers.map((s) => `${s.id}|${s.name}|${s.side}|${s.proposed}`).join(';') + String(doc.speakers_confirmed)}
+              key={doc.speakers.map((s) => `${s.id}|${s.name}|${s.side}|${s.proposed}|${s.why}|${s.organisation ?? ''}`).join(';') + String(doc.speakers_confirmed)}
               doc={doc}
               onConfirm={(speakers) => onSpeakers(doc.no, speakers)}
+              onSuggest={hasKey ? () => onSuggest(doc.no) : undefined}
             />
           </td>
         </tr>
@@ -167,11 +170,13 @@ function Row({ doc, bid, onPatch, onRemove, onSpeakers }: {
   );
 }
 
-export function DocumentsTable({ bid, uploads, onDismiss, onPatch, onRemove }: {
+export function DocumentsTable({ bid, uploads, onDismiss, onPatch, onSuggest, hasKey, onRemove }: {
   bid: Bid;
   uploads: UploadItem[];
   onDismiss: (key: number) => void;
   onPatch: (no: number, body: BidDocumentPatch) => Promise<boolean>;
+  onSuggest: (no: number) => Promise<boolean>;
+  hasKey: boolean;
   onRemove: (no: number) => Promise<boolean>;
 }) {
   const rows = rowsInOrder(bid);
@@ -199,6 +204,8 @@ export function DocumentsTable({ bid, uploads, onDismiss, onPatch, onRemove }: {
                   onPatch={onPatch}
                   onRemove={onRemove}
                   onSpeakers={onSpeakers}
+                  onSuggest={onSuggest}
+                  hasKey={hasKey}
                 />
               ))}
               {uploads.map((u) => (

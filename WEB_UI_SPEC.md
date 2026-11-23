@@ -554,7 +554,10 @@ confirmation.
   it sits first in the Review group. Pick a bid or start one, add its documents
   (PDF, spreadsheet, call transcript, deal notes), say what each one is (type, issue
   number and date; the proposal is marked "suggested"), confirm the speakers of a
-  transcript, list the team, set the order of precedence if the buyer gave one, see the
+  transcript (each is placed on the Buyer's side, Our side or Other party, such as an
+  advisor or a subcontractor, with the organisation and title the call's header gives; a
+  small model call proposes the side from the attendee list and the opening of the call,
+  and "Suggest again" asks once more; the user confirms every side), list the team, set the order of precedence if the buyer gave one, see the
   planned calls, tick "I understand this spends API tokens" and extract. The old
   single-PDF routes in 11.1 still exist; the page no longer uses them. A bid
   with facts opens like a run (`_bids/<bid_id>`). Section 11.3 lists the routes.
@@ -575,6 +578,7 @@ Routes (all under `/api`; errors are `{"detail"}` with 400, 404, 409 or 413):
 | `GET /bids`, `POST /bids` | `{name, deal_id?}` | list of `{bid_id, name, run, documents, facts, modified}`; the new bid |
 | `GET /bids/{bid}`, `PATCH /bids/{bid}` | `{name?, team?, precedence?}` | the manifest plus `order` (doc IDs in issue order), `run` and `playbooks` |
 | `POST /bids/{bid}/documents?name=` | the raw file | the new document entry, with a proposed type, issue number and date |
+| `POST /bids/{bid}/documents/{no}/speakers/suggest` | none | the entry, with the model's new proposal for the speakers of an unconfirmed call; 400 without a key |
 | `PATCH /bids/{bid}/documents/{no}`, `DELETE ...` | `{doc_id?, playbook?, issue_number?, issue_date?, previous?, confirmed?, speakers?, speakers_confirmed?}` | the entry; `{ok}` |
 | `POST /bids/{bid}/plan` | `{votes?}` | planned calls per document; no model call |
 | `POST /bids/{bid}/process` | `{confirm: true, votes?, model?}` | `{job_id}`; `GET /extract/{job_id}` then lists `steps` per document |

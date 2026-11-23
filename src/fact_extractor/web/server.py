@@ -26,7 +26,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict
 
 from .. import bid as B
-from .. import classify, cutters, playbooks, results, stability
+from .. import classify, cutters, playbooks, results, speakers, stability
 from . import has_api_key, model_name
 from . import runs as R
 from .agent import ChatModel, OpenAIChatModel, chat, check_fact
@@ -281,14 +281,15 @@ def _has_pdf(facts_path: Path) -> bool:
 def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                summary_model: CompletionModel | None = None, extractor: Callable | None = None,
                chat_planning: Planning | None = None, checker: ConsistencyChecker | None = None,
-               classifier=None, bid_client=None) -> FastAPI:
+               classifier=None, bid_client=None, speaker_model=None) -> FastAPI:
     """Build the app. Models are injected by tests; otherwise the OpenAI-backed ones are created
     on first use, and a missing OPENAI_API_KEY shows up as a chat error or a section error.
     `extractor` replaces `runs.run_extraction` (the one call that spends tokens) in tests.
     `chat_planning` sets how each chat message is planned; with the real chat model and none
     given, it comes from FACT_EXTRACTOR_CHAT_PLANNING and _PLAN_APPROVAL. An injected chat model gets none unless passed.
     `classifier` (an LLMClient) answers CLASSIFY at upload to a bid; `bid_client` (an LLMClient) reads a bid's
-    documents when it is processed. Without them the OpenAI client is used, and only when a key is set."""
+    documents when it is processed; `speaker_model` (an LLMClient) places a call's speakers on a side, and
+    falls back to the client of CLASSIFY. Without them the OpenAI client is used, and only when a key is set."""
     root = Path(runs_folder)
     extract_fn = extractor or R.run_extraction
     app = FastAPI(title="fact-extractor web", docs_url=None, redoc_url=None)
@@ -769,14 +770,7 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
             doc = await asyncio.to_thread(bid.add_document, data, file_name)
         except ValueError as e:
             raise BadRequest(str(e)) from e
-        client = classifier
-        if client is None and has_api_key():
-            try:
-                from ..llm import OpenAIClient
-
-                client = OpenAIClient()
-            except Exception:
-                client = None
+        client = small_client(classifier)
         if client is not None:  # one small call; any failure leaves the rules' proposal
             try:
                 text = pdf_start(data) if file_name.lower().endswith(".pdf") else classify.first_text(
@@ -786,7 +780,45 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                     doc = await asyncio.to_thread(bid.set_proposal, doc["no"], got)
             except Exception:
                 pass
+        await suggest_speakers(bid, doc["no"], small_client(speaker_model or classifier))
         return entry(bid.document(doc["no"]))
+
+    def small_client(injected):
+        """The client for a small call: the injected one, else the OpenAI client when a key is set, else None."""
+        if injected is not None or not has_api_key():
+            return injected
+        try:
+            from ..llm import OpenAIClient
+
+            return OpenAIClient()
+        except Exception:
+            return None
+
+    async def suggest_speakers(bid: B.Bid, no: int, client) -> bool:
+        """Ask the model who is on which side of a call, when the document is an unconfirmed transcript.
+        Any failure leaves the rules' proposal."""
+        d = bid.document(no)
+        if client is None or d["speakers_confirmed"] or d.get("run") or playbooks.load(d["playbook"]).cutter != "transcript":
+            return False
+        try:
+            return await speakers.suggest(bid, no, client) is not None
+        except Exception:
+            return False
+
+    @app.post("/api/bids/{bid_id}/documents/{no}/speakers/suggest")
+    async def suggest_route(bid_id: str, no: int) -> dict:
+        bid = get_bid(bid_id)
+        client = small_client(speaker_model or classifier)
+        if client is None:
+            raise BadRequest("OPENAI_API_KEY is not set")
+        d = one_document(bid.document, no)
+        if playbooks.load(d["playbook"]).cutter != "transcript":
+            raise BadRequest("only a call transcript has speakers")
+        if d["speakers_confirmed"] or d.get("run"):
+            raise BadRequest("the speakers of this document are confirmed")
+        if not await suggest_speakers(bid, no, client):
+            raise BadRequest("the model gave no answer; try again")
+        return entry(bid.document(no))
 
     def one_document(fn, *args, **kw) -> dict:
         try:
@@ -803,7 +835,12 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         for key in ("doc_id", "playbook", "confirmed", "speakers", "speakers_confirmed"):
             if key in fields and fields[key] is None:
                 raise BadRequest(f"{key} must not be null")
-        return entry(one_document(bid.update_document, no, **fields))
+        before = one_document(bid.document, no)["playbook"]
+        doc = one_document(bid.update_document, no, **fields)
+        if doc["playbook"] != before and "speakers_model" not in doc:  # became a call: place its speakers
+            if await suggest_speakers(bid, no, small_client(speaker_model or classifier)):
+                doc = bid.document(no)
+        return entry(doc)
 
     @app.delete("/api/bids/{bid_id}/documents/{no}")
     async def delete_document(bid_id: str, no: int) -> dict:

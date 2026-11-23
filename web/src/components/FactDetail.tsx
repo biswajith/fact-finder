@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Content, Dialog, Divider, Heading, Item, Picker } from '@adobe/react-spectrum';
 import * as api from '../api';
+import { sideLabel } from '../bid';
 import { citeDoc, citeLabel, isInternal, relationLines, replacedState, useBidDocs } from '../bidDocs';
 import { useRun } from '../store';
 import type { Citation, Fact, FactPatch } from '../types';
@@ -202,7 +203,7 @@ function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
                 <blockquote key={citeKey(c)} className={`fx-quote${inBid && opened !== null && citeKey(opened) === citeKey(c) ? ' on' : ''}`}>
                   {inBid ? (
                     <div className="src">
-                      {citeLabel(c, docs)}{c.section ? ` · ${c.section}` : ''}{isInternal(c) ? ' · Internal' : ''}
+                      {citeLabel(c, docs)}{sideLabel(c.side) ? ` · ${sideLabel(c.side)}` : ''}{c.section ? ` · ${c.section}` : ''}{isInternal(c) ? ' · Internal' : ''}
                     </div>
                   ) : (
                     <div className="src">Page {c.page_label || c.page}{c.section ? ` · ${c.section}` : ''}</div>

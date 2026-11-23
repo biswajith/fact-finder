@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canConfirm, extractCount, levelLabel, missingWords, playbookLabel, rowsInOrder, stepsByDocument } from './bid';
+import { canConfirm, extractCount, levelLabel, missingWords, playbookLabel, rowsInOrder, sideLabel, stepsByDocument } from './bid';
 import type { BidDocument, BidPlan, JobStep } from './types';
 
 const doc = (no: number, over: Partial<BidDocument> = {}) =>
@@ -115,5 +115,12 @@ describe('showTeam and showPrecedence', () => {
   it('shows precedence only with two or more level 1 documents', () => {
     expect(showPrecedence(bidWith(['rfp', 'call-transcript']))).toBe(false);
     expect(showPrecedence(bidWith(['rfp', 'change-addendum', 'deal-notes']))).toBe(true);
+  });
+});
+
+describe('sideLabel', () => {
+  it('words the three sides and leaves an undecided one empty', () => {
+    expect(['buyer', 'ours', 'other'].map(sideLabel)).toEqual(['Buyer', 'Our side', 'Other party']);
+    expect([sideLabel('unknown'), sideLabel(''), sideLabel(undefined)]).toEqual(['', '', '']);
   });
 });

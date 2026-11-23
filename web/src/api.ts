@@ -111,6 +111,9 @@ export const uploadBidDocument = (bid: string, file: File) =>
   send<BidDocument>('POST', `/bids/${enc(bid)}/documents?${q({ name: file.name })}`, file, 'application/octet-stream');
 export const patchBidDocument = (bid: string, no: number, body: BidDocumentPatch) =>
   request<BidDocument>('PATCH', `/bids/${enc(bid)}/documents/${no}`, body);
+/** Ask the model again who is on which side of a call; the document entry comes back. */
+export const suggestBidSpeakers = (bid: string, no: number) =>
+  request<BidDocument>('POST', `/bids/${enc(bid)}/documents/${no}/speakers/suggest`, {});
 export const deleteBidDocument = (bid: string, no: number) =>
   request<{ ok: true }>('DELETE', `/bids/${enc(bid)}/documents/${no}`);
 export const planBid = (bid: string, votes?: number, signal?: AbortSignal) =>

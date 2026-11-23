@@ -98,8 +98,9 @@ def _turn_units(turns: list[tuple[str, str, str, str]]) -> list[SourceUnit]:
 def cut_transcript(data: bytes, name: str) -> tuple[list[SourceUnit], dict]:
     """A call transcript: a Gong export (JSON with `extensive` and `transcript`) or plain text with
     `[hh:mm:ss] Name: text` lines. Returns the units and the call's info
-    `{"title", "date", "speakers": [{"id", "name", "email", "title", "affiliation"}]}`; the
-    speakers are those who spoke, in order of first speech."""
+    `{"title", "date", "speakers": [{"id", "name", "email", "title", "affiliation", "organisation",
+    "note"}]}`; the speakers are those who spoke, in order of first speech. `organisation` is the email's
+    domain for a Gong party, and for plain text what the header's attendee list says."""
     text = data.decode("utf-8-sig", errors="replace")
     if name.lower().endswith(".json") or text.lstrip().startswith("{"):
         try:
@@ -138,9 +139,58 @@ def _cut_gong(obj: dict) -> tuple[list[SourceUnit], dict]:
         speakers.append({
             "id": sid, "name": speaker_name(sid), "email": p.get("emailAddress") or "",
             "title": p.get("title") or "", "affiliation": p.get("affiliation") or "",
+            "organisation": _domain(p.get("emailAddress") or ""), "note": "",
         })
     info = {"title": meta.get("title") or "", "date": str(meta.get("started") or "")[:10], "speakers": speakers}
     return _turn_units(turns), info
+
+
+def _domain(email: str) -> str:
+    """The part of an email address after `@`, as written; empty when there is none."""
+    return email.rpartition("@")[2].strip() if "@" in email else ""
+
+
+_NOTE = re.compile(r"\s*\(([^()]*)\)\s*$")
+
+
+def _attendee(line: str) -> dict | None:
+    """One attendee line of a plain-text header: `Name - Organisation, Title (note)`. Organisation,
+    title and note are each optional; a dial-in is a number, perhaps with a note. None for a line
+    that is not a person (a blank line or a label such as `Attendees:`)."""
+    line = line.strip().lstrip("-*\u2022 ").strip()
+    if not line or line.endswith(":"):
+        return None
+    note = ""
+    m = _NOTE.search(line)
+    if m:
+        note, line = m.group(1).strip(), line[: m.start()].strip()
+    name, sep, rest = line.partition(" - ")
+    name = name.strip()
+    if not name:
+        return None
+    if name.startswith("+"):
+        name = _phone(name)
+    organisation, _, title = rest.partition(",") if sep else ("", "", "")
+    return {"name": name, "organisation": organisation.strip(), "title": title.strip(), "note": note}
+
+
+def _attendees(header: list[str]) -> dict[str, dict]:
+    """The people the header lists after an `Attendees:` line (up to the next blank line or label), by name."""
+    out: dict[str, dict] = {}
+    inside = False
+    for raw in header:
+        line = raw.strip()
+        if re.match(r"^(attendees|participants)\s*:?\s*$", line, re.I):
+            inside = True
+            continue
+        if not inside:
+            continue
+        if not line or re.match(r"^[A-Za-z ]{2,20}:\s", line):
+            break
+        who = _attendee(line)
+        if who:
+            out.setdefault(who["name"].casefold(), who)
+    return out
 
 
 def _text_date(header: str) -> str:
@@ -174,10 +224,14 @@ def _cut_text(text: str) -> tuple[list[SourceUnit], dict]:
     title = next((h.split(":", 1)[1].strip() for h in header if h.lower().startswith(("meeting:", "title:"))), "")
     date_line = next((h for h in header if h.lower().startswith("date:")), head)
     seen: dict[str, None] = dict.fromkeys(t[0] for t in turns)
-    info = {
-        "title": title, "date": _text_date(date_line),
-        "speakers": [{"id": n, "name": n, "email": "", "title": "", "affiliation": ""} for n in seen],
-    }
+    listed = _attendees(header)
+
+    def person(n: str) -> dict:
+        who = listed.get(n.casefold()) or {}
+        return {"id": n, "name": n, "email": "", "title": who.get("title", ""), "affiliation": "",
+                "organisation": who.get("organisation", ""), "note": who.get("note", "")}
+
+    info = {"title": title, "date": _text_date(date_line), "speakers": [person(n) for n in seen]}
     return _turn_units([(t[0], t[1], "", t[2]) for t in turns if t[2].strip()]), info
 
 

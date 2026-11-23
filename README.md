@@ -291,6 +291,11 @@ date proposed for each (addenda need both), name your team (call speakers on the
 proposed as "ours"), confirm each call's speakers, then extract. It shows the planned calls and
 asks before spending tokens. The bid then opens like any run, with a document and a level on every fact.
 
+Each speaker of a call is placed on a side: the buyer's, ours, or another party (an advisor, a partner,
+a subcontractor). The proposal comes from the team list, then a small model call that reads the call's
+attendee list and opening (when an API key is set), then the buyer's facts and the call system's
+affiliation. The header's organisation and title are shown beside each name, and you confirm every side.
+
 **From the CLI** (`--store` is the runs folder, default `runs`):
 
 ```bash

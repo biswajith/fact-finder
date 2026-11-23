@@ -248,6 +248,20 @@ async def test_a_call_gets_levels_from_the_side_of_its_units(bid, tmp_path):
     assert {u["side"] for u in units_json} == {"buyer", "ours", "unknown"}
 
 
+async def test_another_party_gives_level_3_without_unclear_and_its_units_name_its_organisation(bid, tmp_path):
+    header = b"Attendees:\n  Dana Pike - Fenwick Advisory, Principal (the buyer's advisor)\n  Tom Okafor - Halvard, Bid Manager\n\n"
+    d = bid.add_document(header + CALL, "call.txt")
+    bid.update_document(d["no"], confirmed=True, speakers_confirmed=True, speakers=[
+        {"name": "Dana Pike", "side": "other"}, {"name": "Tom Okafor", "side": "ours"}, {"name": "+1 845-555-0142", "side": "other"}])
+    assert B.ready(bid.document(d["no"])) == []
+    saved = await B.extract_document(bid, d["no"], ScriptedClient(label_handler(RULES)), store=results.ResultStore(tmp_path), cfg=FAST)
+    budget = next(f for f in saved.facts() if f["source_text"] == "The budget is fixed at 90,000 dollars.")
+    assert budget["level"] == 3 and "unclear" not in budget["flags"]
+    assert [(c["speaker"], c["side"]) for c in budget["citations"]] == [("Dana Pike (Fenwick Advisory)", "other")]
+    phone = next(f for f in saved.facts() if f["source_text"] == "Maybe the budget grows.")
+    assert phone["level"] == 3 and "unclear" not in phone["flags"] and phone["citations"][0]["speaker"] == "+1 845-555-0142"
+
+
 def test_level_of_the_ours_only_fact_is_3():
     pb = playbooks.load("call-transcript")
     assert B.level_of(pb, ["ours"]) == (3, [])

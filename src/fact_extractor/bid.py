@@ -32,7 +32,7 @@ from pathlib import Path
 from . import classify, cutters, ladder, playbooks, relate, reissue, results
 
 BIDS = "_bids"
-SIDES = ("buyer", "ours", "unknown")
+SIDES = ("buyer", "ours", "other", "unknown")  # other: a named party that is neither the buyer nor us
 _LOCKS: dict[str, threading.RLock] = {}
 _LOCKS_GUARD = threading.Lock()
 _ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -152,7 +152,7 @@ class Bid:
         except ValueError:
             return doc["speakers"]
         have = {s["id"]: s.get("side", "") for s in doc["speakers"]}
-        out = propose_speakers(info, m.get("team") or [], self.b_fact_texts(m))
+        out = propose_speakers(info, m.get("team") or [], self.b_fact_texts(m), doc.get("speakers_model"))
         for s in out:
             s["side"] = have.get(s["id"], "")
         return out
@@ -165,6 +165,27 @@ class Bid:
                 d["speakers"] = self._propose(m, d, self.data(d))
 
         return self._change(no, go)
+
+    def set_speaker_model(self, no: int, answer: dict) -> dict:
+        """Keep the model's answer about who is on which side (`speakers.by_model`) and propose the sides
+        again with it. Does nothing once the speakers are confirmed or the document is extracted."""
+        def go(m: dict, d: dict) -> None:
+            if d["speakers_confirmed"] or d["run"] or playbooks.load(d["playbook"]).cutter != "transcript":
+                return
+            d["speakers_model"] = answer
+            d["speakers"] = self._propose(m, d, self.data(d))
+
+        return self._change(no, go)
+
+    def speakers_context(self, no: int) -> dict:
+        """What the model is told about the bid when it places a call's speakers: the bid's name, the team,
+        phrases from the buyer's facts (at most 20) and the file names of the other documents."""
+        m = self.manifest()
+        return {
+            "bid_name": m.get("name", ""), "team": [t.get("name", "") for t in m.get("team") or []],
+            "buyer_names": [" ".join(t.split())[:160] for t in self.b_fact_texts(m)[:20]],
+            "other_documents": [d["file_name"] for d in m["documents"] if d["no"] != no],
+        }
 
     def set_proposal(self, no: int, proposed: dict) -> dict:
         """Replace the proposal of a document the user has not confirmed yet (the model's CLASSIFY answer
@@ -401,24 +422,33 @@ def doc_numbers(manifest: dict) -> dict[str, int]:
     return {d["doc_id"]: d["no"] for d in manifest["documents"]}
 
 
-def propose_speakers(info: dict, team: list[dict], b_fact_texts: list[str]) -> list[dict]:
-    """A side for each speaker of a call. The team list wins over the buyer's facts, which win over
-    the call system's affiliation. Each entry: `{id, name, side, proposed, why}`; `side` is left
-    empty for the user to confirm."""
+def propose_speakers(info: dict, team: list[dict], b_fact_texts: list[str], model: dict | None = None) -> list[dict]:
+    """A side for each speaker of a call. The team list wins; then the model's answer when it names the
+    buyer, us or another party; then the buyer's facts; then the call system's affiliation. Each entry:
+    `{id, name, side, proposed, why, organisation, title, note, acts_for}`; `side` is left empty for the
+    user to confirm. `model` is `speakers.by_model`'s answer, by speaker id."""
     ours = {str(t.get("name", "")).strip().casefold() for t in team} - {""}
     out = []
     for s in info.get("speakers", []):
         name = (s.get("name") or "").strip()
+        sid = s.get("id") or name
+        said = (model or {}).get(sid) or {}
         proposed, why = "unknown", "none"
         if name.casefold() in ours:
             proposed, why = "ours", "team list"
+        elif said.get("side") in ("buyer", "ours", "other"):
+            proposed, why = said["side"], f"model: {said.get('reason', '')}".rstrip(": ")
         elif name and any(re.search(rf"(?<!\w){re.escape(name)}(?!\w)", t, re.I) for t in b_fact_texts):
             proposed, why = "buyer", "B fact"
         elif s.get("affiliation") == "Internal":
             proposed, why = "ours", "Gong affiliation"
         elif s.get("affiliation") == "External":
             proposed, why = "buyer", "Gong affiliation"
-        out.append({"id": s.get("id") or name, "name": name, "side": "", "proposed": proposed, "why": why})
+        out.append({
+            "id": sid, "name": name, "side": "", "proposed": proposed, "why": why,
+            "organisation": said.get("organisation") or s.get("organisation") or "",
+            "title": s.get("title") or "", "note": s.get("note") or "", "acts_for": said.get("acts_for") or "",
+        })
     return out
 
 
@@ -448,15 +478,16 @@ def ready(doc: dict) -> list[str]:
 def level_of(pb: playbooks.Playbook, sides: list[str]) -> tuple[int, list[str]]:
     """The level of a fact and the flags its sources add, from the sides of the units it cites.
     Never from a model answer. A buyer document or a note has the playbook's level. For a call:
-    2 when any cited unit is the buyer's, else 3; an `unknown` side is neither the buyer nor ours,
-    so a fact with only unknown units is level 3 and `unclear`; units of both sides add `both-sides`."""
+    2 when any cited unit is the buyer's, else 3. An `other` side (an advisor, a partner) is neither the
+    buyer nor ours and is clear; an `unknown` side is not decided, so a fact with `unknown` units and none
+    of the buyer's or ours is `unclear`; units of both the buyer and ours add `both-sides`."""
     if pb.level != "by speaker":
         return int(pb.level), []
     s = set(sides)
     flags = []
     if {"buyer", "ours"} <= s:
         flags.append("both-sides")
-    if s <= {"unknown", ""}:
+    if not s & {"buyer", "ours"} and ("unknown" in s or s <= {""}):
         flags.append("unclear")
     return (2 if "buyer" in s else 3), flags
 
@@ -610,8 +641,11 @@ async def extract_document(
             tagged = runs.tag_pdf(data, d["doc_id"], store.root)
         else:
             sides = {s["name"]: s["side"] for s in d["speakers"]}
+            # another party's units name its organisation, so a reader sees whose words they are
+            shown = {s["name"]: f"{s['name']} ({s['organisation']})" for s in d["speakers"]
+                     if s["side"] == "other" and s.get("organisation")}
             cut = [
-                dataclasses.replace(u, side=sides.get(u.speaker, "unknown")) if u.speaker else u
+                dataclasses.replace(u, side=sides.get(u.speaker, "unknown"), speaker=shown.get(u.speaker, u.speaker)) if u.speaker else u
                 for u in cutters.cut(pb.cutter, data, d["file_name"])
             ]
             tagged, _ = document_from_units(d["doc_id"], cut)

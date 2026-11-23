@@ -156,6 +156,7 @@ export function useBidFlow(status: Status | null, run: string | null, refreshRun
     }
   }, [reload]);
   const patchDocument = useCallback((no: number, body: BidDocumentPatch) => act((id) => api.patchBidDocument(id, no, body)), [act]);
+  const suggestSpeakers = useCallback((no: number) => act((id) => api.suggestBidSpeakers(id, no)), [act]);
   const removeDocument = useCallback((no: number) => act((id) => api.deleteBidDocument(id, no)), [act]);
   const saveTeam = useCallback((names: string[]) => act((id) => api.patchBid(id, { team: names.map((name) => ({ name })) })), [act]);
   const setPrecedence = useCallback((order: string[] | null) => act((id) => api.patchBid(id, { precedence: order })), [act]);
@@ -234,7 +235,7 @@ export function useBidFlow(status: Status | null, run: string | null, refreshRun
 
   return {
     status, bids, bidsError, refreshBids, bidId, selectBid, creating, startNew, cancelNew, createBid, bid, bidError, reload, uploads, addFiles, dismissUpload,
-    patchDocument, removeDocument, saveTeam, setPrecedence, plan, planLoading: planned.loading, planError: planned.error, replan: planned.reload,
+    patchDocument, suggestSpeakers, removeDocument, saveTeam, setPrecedence, plan, planLoading: planned.loading, planError: planned.error, replan: planned.reload,
     confirmed, setConfirmed, job: jobBid === bidId ? job : null, running, start, startError,
   };
 }

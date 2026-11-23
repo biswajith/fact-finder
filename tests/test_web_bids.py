@@ -238,6 +238,58 @@ async def test_the_team_list_proposes_speakers_until_they_are_confirmed(c):
     assert {s["name"]: s["proposed"] for s in d["speakers"]}["Dana Pike"] == "ours" and d["speakers_confirmed"]  # confirmed: not touched
 
 
+async def test_the_model_places_speakers_at_upload_and_again_on_request(root):
+    seen = []
+
+    def answer(req):
+        seen.append(task_name(req))
+        return "s1|OTHER|-|BUYER|advisor to the buyer\ns2|BUYER|-|-|odd\nEND|2\n"
+
+    app = make_app(root, speaker_model=ScriptedClient(answer))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+        await c.post("/api/bids", json={"name": "Ulster"})
+        doc = (await upload(c, "ulster", "call.json", CALL)).json()
+        assert seen == ["SPEAKERS"]
+        assert {s["name"]: (s["proposed"], s["acts_for"]) for s in doc["speakers"]} == {"Dana Pike": ("other", "buyer"), "Tom Okafor": ("buyer", "")}
+        assert doc["speakers"][0]["why"] == "model: advisor to the buyer" and "speakers_model" in doc
+        assert (await upload(c, "ulster", "n.md", NOTES)).json()["speakers"] == [] and seen == ["SPEAKERS"]  # notes: no call
+        again = await c.post("/api/bids/ulster/documents/1/speakers/suggest")
+        assert again.status_code == 200 and seen == ["SPEAKERS", "SPEAKERS"]
+        assert (await c.post("/api/bids/ulster/documents/2/speakers/suggest")).status_code == 400  # not a transcript
+        await c.patch("/api/bids/ulster/documents/1", json={"speakers": [{"name": "Dana Pike", "side": "other"}, {"name": "Tom Okafor", "side": "ours"}],
+                                                            "speakers_confirmed": True})
+        refused = await c.post("/api/bids/ulster/documents/1/speakers/suggest")
+        assert refused.status_code == 400 and seen == ["SPEAKERS", "SPEAKERS"]
+        [d, _] = (await c.get("/api/bids/ulster")).json()["documents"]
+        assert {s["name"]: s["side"] for s in d["speakers"]} == {"Dana Pike": "other", "Tom Okafor": "ours"}
+
+
+async def test_a_failed_speaker_call_leaves_the_rules_and_no_key_is_a_clear_error(root):
+    boom = ScriptedClient(lambda r: RuntimeError("down"))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=make_app(root, speaker_model=boom)), base_url="http://test") as c:
+        await c.post("/api/bids", json={"name": "Ulster"})
+        doc = (await upload(c, "ulster", "call.json", CALL)).json()
+        assert boom.requests and "speakers_model" not in doc
+        assert [(s["proposed"], s["why"]) for s in doc["speakers"]] == [("buyer", "Gong affiliation"), ("ours", "Gong affiliation")]
+        assert (await c.post("/api/bids/ulster/documents/1/speakers/suggest")).status_code == 400
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=make_app(root)), base_url="http://test") as c:
+        await c.post("/api/bids", json={"name": "Third"})
+        await upload(c, "third", "call.json", CALL)
+        r = await c.post("/api/bids/third/documents/1/speakers/suggest")
+        assert r.status_code == 400 and r.json()["detail"] == "OPENAI_API_KEY is not set"
+
+
+async def test_changing_a_note_to_a_call_places_its_speakers_once(root):
+    seen = []
+    app = make_app(root, speaker_model=ScriptedClient(lambda r: seen.append(1) or "s1|BUYER|-|-|the buyer\nEND|1\n"))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+        await c.post("/api/bids", json={"name": "Ulster"})
+        await upload(c, "ulster", "call.json", CALL)
+        await c.patch("/api/bids/ulster/documents/1", json={"playbook": "deal-notes"})
+        r = await c.patch("/api/bids/ulster/documents/1", json={"playbook": "call-transcript"})
+        assert len(seen) == 1 and r.json()["speakers_model"]  # the first answer is kept: no second call
+
+
 # --- plan and process -----------------------------------------------------------------------
 
 
