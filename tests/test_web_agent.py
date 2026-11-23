@@ -707,4 +707,4 @@ def test_the_prompt_and_answer_form_tell_the_model_about_documents_and_lists(ws)
     p = A.system_prompt(ws)
     assert "11. A bid holds several documents." in p and "give every row" in p and "do not pick one side" in p
     assert "Name the source of anything that does not come from the buyer's own document" in A.ANSWER_FORM
-    assert "every row of a list or table you rely on" in A.ANSWER_FORM
+    assert "give every row of it" in A.ANSWER_FORM

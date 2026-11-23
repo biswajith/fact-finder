@@ -202,8 +202,8 @@ ANSWER_FORM = ("Form of your final reply: the answer in one sentence, then, when
                "(an outline, parts, requirements, terms, steps), a Markdown table (items that share details, with a "
                "Source column) or a Markdown list (one detail each), never a paragraph of items joined by commas. "
                "A [[source:ID]] or [[timeline:ID,ID]] marker goes on a line of its own. "
-               "Name the source of anything that does not come from the buyer's own document, and give every row "
-               "of a list or table you rely on.")
+               "Name the source of anything that does not come from the buyer's own document. When the answer rests on a "
+               "list or table from the documents, give every row of it, never a few rows after the word including.")
 
 
 def state_message(ws: Workspace) -> str:
