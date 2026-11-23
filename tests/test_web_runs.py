@@ -44,6 +44,18 @@ def test_normalize_fills_missing_fields():
     assert r["citations"][0]["page_label"] == "1" and r["citations"][0]["bbox"] is None
 
 
+def test_normalize_gives_every_citation_a_document_and_the_new_fields():
+    (r,) = D.normalize([{
+        "category": "B", "text": "t", "doc_id": "RFP-1",
+        "citations": [{"id": "p1.1", "page": 1}, {"id": "p2.1", "page": 2, "doc_id": "ADD-1", "speaker": "Ann", "side": "buyer", "level": 2}],
+    }])
+    a, b = r["citations"]
+    assert (a["doc_id"], a["doc_no"], a["speaker"], a["side"], a["level"], a["visibility"]) == ("RFP-1", 0, "", "", 0, "external")
+    assert (b["doc_id"], b["speaker"], b["side"], b["level"]) == ("ADD-1", "Ann", "buyer", 2)
+    assert D.cite_key(a) == ("RFP-1", "p1.1") and D.cite_key(b) == ("ADD-1", "p2.1")
+    assert D.cite_key({"id": "p1.1"}) == ("", "p1.1")
+
+
 def texts(rs):
     return [r["text"] for r in rs]
 
@@ -172,7 +184,7 @@ def test_run_extraction_stores_the_result_and_reuses_it(tmp_path):
     )
     assert not stored and facts_path.parent.parent == runs / "rfp_1"
     assert sorted(p.name for p in facts_path.parent.iterdir()) == [
-        "facts.json", "labels.json", "meta.json", "report.json", "source.pdf"]
+        "facts.json", "labels.json", "meta.json", "report.json", "source.pdf", "units.json"]
     assert (facts_path.parent / "source.pdf").read_bytes() == pdf
     assert not (runs / ".staging").exists()
     assert {r["category"] for r in json.loads(facts_path.read_text())} == {"D"}
@@ -299,3 +311,21 @@ def test_load_run_finds_the_pdf_beside_or_above(tmp_path):
     run = D.load_run(tmp_path / "doc" / "run1" / "facts.json")
     assert run.pdf == tmp_path / "doc" / "source.pdf" and run.pages == 2
     assert (run.doc_id, run.run_id) == ("rfp-1", "run_x")
+
+
+def test_load_run_finds_a_source_that_is_not_a_pdf_and_the_workspace_rebuilds_the_document(tmp_path):
+    from fact_extractor import cutters, results
+    from fact_extractor.api import document_from_units
+    from fact_extractor.web.workspace import Workspace
+
+    folder = tmp_path / "runs" / "notes-1" / "run_a"
+    folder.mkdir(parents=True)
+    (folder / "facts.json").write_text("[]")
+    (folder / "source.md").write_text("# T\n\nOne point. Another point.\n")
+    run = D.load_run(folder / "facts.json")
+    assert run.pdf is None and run.source == folder / "source.md"
+    ws = Workspace(folder / "facts.json")
+    assert ws.document() is None  # no units.json, no PDF
+    doc, _ = document_from_units("notes-1", cutters.cut_notes("# T\n\nOne point. Another point.\n"))
+    (folder / "units.json").write_text(json.dumps(results.unit_rows(doc)))
+    assert ws.document().tagged_text == doc.tagged_text

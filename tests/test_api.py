@@ -175,3 +175,13 @@ def test_importing_the_api_loads_no_pdf_or_model_library():
         "assert not bad, bad\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_speaker_and_side_are_copied_onto_the_anchor():
+    doc, _ = document_from_units("call", [
+        SourceUnit("a", "We need it by May.", "sentence", 1, "00:00:04", "", "Ann", "buyer"),
+        SourceUnit("b", "Noted.", "sentence", 2, "00:00:09", ""),
+    ])
+    a, b = doc.anchors.values()
+    assert (a.speaker, a.side) == ("Ann", "buyer") and (b.speaker, b.side) == ("", "")
+    assert a.citation()["speaker"] == "Ann" and "speaker" not in b.citation()

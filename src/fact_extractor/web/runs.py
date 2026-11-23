@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..models import CATEGORIES
+from .. import results
 from ..results import safe_name
 
 CSV_COLUMNS = (
@@ -47,6 +48,7 @@ class Run:
     doc_id: str
     run_id: str
     pages: int
+    source: Path | None = None  # the stored source file of any form (source.pdf, source.json, ...)
 
 
 # --- finding and loading runs ---------------------------------------------------------
@@ -108,6 +110,15 @@ def runs_table(runs: list[RunRef]) -> list[dict]:
     return rows
 
 
+def _int(value: object) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def cite_key(c: dict) -> tuple[str, str]:
+    """A citation names a unit of one document: the pair (document ID, unit ID)."""
+    return (str(c.get("doc_id") or ""), str(c.get("id") or ""))
+
+
 def normalize(records: list[dict]) -> list[dict]:
     """Give every record every field the app reads, with an empty value where it has none
     (user-added facts, `also` = null, test fixtures), so the rest of the app can index them directly."""
@@ -117,12 +128,18 @@ def normalize(records: list[dict]) -> list[dict]:
         for c in r.get("citations") or []:
             page = c.get("page")
             cites.append({
+                "doc_id": c.get("doc_id") or r.get("doc_id") or "",
+                "doc_no": _int(c.get("doc_no") or r.get("doc_no")),
                 "id": str(c.get("id", "")),
                 "page": page if isinstance(page, int) else None,
                 "page_label": str(c.get("page_label") or (page if page is not None else "")),
                 "section": c.get("section") or "",
                 "text": c.get("text") or "",
                 "bbox": c.get("bbox") or None,
+                "speaker": c.get("speaker") or "",
+                "side": c.get("side") or "",
+                "level": _int(c.get("level")),
+                "visibility": c.get("visibility") or "external",
             })
         out.append({
             **r,
@@ -165,7 +182,12 @@ def load_run(path: str | Path) -> Run:
     pages = (report or {}).get("pages") or max(
         (c["page"] for r in records for c in r["citations"] if c["page"]), default=1
     )
-    return Run(path, records, report, pdf, doc_id, run_id, int(pages))
+    source = pdf or next(
+        (p for d in (path.parent, path.parent.parent) for ext in results.SOURCE_SUFFIXES
+         if (p := d / f"source{ext}").is_file()),
+        None,
+    )
+    return Run(path, records, report, pdf, doc_id, run_id, int(pages), source)
 
 
 # --- filtering and ordering: before the bid, after award ------------------------------
@@ -570,6 +592,7 @@ def run_extraction(
     runs_root: str | Path = "runs",
     client=None,
     cfg=None,
+    source_name: str | None = None,
 ) -> tuple[Path, dict, bool]:
     """What `fact-extractor extract` does: return the stored result for this PDF, or
     extract and store it under `runs/<doc_id>/<run_id>/`.
@@ -577,12 +600,12 @@ def run_extraction(
     Returns the facts path, the report, and whether the result came from the store
     (then no model was called). On an exception nothing is left on disk.
     """
-    from .. import results, units
+    from .. import units
 
     root = Path(runs_root)
     store = results.ResultStore(root)
     sha = results.pdf_hash(pdf_bytes)
-    stored = store.find(sha, units.VERSION, doc_id)
+    stored = store.find(sha, units.VERSION, doc_id, "rfp@1")
     if stored and not refresh:
         return stored.facts_path, stored.report(), True
     made_root = not root.exists()
@@ -599,7 +622,10 @@ def run_extraction(
         if made_root:
             shutil.rmtree(root, ignore_errors=True)
         raise
-    saved = store.save(pdf_bytes, sha, units.VERSION, result, result.labels)
+    saved = store.save(
+        pdf_bytes, sha, units.VERSION, result, result.labels,
+        playbook="rfp@1", source_name=source_name or f"{doc_id}.pdf", units=doc,
+    )
     return saved.facts_path, result.report, False
 
 

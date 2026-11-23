@@ -362,7 +362,7 @@ class Workspace:
         self._run: Run | None = None
         self._stamp: tuple | None = None
         self._doc = None
-        self._doc_pdf: Path | None = None
+        self._doc_pdf: tuple | None = None
         self._doc_loaded = False
         self._state: State | None = None
         self._state_key: tuple | None = None
@@ -391,12 +391,19 @@ class Workspace:
             return self._run
 
     def document(self):
-        """The tagged document of the run's PDF, or None without a PDF. Built once; slow on first use."""
+        """The tagged document of the run: rebuilt from its stored units when it has them, else read
+        from its PDF; None without either. Built once; slow on first use for a PDF."""
         with self.lock:
-            pdf = self.run().pdf
-            if not self._doc_loaded or pdf != self._doc_pdf:
-                self._doc, self._doc_pdf = None, pdf
-                if pdf is not None:
+            run = self.run()
+            pdf = run.pdf
+            has_units = (self.facts_path.parent / "units.json").is_file()
+            if not self._doc_loaded or (pdf, has_units) != self._doc_pdf:
+                self._doc, self._doc_pdf = None, (pdf, has_units)
+                if has_units:
+                    from ..results import load_document
+
+                    self._doc = load_document(self.facts_path.parent, run.doc_id)
+                if self._doc is None and pdf is not None:
                     from ..pdf import read_pdf
                     from ..tagging import tag_pages
 

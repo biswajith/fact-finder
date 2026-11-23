@@ -173,7 +173,10 @@ def _extract(args, doc) -> None:
     if args.parallel:
         cfg.max_parallel = args.parallel
     result = asyncio.run(units.extract(doc, OpenAIClient(args.model), deal_id=args.deal_id, cfg=cfg))
-    saved = store.save(args.pdf, sha, units.VERSION, result, result.labels)
+    saved = store.save(
+        args.pdf, sha, units.VERSION, result, result.labels,
+        playbook="rfp@1", source_name=os.path.basename(args.pdf), units=doc,
+    )
     _write_out(args, result.facts, result.report)
     r = result.report
     print(

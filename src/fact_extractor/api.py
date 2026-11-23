@@ -35,6 +35,8 @@ class SourceUnit:
     page: int  # 1-based; 1 for formats with no pages
     page_label: str
     section: str
+    speaker: str = ""
+    side: str = ""
 
 
 @dataclass(frozen=True)
@@ -115,7 +117,7 @@ def document_from_units(doc_id: str, units: Sequence[SourceUnit]) -> tuple[Tagge
         section = " ".join(u.section.split())
         if kind == "heading" and not section:
             section = " ".join(text.split())
-        anchors[id_] = Anchor(doc_id, id_, page_no, u.page_label, section, text, None, kind)
+        anchors[id_] = Anchor(doc_id, id_, page_no, u.page_label, section, text, None, kind, u.speaker, u.side)
         lines.append(f"[{id_}] {_escape(model_text)}")
         id_to_key[id_] = u.key
 

@@ -43,9 +43,12 @@ class Anchor:
     text: str
     bbox: tuple[float, float, float, float] | None
     kind: Kind
+    speaker: str = ""  # who said it (transcripts); "" elsewhere
+    side: str = ""  # "buyer", "ours", "unknown" or "" (not a spoken source)
 
     def citation(self) -> dict:
-        return {
+        out = {
+            "doc_id": self.doc_id,
             "id": self.id,
             "page": self.page,
             "page_label": self.page_label,
@@ -53,6 +56,11 @@ class Anchor:
             "text": self.text,
             "bbox": list(self.bbox) if self.bbox else None,
         }
+        if self.speaker:
+            out["speaker"] = self.speaker
+        if self.side:
+            out["side"] = self.side
+        return out
 
 
 @dataclass

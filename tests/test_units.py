@@ -232,6 +232,48 @@ async def test_result_is_stored_and_found_by_pdf_content(doc, tmp_path):
     assert store.latest(sha, doc.doc_id).folder == saved.folder
 
 
+async def test_find_is_per_playbook_and_a_legacy_meta_counts_as_rfp(doc, tmp_path):
+    store = results.ResultStore(tmp_path / "runs")
+    sha = results.pdf_hash(b"pdf bytes")
+    res = await units.extract(doc, scripted(), deal_id="d", cfg=FAST, run_id="run_a")
+    saved = store.save(b"pdf bytes", sha, units.VERSION, res, res.labels, source_name="Bid.PDF", units=doc)
+    assert saved.meta["playbook"] == "rfp@1" and saved.meta["source_file"] == "source.pdf"
+    assert saved.meta["source_name"] == "Bid.PDF"
+    assert store.find(sha, units.VERSION, doc.doc_id, "rfp@1").folder == saved.folder
+    assert store.find(sha, units.VERSION, doc.doc_id, "deal-notes@1") is None
+    # a result stored before playbooks existed has no playbook in its meta
+    meta = json.loads((saved.folder / "meta.json").read_text())
+    for key in ("playbook", "source_name", "source_file"):
+        del meta[key]
+    (saved.folder / "meta.json").write_text(json.dumps(meta))
+    assert store.find(sha, units.VERSION, doc.doc_id).folder == saved.folder
+    assert store.find(sha, units.VERSION, doc.doc_id, "change-addendum@1") is None
+
+
+async def test_a_non_pdf_source_is_stored_under_its_own_extension_and_units_round_trip(doc, tmp_path):
+    store = results.ResultStore(tmp_path / "runs")
+    res = await units.extract(doc, scripted(), deal_id="d", cfg=FAST, run_id="run_a")
+    saved = store.save(b"{}", "abc", units.VERSION, res, playbook="call-transcript@1", source_name="call.gong.json", units=doc)
+    assert saved.meta["source_file"] == "source.json" and (saved.folder / "source.json").read_bytes() == b"{}"
+    assert not (saved.folder / "source.pdf").exists()
+    back = results.load_document(saved.folder, doc.doc_id)
+    assert back.tagged_text == doc.tagged_text and back.anchors == doc.anchors and back.page_count == doc.page_count
+
+
+async def test_units_of_two_documents_with_the_same_ids_do_not_share_a_conflict(doc):
+    res = await units.extract(doc, scripted(), deal_id="d", cfg=FAST)
+    plain = [r for r in res.facts if r["category"] != "Q"]
+    q = {"category": "Q", "fact_id": "q1", "doc_id": "other", "citations": [{"doc_id": "other", "id": plain[0]["citations"][0]["id"]}]}
+    records = [dict(r, conflicts=[]) for r in plain] + [q]
+    for r in records:
+        r["status"] = "valid"
+    units._mark_conflicts(records)
+    assert all(r["conflicts"] == [] for r in records if r["category"] != "Q")
+    q["citations"][0]["doc_id"] = doc.doc_id
+    units._mark_conflicts(records)
+    assert records[0]["conflicts"] == ["q1"] and records[0]["status"] == "conflict"
+
+
 def test_cli_shows_the_stored_result_without_a_model_call(tmp_path, monkeypatch, capsys):
     import fact_extractor.llm as llm
     from fact_extractor import cli

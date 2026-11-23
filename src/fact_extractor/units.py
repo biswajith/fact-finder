@@ -750,7 +750,8 @@ async def extract(
 
     labels = [
         {"id": u, "page": doc.anchors[u].page_label, "section": doc.anchors[u].section, "text": doc.anchors[u].text,
-         "label": voted[u].label, "also": voted[u].also, "flags": voted[u].flags, "votes": voted[u].votes}
+         "label": voted[u].label, "also": voted[u].also, "flags": voted[u].flags, "votes": voted[u].votes,
+         "speaker": doc.anchors[u].speaker, "side": doc.anchors[u].side}
         for u in units
     ]
     report = _report(run, doc, deal_id, run_id, records, voted, groups, statements, seconds, cfg)
@@ -807,11 +808,15 @@ def _q_records(q_lines: list[dict], xres: xref.Result, doc: TaggedDocument, deal
 
 def _mark_conflicts(records: list[dict]) -> None:
     """Facts that share a unit with a Q fact get status conflict and the Q fact's ID."""
-    qs = [(r["fact_id"], {c["id"] for c in r["citations"]}) for r in records if r["category"] == "Q"]
+    def cited(r: dict) -> set[tuple[str, str]]:
+        # a unit is the pair (document, ID): two documents of a bid both have a p1.1
+        return {(c.get("doc_id") or r.get("doc_id") or "", c["id"]) for c in r["citations"]}
+
+    qs = [(r["fact_id"], cited(r)) for r in records if r["category"] == "Q"]
     for r in records:
         if r["category"] == "Q":
             continue
-        ids = {c["id"] for c in r["citations"]}
+        ids = cited(r)
         r["conflicts"] = [qid for qid, q_ids in qs if ids & q_ids]
         if r["conflicts"] and r["status"] == "valid":
             r["status"] = "conflict"
