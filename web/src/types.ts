@@ -32,6 +32,10 @@ export interface RunInfo {
   modified: string | number;
   has_pdf: boolean;
   corrections: number;
+  /** Set on the rows of a bid (run `_bids/<bid_id>`). */
+  kind?: 'bid';
+  name?: string;
+  documents?: number;
 }
 
 export interface Citation {
@@ -333,41 +337,136 @@ export interface CompareResponse {
   code_differences: CodeDifference[];
 }
 
-export interface PdfChoice {
-  path: string;
-  name: string;
-}
-export interface UploadInfo {
-  upload_id: string;
-  name: string;
-  pages: number;
-}
-export type PdfSource = { path: string } | { upload_id: string };
-export interface PlanRow {
-  call: string;
-  times: number;
-  units: number;
-  pages: string;
-}
-export interface ExtractPlan {
-  calls: PlanRow[];
-  total_calls: number;
-  units: number;
-  stored: { run: string; facts: number; created: string } | null;
-}
-export interface ExtractRequest {
-  deal_id: string;
-  doc_id: string;
-  model?: string;
-  votes: number;
-  confirm: true;
-}
 export interface ExtractJob {
   status: 'running' | 'done' | 'failed';
   seconds: number;
   result: string | null;
   run: string | null;
   error: string | null;
+  /** Only jobs of a bid report steps. */
+  steps?: JobStep[];
+}
+
+// ---- Bids: many documents, one fact list (docs/multi-document-build-plan.md, "Web API as built") ----
+
+export type BidRole = 'base' | 'change' | 'context';
+export type SpeakerSide = 'buyer' | 'ours' | 'unknown' | '';
+
+export interface BidPlaybook {
+  name: string;
+  description: string;
+  role: BidRole;
+  form: string;
+  /** "1", "by speaker" or "4". */
+  level: string;
+  visibility: 'external' | 'internal';
+  calls: string[];
+  votes: number;
+}
+export interface BidProposal {
+  playbook: string;
+  issue_number: number | null;
+  issue_date: string | null;
+  by: string;
+  checked: boolean;
+}
+export interface BidSpeaker {
+  id: string;
+  name: string;
+  side: SpeakerSide;
+  proposed: SpeakerSide;
+  why: string;
+}
+export type BidDocStatus = 'uploaded' | 'confirmed' | 'extracting' | 'extracted' | 'failed';
+export interface BidDocument {
+  no: number;
+  doc_id: string;
+  file: string;
+  file_name: string;
+  sha256: string;
+  pages: number;
+  proposed: BidProposal;
+  playbook: string;
+  issue_number: number | null;
+  issue_date: string | null;
+  confirmed: boolean;
+  previous: string | null;
+  speakers: BidSpeaker[];
+  speakers_confirmed: boolean;
+  run: string;
+  status: BidDocStatus;
+  error: string;
+  /** What is still needed before the document can be read, as the server words it. */
+  missing: string[];
+}
+export interface Bid {
+  bid_id: string;
+  name: string;
+  deal_id: string;
+  created: string;
+  team: { name: string }[];
+  precedence: string[] | null;
+  documents: BidDocument[];
+  /** doc_ids in issue order. */
+  order: string[];
+  /** `_bids/<bid_id>` once the bid has facts, else "". */
+  run: string;
+  playbooks: BidPlaybook[];
+}
+export interface BidSummary {
+  bid_id: string;
+  name: string;
+  run: string;
+  documents: number;
+  facts: number;
+  modified: string | number;
+}
+export interface BidDocumentPatch {
+  doc_id?: string;
+  playbook?: string;
+  issue_number?: number | null;
+  issue_date?: string | null;
+  previous?: string | null;
+  confirmed?: boolean;
+  speakers?: { id: string; name: string; side: SpeakerSide }[];
+  speakers_confirmed?: boolean;
+}
+export interface BidPatch {
+  name?: string;
+  team?: { name: string }[];
+  precedence?: string[] | null;
+}
+export interface PlanRow {
+  call: string;
+  times: number;
+  units: number;
+  pages: string;
+}
+export interface BidPlanDocument {
+  no: number;
+  doc_id: string;
+  file_name: string;
+  playbook: string;
+  missing: string[];
+  units: number;
+  calls: PlanRow[];
+  total_calls: number;
+  stored: { run: string; facts: number; created: string } | null;
+  error: string;
+}
+export interface BidPlan {
+  documents: BidPlanDocument[];
+  skipped: { no: number; doc_id: string; why: string }[];
+  relate_again: number[];
+  total_calls: number;
+}
+export type StepStatus = 'running' | 'done' | 'reused' | 'failed';
+export interface JobStep {
+  /** 0 for the steps of the whole bid. */
+  doc_no: number;
+  step: string;
+  status: StepStatus;
+  detail: string;
 }
 
 // ---- Chat sessions and their event log (WEB_UI_SPEC.md 7.2) --------------------------------

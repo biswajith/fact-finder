@@ -6,10 +6,10 @@ import { CompareTab } from '../CompareTab';
 import { ConflictsTab } from '../ConflictsTab';
 import { FactDetail } from '../FactDetail';
 import { FactsTab } from '../FactsTab';
-import { NewRunTab } from '../NewRunTab';
+import { DocumentsPage } from '../bid/DocumentsPage';
 import { ReportTab } from '../ReportTab';
 import { OverviewTab } from '../OverviewTab';
-import { useNewRun } from '../../newRun';
+import type { BidFlow } from '../../bidFlow';
 import { useRun } from '../../store';
 import { Sidebar } from './Sidebar';
 
@@ -18,9 +18,8 @@ function readChatOpen(): boolean {
   try { return window.localStorage.getItem(CHAT_KEY) === '1'; } catch { return false; }
 }
 
-export function Workspace() {
-  const { page, status, refreshRuns, selectRun, chatDraft, openFactId } = useRun();
-  const newRun = useNewRun(status, refreshRuns, selectRun);
+export function Workspace({ flow }: { flow: BidFlow }) {
+  const { page, status, chatDraft, openFactId } = useRun();
   const [chatOpen, setChatOpenState] = useState(readChatOpen);
   const [menuOpen, setMenuOpen] = useState(false);
   const setChatOpen = (v: boolean) => {
@@ -46,7 +45,7 @@ export function Workspace() {
 
   return (
     <div className={`shell${chatOpen ? ' chat-open' : ''}${openFactId ? ' fact-open' : ''}`}>
-      <Sidebar open={menuOpen} onNavigate={() => setMenuOpen(false)} newRunning={newRun.running} />
+      <Sidebar open={menuOpen} onNavigate={() => setMenuOpen(false)} flow={flow} />
       <div className={`scrim${menuOpen ? ' show' : ''}`} onClick={() => setMenuOpen(false)} aria-hidden />
       <div className="main-col">
         <div className="topbar">
@@ -64,7 +63,7 @@ export function Workspace() {
             {page === 'report' && <ReportTab />}
             {page === 'compare' && <CompareTab />}
             {page === 'chatlog' && <ChatLogTab />}
-            {page === 'new' && <NewRunTab n={newRun} status={status} />}
+            {page === 'documents' && <DocumentsPage flow={flow} status={status} />}
           </div>
         </main>
       </div>
