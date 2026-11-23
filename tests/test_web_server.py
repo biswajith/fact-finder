@@ -359,3 +359,16 @@ async def test_ui_edit_is_checked_when_a_checker_is_given(root):
         assert r["text"] == "Bids and questions due March 20" and r["check"]["conflicts_raised"]
         r = (await c.patch("/api/facts/f_d1", params={"run": RUN}, json={"note": "n"})).json()
         assert "check" not in r  # only text edits are checked
+
+
+async def test_timeline_route(c):
+    ids = "f_d3,f_s1,nope"
+    rows = (await c.get("/api/timeline", params={"run": RUN, "fact_ids": ids})).json()["rows"]
+    assert [r["fact_id"] for r in rows] == ["f_d3", "f_s1"]
+    assert set(rows[0]) == {"fact_id", "date", "label", "time", "text", "page", "replaced", "doc_no", "internal"}
+    await c.delete("/api/facts/f_d3", params={"run": RUN})
+    rows = (await c.get("/api/timeline", params={"run": RUN, "fact_ids": ids})).json()["rows"]
+    assert [r["fact_id"] for r in rows] == ["f_s1"]
+    assert (await c.get("/api/timeline", params={"run": RUN, "fact_ids": ""})).status_code == 400
+    many = ",".join(f"f_{i}" for i in range(13))
+    assert (await c.get("/api/timeline", params={"run": RUN, "fact_ids": many})).status_code == 400

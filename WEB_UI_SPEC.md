@@ -367,6 +367,10 @@ Anything but a confident `approve` counts as `revise`, so no plan runs without a
 Without an approval mode, `light` plans inline in the loop and `heavy` shows its steps and
 carries them out in the same turn.
 
+### 7.1b Answer formats
+
+The system prompt asks for the form that serves the answer: plain sentences first, a table to compare facts on the same attributes (Source column with fact IDs), a list for parallel items, `[[source:FACT_ID]]` on its own line to show the wording a fact rests on (at most three), and `[[timeline:ID,ID,...]]` on its own line when the answer is mostly dates (2 to 12 IDs). The model only chooses facts; the frontend (`chatBlocks.ts`, `SourceSnippet`, `Timeline`) draws the quote, speaker, page and dates from the stored facts, and the timeline rows come from `GET /timeline`. Before an assistant message is stored, `agent.clean_blocks` drops block lines naming facts the run does not have (a timeline left with fewer than two facts is dropped); streamed deltas are not changed, and the frontend holds back an unfinished `[[` line while streaming.
+
 ### 7.2 Chat sessions and their log
 
 A chat session runs from the first message to the next "clear chat" (`DELETE /chat`), and
@@ -512,6 +516,7 @@ facts left out), so a correction shows up here too.
 | Method and path | Body | Returns |
 | --- | --- | --- |
 | `GET /overview?run=&view=` | | `{"overview": runs.overview(facts in view, the report's stored summaries), "counts": {"needs_review", "conflicts", "risk", "mandatory", "unclear"}, "by_category": {code: n}, "has_post_award": bool, "views": ["All", "Bid", "After award"]}` |
+| `GET /timeline?run=&fact_ids=a,b,c` | | `{"rows": runs.timeline(the effective facts named, deleted and unknown ones left out)}`: each row `{fact_id, date, label, time, text, page, replaced, doc_no, internal}`, dated rows in time order, then undated. 400 when `fact_ids` is empty or names more than 12 facts |
 | `GET /facts/list?run=&q=&categories=&statuses=&flags=&page_from=&page_to=&view=&split_only=&edited=&include_deleted=` | | `{"total": n, "by_category": {code: n under the other filters}, "items": [{"kind", "fact_ids": [...]}], "facts": [effective fact]}` using `runs.filter_facts`, `runs.document_order` and `runs.items`. List parameters are comma-separated. `GET /facts` stays as it is |
 | `GET /facts.csv?run=` + the same filters | | CSV from `runs.to_csv`, `Content-Disposition: attachment` with `runs.csv_name` |
 | `GET /report?run=` | | the run's `report.json`, or 404 when it has none |

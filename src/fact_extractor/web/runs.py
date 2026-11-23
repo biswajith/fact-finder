@@ -409,32 +409,54 @@ def buyer_rows(records: list[dict], brief: list[dict] | None) -> list[dict]:
     return rows
 
 
+def _when(text: str) -> tuple[str, str, str]:
+    """The first calendar date a text names as (YYYY-MM-DD, "Thu 24 Jun 2027", time "14:00"); all empty when
+    it names none. A time is given only when the text names a single date."""
+    from ..normalize import values
+
+    tokens = values(text)
+    days = sorted(t.split(":", 1)[1] for t in tokens if t.startswith("date:"))
+    times = sorted(t.split(":", 1)[1] for t in tokens if t.startswith("time:"))
+    if not days:
+        return "", "", ""
+    when = datetime.strptime(days[0], "%Y-%m-%d")
+    return days[0], f"{when:%a} {when.day} {when:%b %Y}", times[0] if times and len(days) == 1 else ""
+
+
 def calendar(records: list[dict]) -> dict:
     """Date facts in time order. A fact goes under the first calendar date it names; one
     with no date of its own ("30 days after award") is kept apart, in document order."""
-    from ..normalize import values
-
     dated, undated = [], []
     seen: set[str] = set()
     for it in items(document_order([r for r in records if r["category"] == "D"])):
         for f in ([it.first] if it.kind == "same" else it.facts):
-            tokens = values(f["text"])
-            days = sorted(t.split(":", 1)[1] for t in tokens if t.startswith("date:"))
-            times = sorted(t.split(":", 1)[1] for t in tokens if t.startswith("time:"))
+            day, label, time = _when(f["text"])
             page = it.pages() if it.kind == "same" else page_labels(f)
-            if not days:
+            if not day:
                 undated.append({"text": f["text"], "page": page})
                 continue
             if f["text"] in seen:
                 continue
             seen.add(f["text"])
-            when = datetime.strptime(days[0], "%Y-%m-%d")
-            dated.append({
-                "date": days[0], "label": f"{when:%a} {when.day} {when:%b %Y}",
-                "time": times[0] if times and len(days) == 1 else "", "text": f["text"], "page": page,
-            })
+            dated.append({"date": day, "label": label, "time": time, "text": f["text"], "page": page})
     dated.sort(key=lambda d: (d["date"], d["time"] or "99:99"))
     return {"dated": dated, "undated": undated}
+
+
+def timeline(records: list[dict]) -> list[dict]:
+    """The chosen facts as timeline rows, dated ones in time order, then the undated ones in the order
+    given. Dates and times are read from the stored text, never supplied by the caller."""
+    rows = []
+    for r in records:
+        day, label, time = _when(r["text"])
+        cites = r["citations"]
+        rows.append({
+            "fact_id": r["fact_id"], "date": day, "label": label, "time": time, "text": r["text"],
+            "page": page_labels(r), "replaced": "replaced" in r.get("flags", []),
+            "doc_no": _int(r.get("doc_no") or (cites[0].get("doc_no") if cites else 0)),
+            "internal": bool(cites) and all(c.get("visibility") == "internal" for c in cites),
+        })
+    return sorted(rows, key=lambda x: (x["date"] or "9999", x["time"] or "99:99"))  # stable: undated keep their order
 
 
 def overview(records: list[dict]) -> dict:

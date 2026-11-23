@@ -38,6 +38,7 @@ WRAP_UP = ("You have used all your tool rounds. Do not look anything up again. A
 CHAT_EFFORT = "none"
 # Chat history sent to the model is trimmed in blocks, not as a sliding window, so the prefix the API
 # caches stays identical from turn to turn (see _history_start).
+MAX_TIMELINE_IDS = 12  # facts one [[timeline:...]] block may name
 HISTORY_MAX = 40
 HISTORY_MIN = 20
 HISTORY_BLOCK = HISTORY_MAX - HISTORY_MIN
@@ -131,9 +132,35 @@ Rules you always follow:
 9. Be efficient: every reply that calls tools costs a round trip, so do in one reply everything that does not depend on a result you have not seen yet. Put the different things you need to find into one search call (queries), and make independent calls together in the same reply. Do not repeat a search that already returned what you need; once you have the facts, answer.
 10. Be brief and concrete. The customer is a bid manager, not an engineer.
 
+Answer format:
+- Answer in plain sentences by default, the answer first.
+- Use a table when you compare several facts on the same attributes (for example what two documents say about the same items): one row per item, and a Source column holding the fact IDs.
+- Use a list for steps or for several parallel items, never for a single point.
+- When the customer asks where something is said, or needs to see the wording, put [[source:FACT_ID]] on a line of its own after the sentence that states it. Use at most three per answer. The interface fills in the source text from the stored fact; do not copy the source text into the answer yourself.
+- When the answer is mostly dates or deadlines (three or more), give one sentence, then [[timeline:ID,ID,...]] on a line of its own, and do not also list the dates. The interface fills in the dates from the stored facts.
+- Use only IDs of facts that a tool returned in this conversation.
+
 Fact categories: {categories}.
 Fact flags: {flags}.
 The current counts of facts and open conflicts come in a "Current state" message just before each customer message."""
+
+
+_BLOCK = re.compile(r"^[ \t]*\[\[(source|timeline):([^\[\]\n]*)\]\][ \t]*$", re.M)
+
+
+def clean_blocks(text: str, known_ids: set[str]) -> str:
+    """Drop the [[source:...]] and [[timeline:...]] lines of an answer that name facts the run does not
+    have. A timeline keeps only known IDs and is dropped whole when fewer than two are left. The
+    interface shows these lines as blocks drawn from the stored facts, so a made-up ID must not reach it."""
+    def fix(m: re.Match) -> str:
+        ids = [i.strip() for i in m.group(2).split(",") if i.strip()]
+        if m.group(1) == "source":
+            return m.group(0) if len(ids) == 1 and ids[0] in known_ids else "\0"
+        ids = [i for i in ids if i in known_ids][:MAX_TIMELINE_IDS]
+        return f"[[timeline:{','.join(ids)}]]" if len(ids) >= 2 else "\0"
+
+    out = _BLOCK.sub(fix, text)
+    return re.sub(r"\0\n?", "", out) if "\0" in out else out
 
 
 def system_prompt(ws: Workspace) -> str:
@@ -971,7 +998,10 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
         error = f"{type(e).__name__}: {e}"
     if error:
         yield {"type": "error", "message": error}
-    reply = {**_message("assistant", "".join(text_parts) or (error or ""), steps, ctx.conflict_ids), **ids}
+    answer = "".join(text_parts)
+    if "[[" in answer:  # block lines the interface draws from stored facts: only the run's own facts
+        answer = clean_blocks(answer, {f["fact_id"] for f in ws.state().visible()})
+    reply = {**_message("assistant", answer or (error or ""), steps, ctx.conflict_ids), **ids}
     if route is not None:
         reply["planning"] = route.record()
     ws.append_chat(reply)

@@ -44,6 +44,7 @@ VOTES = (1, 3, 5)
 BID_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,80}$")
 UPLOAD_TYPES = (".pdf", ".json", ".txt", ".md", ".csv", ".xlsx")
 AUDIENCES = ("", "internal", "external")
+MAX_TIMELINE = 12  # facts one timeline block may show
 
 
 class FactIn(BaseModel):
@@ -445,6 +446,15 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
             "has_post_award": any(R.is_post_award(f) for f in everything),
             "views": list(R.VIEWS),
         }
+
+    @app.get("/api/timeline")
+    async def timeline(run: str, fact_ids: str = "") -> dict:
+        ids = list(dict.fromkeys(i.strip() for i in fact_ids.split(",") if i.strip()))
+        if not ids or len(ids) > MAX_TIMELINE:
+            raise BadRequest(f"fact_ids must name 1 to {MAX_TIMELINE} facts")
+        state = ws_for(run).state()
+        found = [f for f in (state.get(i) for i in ids) if f is not None and not f["deleted"]]
+        return {"rows": R.timeline(found)}
 
     @app.get("/api/report")
     async def report(run: str) -> JSONResponse:

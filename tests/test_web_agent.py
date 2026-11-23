@@ -575,3 +575,26 @@ def test_prompt_separates_corrections_from_new_information(ws):
     text = A.system_prompt(ws)
     assert "Tell a correction from new information" in text and "add_fact" in text
     assert "new information" in A.BY_NAME["add_fact"].description and "values_removed" in A.BY_NAME["edit_fact"].description
+
+
+def test_prompt_has_a_format_section_with_block_tokens():
+    assert "[[source:FACT_ID]]" in A.SYSTEM_PROMPT and "[[timeline:ID,ID,...]]" in A.SYSTEM_PROMPT
+    assert "Use only IDs of facts that a tool returned" in A.SYSTEM_PROMPT
+
+
+def test_clean_blocks_drops_unknown_ids_and_short_timelines():
+    known = {"f_aaaaaaaaaa", "f_bbbbbbbbbb", "f_cccccccccc"}
+    t = ("Due soon.\n[[source:f_aaaaaaaaaa]]\n[[source:f_zzzzzzzzzz]]\nAnd:\n"
+         "[[timeline:f_aaaaaaaaaa,f_zzzzzzzzzz,f_bbbbbbbbbb]]\n[[timeline:f_aaaaaaaaaa,f_zzzzzzzzzz]]\nEnd [[source:f_zzzzzzzzzz]] inline.")
+    assert A.clean_blocks(t, known) == ("Due soon.\n[[source:f_aaaaaaaaaa]]\nAnd:\n"
+                                        "[[timeline:f_aaaaaaaaaa,f_bbbbbbbbbb]]\nEnd [[source:f_zzzzzzzzzz]] inline.")
+    assert A.clean_blocks("plain [f_aaaaaaaaaa]", known) == "plain [f_aaaaaaaaaa]"
+
+
+async def test_stored_answer_is_cleaned_but_the_stream_is_not(ws, svc):
+    real = ws.state().visible()[0]["fact_id"]
+    answer = f"Here.\n[[source:{real}]]\n[[source:f_0000000000]]\n"
+    events = await run_chat(ws, svc, ScriptedChat([answer]), "where?")
+    assert "".join(e["delta"] for e in events if e["type"] == "text") == answer
+    assert events[-1]["message"]["text"] == f"Here.\n[[source:{real}]]\n"
+    assert ws.chat()[-1]["text"] == f"Here.\n[[source:{real}]]\n"

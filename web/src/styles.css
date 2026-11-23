@@ -183,6 +183,27 @@ button, select { font-family: inherit; }
 .md table { border-collapse: collapse; font-size: 12.5px; }
 .md th, .md td { border: 1px solid var(--border-strong); padding: 4px 8px; text-align: left; vertical-align: top; }
 .md th { background: var(--surface); font-weight: 600; }
+.chat-source { margin: 0 0 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); overflow: hidden; }
+.chat-source-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 5px 10px; font-size: 12px; color: var(--text-muted);
+  border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.chat-source-where { min-width: 0; overflow-wrap: anywhere; }
+.chat-source-head .linkbtn { flex: none; font-size: 12px; }
+.chat-source-body { padding: 8px 10px; font-size: 13px; line-height: 1.55; }
+.chat-source mark { background: var(--warn-soft); color: var(--text); border-radius: 2px; padding: 0 2px; }
+.chat-source-warn { padding: 5px 10px; font-size: 12px; color: var(--warn); background: var(--warn-soft); }
+.chat-source-warn a { color: inherit; }
+.chat-timeline { margin: 0 0 8px; font-size: 13px; }
+.chat-timeline-list { list-style: none; margin: 0; padding: 0; }
+.chat-timeline-row { display: grid; grid-template-columns: minmax(0, 8.5em) 14px minmax(0, 1fr); column-gap: 8px; padding: 4px 0; line-height: 1.45; }
+.chat-timeline-when { font-weight: 600; text-align: right; }
+.chat-timeline-dot { position: relative; }
+.chat-timeline-dot::before { content: ""; position: absolute; left: 3px; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.chat-timeline-dot::after { content: ""; position: absolute; left: 6.5px; top: 16px; bottom: -8px; width: 1px; background: var(--border-strong); }
+.chat-timeline-row:last-child .chat-timeline-dot::after { display: none; }
+.chat-timeline-row.replaced { color: var(--text-muted); }
+.chat-timeline-row.replaced .chat-timeline-text { text-decoration: line-through; }
+.chat-timeline-row.replaced .chat-timeline-dot::before { background: var(--border-strong); }
+.chat-timeline-sub { margin: 6px 0 0; font-size: 12px; }
 .cite-group { display: inline-flex; flex-wrap: wrap; gap: 2px; vertical-align: baseline; margin: 0 2px; }
 .cite { font: inherit; font-size: 11px; line-height: 1.5; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--text-muted);
   border: 1px solid var(--border-strong); text-decoration: none; cursor: pointer; white-space: nowrap; }

@@ -645,3 +645,16 @@ export interface ChatSessionDetail {
   session: ChatSession | null;
   events: ChatLogEvent[];
 }
+
+/** One row of a chat timeline block (GET /timeline): dates and text come from the stored fact. */
+export interface TimelineRow {
+  fact_id: string;
+  date: string;
+  label: string;
+  time: string;
+  text: string;
+  page: string;
+  replaced: boolean;
+  doc_no: number;
+  internal: boolean;
+}

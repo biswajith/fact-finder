@@ -4,7 +4,7 @@ import type {
   Bid, BidDocument, BidDocumentPatch, BidPatch, BidPlan, BidSummary,
   ChatEvent, ChatMessage, ChatSession, ChatSessionDetail, CompareResponse, Conflict, CorrectionEntry, ExtractJob, Fact,
   FactPatch, FactsListFilters, FactsListResponse, FactsResponse, NewFact, OverviewResponse,
-  Report, ResolveBody, RunInfo, RunsTableRow, Status, SummariesResponse, ViewName,
+  Report, ResolveBody, RunInfo, RunsTableRow, Status, SummariesResponse, TimelineRow, ViewName,
 } from './types';
 
 export class ApiError extends Error {
@@ -97,6 +97,9 @@ export const factsCsvUrl = (run: string, filters: FactsListFilters, audience?: '
 
 export const getReport = (run: string, signal?: AbortSignal) => request<Report>('GET', `/report?${q({ run })}`, undefined, signal);
 export const getRunsTable = (signal?: AbortSignal) => request<RunsTableRow[]>('GET', '/runs/table', undefined, signal);
+export const getTimeline = (run: string, factIds: string[], signal?: AbortSignal) =>
+  request<{ rows: TimelineRow[] }>('GET', `/timeline?${q({ run, fact_ids: factIds.join(',') })}`, undefined, signal);
+
 export const getCompare = (a: string, b: string, signal?: AbortSignal) =>
   request<CompareResponse>('GET', `/compare?${q({ a, b })}`, undefined, signal);
 

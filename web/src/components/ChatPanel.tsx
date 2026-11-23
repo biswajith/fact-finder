@@ -14,8 +14,8 @@ const STARTERS = [
   'List the facts I have changed.',
 ];
 
-function ChatText({ text, role }: { text: string; role: 'user' | 'assistant' }) {
-  return role === 'user' ? <>{text}</> : <ChatMarkdown text={text} />;
+function ChatText({ text, role, streaming = false }: { text: string; role: 'user' | 'assistant'; streaming?: boolean }) {
+  return role === 'user' ? <>{text}</> : <ChatMarkdown text={text} streaming={streaming} />;
 }
 
 function Tools({ tools }: { tools: ToolStep[] }) {
@@ -180,7 +180,7 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
         {pending && (
           <div className="msg-wrap">
             <Tools tools={pending.tools} />
-            {pending.text ? <div className="msg assistant"><ChatText text={pending.text} role="assistant" /></div> : <div className="muted">Working...</div>}
+            {pending.text ? <div className="msg assistant"><ChatText text={pending.text} role="assistant" streaming /></div> : <div className="muted">Working...</div>}
             {pending.conflictIds.length > 0 && <ConflictRefs ids={pending.conflictIds} />}
           </div>
         )}

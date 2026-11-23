@@ -329,3 +329,25 @@ def test_load_run_finds_a_source_that_is_not_a_pdf_and_the_workspace_rebuilds_th
     doc, _ = document_from_units("notes-1", cutters.cut_notes("# T\n\nOne point. Another point.\n"))
     (folder / "units.json").write_text(json.dumps(results.unit_rows(doc)))
     assert ws.document().tagged_text == doc.tagged_text
+
+
+def test_timeline_rows_come_from_the_stored_text_in_time_order():
+    recs = D.normalize([
+        fact("D", "Award expected 30 days after presentations", [("p5.1", 5, "x")], fact_id="f_u"),
+        fact("D", "Proposals due Thu 24 Jun 2027 at 14:00", [("p1.2", 1, "x")], flags=["replaced"], fact_id="f_a"),
+        fact("D", "Questions close 2027-03-01 and answers follow 2027-03-09", [("p2.1", 2, "x")], fact_id="f_b"),
+        fact("D", "Revised proposals due 24 Jun 2027", [("p3.1", 3, "x")], fact_id="f_c"),
+    ])
+    recs[2]["citations"][0].update(doc_no=2, visibility="internal")
+    rows = D.timeline(recs)
+    assert [r["fact_id"] for r in rows] == ["f_b", "f_a", "f_c", "f_u"]  # earliest date; undated last
+    b, a, _, u = rows
+    assert (b["date"], b["label"], b["time"], b["page"]) == ("2027-03-01", "Mon 1 Mar 2027", "", "2")
+    assert (a["date"], a["label"], a["time"], a["replaced"]) == ("2027-06-24", "Thu 24 Jun 2027", "14:00", True)
+    assert (b["doc_no"], b["internal"], a["doc_no"], a["internal"]) == (2, True, 0, False)
+    assert (u["date"], u["label"], u["time"]) == ("", "", "")
+
+
+def test_calendar_and_timeline_agree_on_the_label():
+    recs = D.normalize([fact("D", "Due 3 March 2027 at 09:30", [("p1.1", 1, "x")])])
+    assert D.calendar(recs)["dated"][0]["label"] == D.timeline(recs)[0]["label"]
