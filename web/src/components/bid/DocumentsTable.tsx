@@ -76,7 +76,10 @@ function Row({ doc, bid, onPatch, onRemove, onSpeakers }: {
     <Fragment>
       <tr>
         <td className="num"><strong>d{doc.no}</strong></td>
-        <td className="wrap-text">{doc.file_name}{doc.pages ? <span className="muted"> · {doc.pages} p.</span> : null}</td>
+        <td className="wrap-text">
+          {doc.file_name}{doc.pages ? <span className="muted"> · {doc.pages} p.</span> : null}
+          <div><span className={`pg-pill ${st.tone}`} role="status">{st.text}</span></div>
+        </td>
         <td>
           {editable ? (
             <div className="pg-cell">
@@ -85,7 +88,7 @@ function Row({ doc, bid, onPatch, onRemove, onSpeakers }: {
                 items={bid.playbooks}
                 selectedKey={known(draft.playbook) ? draft.playbook : null}
                 onSelectionChange={(k) => k != null && set({ playbook: String(k) })}
-                width="size-2400"
+                width="size-2000"
               >
                 {(p) => <Item key={p.name}>{playbookLabel(p.name)}</Item>}
               </Picker>
@@ -97,7 +100,7 @@ function Row({ doc, bid, onPatch, onRemove, onSpeakers }: {
                   items={replaceable}
                   selectedKey={draft.previous}
                   onSelectionChange={(k) => k != null && set({ previous: String(k) })}
-                  width="size-2400"
+                  width="size-2000"
                   placeholder="(choose)"
                 >
                   {(d) => <Item key={d.doc_id}>{`d${d.no} ${d.file_name}`}</Item>}
@@ -124,7 +127,6 @@ function Row({ doc, bid, onPatch, onRemove, onSpeakers }: {
           ) : doc.issue_date ?? <span className="muted">-</span>}
         </td>
         <td><Reads playbook={pb} /></td>
-        <td><span className={`pg-pill ${st.tone}`}>{st.text}</span></td>
         <td>
           <div className="pg-actions">
             {editable && (
@@ -141,18 +143,18 @@ function Row({ doc, bid, onPatch, onRemove, onSpeakers }: {
         </td>
       </tr>
       {(editable && doc.proposed.checked === false) && (
-        <tr className="pg-sub"><td /><td colSpan={7} className="pg-note">The suggested number or date was not found in the document; check it.</td></tr>
+        <tr className="pg-sub"><td /><td colSpan={6} className="pg-note">The suggested number or date was not found in the document; check it.</td></tr>
       )}
       {words && !extracted && (
-        <tr className="pg-sub"><td /><td colSpan={7} className="pg-note">{words}</td></tr>
+        <tr className="pg-sub"><td /><td colSpan={6} className="pg-note">{words}</td></tr>
       )}
       {doc.error && (
-        <tr className="pg-sub"><td /><td colSpan={7} role="alert" className="pg-note bad wrap-text">{doc.error}</td></tr>
+        <tr className="pg-sub"><td /><td colSpan={6} role="alert" className="pg-note bad wrap-text">{doc.error}</td></tr>
       )}
       {doc.speakers.length > 0 && (
         <tr className="pg-sub">
           <td />
-          <td colSpan={7}>
+          <td colSpan={6}>
             <SpeakersPanel
               key={doc.speakers.map((s) => `${s.id}|${s.name}|${s.side}|${s.proposed}`).join(';') + String(doc.speakers_confirmed)}
               doc={doc}
@@ -186,7 +188,7 @@ export function DocumentsTable({ bid, uploads, onDismiss, onPatch, onRemove }: {
             <thead>
               <tr>
                 <th scope="col">No.</th><th scope="col">File</th><th scope="col">Type</th><th scope="col">Issue no.</th>
-                <th scope="col">Issue date</th><th scope="col">Reads as</th><th scope="col">Status</th><th scope="col"><span className="sr-only">Actions</span></th>
+                <th scope="col">Issue date</th><th scope="col">Reads as</th><th scope="col"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
@@ -204,7 +206,7 @@ export function DocumentsTable({ bid, uploads, onDismiss, onPatch, onRemove }: {
                 <tr key={`u${u.key}`}>
                   <td />
                   <td className="wrap-text">{u.name}</td>
-                  <td colSpan={5}>
+                  <td colSpan={4}>
                     {u.status === 'pending' ? (
                       <span className="row" role="status"><ProgressCircle aria-label={`Uploading ${u.name}`} isIndeterminate size="S" /> Uploading...</span>
                     ) : (
