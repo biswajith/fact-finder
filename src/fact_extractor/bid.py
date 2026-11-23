@@ -33,6 +33,8 @@ from . import classify, cutters, ladder, playbooks, relate, reissue, results
 
 BIDS = "_bids"
 SIDES = ("buyer", "ours", "other", "unknown")  # other: a named party that is neither the buyer nor us
+# The side written on the units of an `other` speaker who acts for the buyer (an adviser the buyer hired).
+BUYER_ADVISER = "other-buyer"
 _LOCKS: dict[str, threading.RLock] = {}
 _LOCKS_GUARD = threading.Lock()
 _ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -275,6 +277,10 @@ class Bid:
                     if given.get("side") not in SIDES:
                         raise ValueError(f"a side is one of {', '.join(SIDES)}")
                     s["side"] = given["side"]
+                    if "acts_for" in given:
+                        if given["acts_for"] not in ("buyer", "ours", ""):
+                            raise ValueError("acts_for is buyer, ours or empty")
+                        s["acts_for"] = given["acts_for"]
             if playbooks.load(d["playbook"]).cutter == "transcript" and not d["speakers"]:
                 d["speakers"] = self._propose(m, d, self.data(d))
             if d["status"] in ("uploaded", "confirmed", "failed"):
@@ -478,12 +484,12 @@ def ready(doc: dict) -> list[str]:
 def level_of(pb: playbooks.Playbook, sides: list[str]) -> tuple[int, list[str]]:
     """The level of a fact and the flags its sources add, from the sides of the units it cites.
     Never from a model answer. A buyer document or a note has the playbook's level. For a call:
-    2 when any cited unit is the buyer's, else 3. An `other` side (an advisor, a partner) is neither the
+    2 when any cited unit is the buyer's or the buyer's adviser's, else 3. An `other` side (an advisor, a partner) is neither the
     buyer nor ours and is clear; an `unknown` side is not decided, so a fact with `unknown` units and none
     of the buyer's or ours is `unclear`; units of both the buyer and ours add `both-sides`."""
     if pb.level != "by speaker":
         return int(pb.level), []
-    s = set(sides)
+    s = {"buyer" if x == BUYER_ADVISER else x for x in sides}  # the buyer's adviser speaks for the buyer
     flags = []
     if {"buyer", "ours"} <= s:
         flags.append("both-sides")
@@ -640,7 +646,9 @@ async def extract_document(
         if pb.cutter == "pdf":
             tagged = runs.tag_pdf(data, d["doc_id"], store.root)
         else:
-            sides = {s["name"]: s["side"] for s in d["speakers"]}
+            # an adviser who acts for the buyer speaks for the buyer: their units count as the buyer's (level 2)
+            sides = {s["name"]: BUYER_ADVISER if s["side"] == "other" and s.get("acts_for") == "buyer" else s["side"]
+                     for s in d["speakers"]}
             # another party's units name its organisation, so a reader sees whose words they are
             shown = {s["name"]: f"{s['name']} ({s['organisation']})" for s in d["speakers"]
                      if s["side"] == "other" and s.get("organisation")}

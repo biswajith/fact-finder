@@ -514,7 +514,7 @@ export interface BidDocumentPatch {
   issue_date?: string | null;
   previous?: string | null;
   confirmed?: boolean;
-  speakers?: { id: string; name: string; side: SpeakerSide }[];
+  speakers?: { id: string; name: string; side: SpeakerSide; acts_for?: string }[];
   speakers_confirmed?: boolean;
 }
 export interface BidPatch {

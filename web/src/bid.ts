@@ -49,6 +49,7 @@ export function sideLabel(side: string | null | undefined): string {
     case 'buyer': return 'Buyer';
     case 'ours': return 'Our side';
     case 'other': return 'Other party';
+    case 'other-buyer': return "Buyer's adviser";
     default: return '';
   }
 }

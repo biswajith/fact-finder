@@ -30,7 +30,7 @@ function Row({ doc, bid, onPatch, onRemove, onSpeakers, onSuggest, hasKey }: {
   bid: Bid;
   onPatch: (no: number, body: BidDocumentPatch) => Promise<boolean>;
   onRemove: (no: number) => Promise<boolean>;
-  onSpeakers: (no: number, speakers: { id: string; name: string; side: SpeakerSide }[]) => Promise<boolean>;
+  onSpeakers: (no: number, speakers: { id: string; name: string; side: SpeakerSide; acts_for?: string }[]) => Promise<boolean>;
   onSuggest: (no: number) => Promise<boolean>;
   hasKey: boolean;
 }) {
@@ -180,7 +180,7 @@ export function DocumentsTable({ bid, uploads, onDismiss, onPatch, onSuggest, ha
   onRemove: (no: number) => Promise<boolean>;
 }) {
   const rows = rowsInOrder(bid);
-  const onSpeakers = (no: number, speakers: { id: string; name: string; side: SpeakerSide }[]) =>
+  const onSpeakers = (no: number, speakers: { id: string; name: string; side: SpeakerSide; acts_for?: string }[]) =>
     onPatch(no, { speakers, speakers_confirmed: true });
   return (
     <div className="pg-stack">

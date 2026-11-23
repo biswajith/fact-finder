@@ -323,6 +323,7 @@ the document results.
 
 **The priority ladder.**
 1. Level 1 buyer documents; level 2 the buyer on a call; level 3 our side on a call; level 4 deal notes.
+   An adviser the buyer hired counts as the buyer on a call (level 2) when the speakers panel says they act for the buyer; any other outside party is level 3.
 2. Between level-1 documents the later issue wins (an addendum's issue number comes before its date),
    unless you confirmed the buyer's order of precedence. Two documents issued together that disagree
    are a conflict, not a replacement.

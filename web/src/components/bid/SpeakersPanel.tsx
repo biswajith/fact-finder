@@ -28,17 +28,17 @@ function groups(speakers: BidSpeaker[]): { name: string | null; at: number[] }[]
 
 export function SpeakersPanel({ doc, onConfirm, onSuggest }: {
   doc: BidDocument;
-  onConfirm: (speakers: { id: string; name: string; side: SpeakerSide }[]) => Promise<boolean>;
+  onConfirm: (speakers: { id: string; name: string; side: SpeakerSide; acts_for?: string }[]) => Promise<boolean>;
   /** Ask the model again; absent when there is no API key. */
   onSuggest?: () => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(!doc.speakers_confirmed);
   // A side the reader has not chosen starts from the proposal when there is one; "unknown" stays unselected.
-  const [draft, setDraft] = useState(() => doc.speakers.map((s) => ({ id: s.id, name: s.name, side: placed(s.side) ? s.side : placed(s.proposed) ? s.proposed : s.side })));
+  const [draft, setDraft] = useState(() => doc.speakers.map((s) => ({ id: s.id, name: s.name, side: placed(s.side) ? s.side : placed(s.proposed) ? s.proposed : s.side, acts_for: s.acts_for ?? '' })));
   const [busy, setBusy] = useState(false);
   const locked = !!doc.run;
   const complete = draft.every((s) => placed(s.side));
-  const set = (i: number, patch: Partial<{ name: string; side: SpeakerSide }>) =>
+  const set = (i: number, patch: Partial<{ name: string; side: SpeakerSide; acts_for: string }>) =>
     setDraft((d) => d.map((s, j) => (j === i ? { ...s, ...patch } : s)));
 
   const line = (i: number) => {
@@ -66,8 +66,15 @@ export function SpeakersPanel({ doc, onConfirm, onSuggest }: {
           <Radio value="ours">Our side</Radio>
           <Radio value="other">Other party</Radio>
         </RadioGroup>
-        {s.side === 'other' && (orig.acts_for === 'buyer' || orig.acts_for === 'ours') && (
-          <span className="muted">acts for {orig.acts_for === 'buyer' ? 'the buyer' : 'our side'}</span>
+        {s.side === 'other' && (
+          <label className="pg-acts muted">
+            Acts for{' '}
+            <select aria-label={`Whom ${s.name} acts for`} value={s.acts_for} disabled={locked} onChange={(e) => set(i, { acts_for: e.target.value })}>
+              <option value="">neither side</option>
+              <option value="buyer">the buyer (counts as the buyer speaking)</option>
+              <option value="ours">our side</option>
+            </select>
+          </label>
         )}
       </div>
     );
@@ -91,7 +98,7 @@ export function SpeakersPanel({ doc, onConfirm, onSuggest }: {
             isDisabled={!complete || busy}
             onPress={async () => {
               setBusy(true);
-              const ok = await onConfirm(draft.map((s) => ({ id: s.id, name: s.name.trim() || s.name, side: s.side })));
+              const ok = await onConfirm(draft.map((s) => ({ id: s.id, name: s.name.trim() || s.name, side: s.side, acts_for: s.side === 'other' ? s.acts_for : '' })));
               setBusy(false);
               if (ok) setOpen(false);
             }}

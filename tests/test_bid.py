@@ -351,3 +351,12 @@ def test_document_order_without_doc_no_is_unchanged():
     assert [r["text"] for r in runs.document_order(recs)] == ["c", "a", "b", "none"]
     recs[0]["doc_no"], recs[2]["doc_no"] = 5, 7
     assert [r["text"] for r in runs.document_order(recs)] == ["c", "none", "b", "a"]
+
+
+def test_a_buyers_adviser_counts_as_the_buyer():
+    """An `other` speaker who acts for the buyer writes `other-buyer` on their units: level 2, and with
+    our side's units the fact has both sides. Another party who acts for no one stays level 3."""
+    pb = playbooks.load("call-transcript")
+    assert B.level_of(pb, [B.BUYER_ADVISER]) == (2, [])
+    assert B.level_of(pb, [B.BUYER_ADVISER, "ours"]) == (2, ["both-sides"])
+    assert B.level_of(pb, ["other"]) == (3, [])
