@@ -593,6 +593,8 @@ export interface DecisionsCall {
   output_tokens?: number | null;
   cost_usd?: number;
   error?: string;
+  /** The whole Decisions API response as returned (answers with every label's probability, usage, request id). */
+  response?: Record<string, unknown> | null;
 }
 
 export interface PlanStep { step: string; done: boolean }
