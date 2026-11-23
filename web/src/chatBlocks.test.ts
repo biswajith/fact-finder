@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planLines, splitBlocks } from './chatBlocks';
+import { planLines, planMessage, splitBlocks } from './chatBlocks';
 
 const A = 'f_0123456789';
 const B = 'f_abcdef0123';
@@ -73,5 +73,28 @@ describe('planLines', () => {
   it('numbers the steps of a heavy plan and copes with nothing', () => {
     expect(planLines({ steps: [{ step: 'Find all dates' }, { step: 'Check each' }] })).toBe('1. Find all dates\n2. Check each');
     expect(planLines(null)).toBe('');
+  });
+});
+
+describe('planMessage', () => {
+  it('splits a one-line plan into steps and pulls a long topic list out as items', () => {
+    const p = planMessage('Plan: 1. Look up the pricing drivers across the bid documents, including scope, volumes, contract and payment terms, evaluation, and budget signals; 2. summarize each factor and note what the documents do not address.\n\nShall I go ahead? You can also tell me what to change.');
+    expect(p).toEqual({
+      steps: [
+        { text: 'Look up the pricing drivers across the bid documents', items: ['scope', 'volumes', 'contract and payment terms', 'evaluation', 'budget signals'], done: false },
+        { text: 'Summarize each factor and note what the documents do not address.', items: [], done: false },
+      ],
+      rest: 'Shall I go ahead? You can also tell me what to change.',
+    });
+  });
+
+  it('reads a numbered plan with done steps', () => {
+    const p = planMessage('Plan:\n1. [done] find the dates\n2. report them\n\nShall I go ahead?');
+    expect(p?.steps.map((s) => [s.text, s.done])).toEqual([['Find the dates', true], ['Report them', false]]);
+  });
+
+  it('leaves short lists in the sentence and ignores other messages', () => {
+    expect(planMessage('Plan: 1. check dates, including May and June; 2. report')?.steps[0].items).toEqual([]);
+    expect(planMessage('The plan is fine.')).toBeNull();
   });
 });

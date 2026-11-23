@@ -3,7 +3,7 @@ import { Button, InlineAlert, Heading, Content, TextArea } from '@adobe/react-sp
 import * as api from '../api';
 import { errorText, useRun } from '../store';
 import type { ChatEvent, ChatMessage, ToolStep } from '../types';
-import { planLines } from '../chatBlocks';
+import { planLines, planMessage } from '../chatBlocks';
 import { ConflictCard } from './ConflictCard';
 import { ErrorBox, Loading } from './common';
 import { ChatMarkdown } from './chat/Markdown';
@@ -44,11 +44,40 @@ function ConflictRefs({ ids }: { ids: string[] }) {
   );
 }
 
-function Message({ m }: { m: ChatMessage }) {
+/** A plan the assistant shows before it works: numbered steps, a long topic list as tags, then its question. */
+function PlanCard({ steps, rest, waiting }: { steps: NonNullable<ReturnType<typeof planMessage>>['steps']; rest: string; waiting: boolean }) {
+  return (
+    <div className="plan-card">
+      <div className="plan-card-head">
+        <strong>Plan</strong>
+        <span className="muted">{steps.length} {steps.length === 1 ? 'step' : 'steps'}{waiting ? ' · waiting for your answer' : ''}</span>
+      </div>
+      <ol className="plan-steps">
+        {steps.map((s, i) => (
+          <li key={i} className={s.done ? 'done' : undefined}>
+            <span className="plan-no" aria-hidden="true">{s.done ? '✓' : i + 1}</span>
+            <div className="plan-step">
+              <span>{s.text}</span>
+              {s.items.length > 0 && (
+                <ul className="plan-items" aria-label="Including">
+                  {s.items.map((x) => <li key={x}>{x}</li>)}
+                </ul>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {rest && <div className="plan-card-foot"><ChatMarkdown text={rest} /></div>}
+    </div>
+  );
+}
+
+function Message({ m, waiting = false }: { m: ChatMessage; waiting?: boolean }) {
+  const plan = m.role === 'assistant' && m.text ? planMessage(m.text) : null;
   return (
     <div className="msg-wrap">
       {m.role === 'assistant' && m.tools && <Tools tools={m.tools} />}
-      {m.text && (
+      {plan ? <PlanCard steps={plan.steps} rest={plan.rest} waiting={waiting} /> : m.text && (
         <div className={`msg ${m.role}`}>
           <ChatText text={m.text} role={m.role} />
         </div>
@@ -204,7 +233,7 @@ export function ChatPanel({ open, onClose, resizer }: { open: boolean; onClose: 
         ) : history === null ? (
           <Loading label="Loading chat" />
         ) : (
-          history.map((m) => <Message key={m.id} m={m} />)
+          history.map((m) => <Message key={m.id} m={m} waiting={m === waitingPlan} />)
         )}
         {waitingPlan && <PlanReply key={waitingPlan.id} m={waitingPlan} disabled={sending || noKey} onSend={(t) => void send(t)} />}
         {pending && (

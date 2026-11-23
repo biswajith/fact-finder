@@ -158,6 +158,20 @@ button, select { font-family: inherit; }
 .shell.chat-open.fact-open .chat-panel { right: var(--fact-w); width: var(--chat-w); }
 @media (max-width: 759px) { .shell.chat-open.fact-open .chat-panel { right: 0; width: min(var(--drawer-w), 100vw); } }
 @media (prefers-reduced-motion: reduce) { .chat-panel { transition: none; } }
+.plan-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.plan-card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.plan-card-head .muted { font-size: 12px; }
+.plan-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.plan-steps > li { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.plan-no { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+  font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; }
+.plan-steps > li.done .plan-no { background: var(--ok-soft); color: var(--ok); }
+.plan-steps > li.done .plan-step > span { color: var(--text-muted); }
+.plan-step { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; overflow-wrap: anywhere; }
+.plan-items { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.plan-items li { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); }
+.plan-card-foot { border-top: 1px solid var(--border); padding-top: 10px; color: var(--text-muted); }
+.plan-card-foot p { margin: 0; }
 .plan-reply { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .plan-reply.editing { flex-direction: column; align-items: stretch; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
 /* The chat's left edge is a handle: drag it, or use the arrow keys on it, to set the chat's width. */

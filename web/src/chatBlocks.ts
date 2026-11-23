@@ -70,3 +70,32 @@ export function planLines(p: { plan_text?: string; steps?: { step: string }[] } 
   const parts = text.split(/\s*;?\s*(?=\d+[.)]\s)/).map((x) => x.trim().replace(/;$/, '')).filter(Boolean);
   return parts.length > 1 ? parts.join('\n') : text;
 }
+
+export interface PlanStep { text: string; items: string[]; done: boolean }
+
+/** A list at the end of a step ("..., including scope, volumes, and terms") as separate items,
+ * so a long run of topics can be shown as tags. Fewer than three items stay in the sentence. */
+function stepItems(step: string): { text: string; items: string[] } {
+  const m = step.match(/^(.*?)(?:,\s*|\s+)(?:including|such as|covering)\s+(.+?)\.?$/i);
+  if (!m) return { text: step, items: [] };
+  const items = m[2].split(/\s*,\s*(?:and\s+|or\s+)?|\s+and\s+(?=[^,]*$)/).map((x) => x.trim()).filter(Boolean);
+  return items.length >= 3 ? { text: m[1].trim(), items } : { text: step, items: [] };
+}
+
+/** An assistant message that shows a plan ("Plan: 1. ...; 2. ..." or "Plan:\n1. ...") split into
+ * its steps and the words after it; null for any other message. */
+export function planMessage(text: string): { steps: PlanStep[]; rest: string } | null {
+  const m = text.match(/^\s*Plan:\s*([\s\S]*?)(?:\n\s*\n([\s\S]*))?$/i);
+  if (!m) return null;
+  const lines = planLines({ plan_text: m[1].replace(/\n/g, ' ') }).split('\n');
+  const steps = lines
+    .map((l) => l.replace(/^\s*\d+[.)]\s*/, '').trim())
+    .filter(Boolean)
+    .map((l) => {
+      const done = /^\[done\]\s*/i.test(l);
+      const s = l.replace(/^\[done\]\s*/i, '').replace(/;$/, '');
+      const { text: t, items } = stepItems(s);
+      return { text: t.charAt(0).toUpperCase() + t.slice(1), items, done };
+    });
+  return steps.length ? { steps, rest: (m[2] ?? '').trim() } : null;
+}
