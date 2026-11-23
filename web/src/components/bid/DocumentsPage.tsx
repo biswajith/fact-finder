@@ -98,7 +98,7 @@ export function DocumentsPage({ flow, status }: { flow: BidFlow; status: Status 
             )}
             <Step n={3} title="Extract">
               {needsConfirm && <div className="pg-note">Confirm at least one document in step 2.</div>}
-              <PlanAndStart flow={flow} bid={bid} status={status} />
+              {docs.length > 0 && <PlanAndStart flow={flow} bid={bid} status={status} />}
             </Step>
           </>
         )}
