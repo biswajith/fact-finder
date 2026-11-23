@@ -218,7 +218,7 @@ ul.differs li { margin: 4px 0; max-width: none; }
 <h2 id="dataflow">Dataflow</h2>
 <p>The whole proposed system in three pictures, read in order. Each starts with a dashed box naming what the previous one handed over. The pictures are the same for every kind of document: a badge on a box marks where a kind of document does something different there, and the list under each picture says what. The <a href="#types">table after them</a> gathers the same differences in one place.</p>
 <div class="legend"><span><i class="lc"></i>Code</span><span><i class="lm"></i>Model answers, code checks</span><span><i class="lx"></i>User</span><span><i class="ld"></i>Data kept or shown</span><span><i class="ls"></i>Hand-over between pictures</span></div>
-<p class="legend" style="margin-top:4px"><span class="tb-c" title="change addendum">AD</span>change addendum <span class="tb-c" title="Q&amp;A addendum">QA</span>Q&amp;A addendum <span class="tb-c" title="reissued RFP">RE</span>reissued RFP <span class="tb-c" title="attachment">AT</span>attachment <span class="tb-c" title="call transcript">TR</span>call transcript <span class="tb-c" title="deal notes">DN</span>deal notes. A badge on a box means that kind of document does something different there; a box with no badge works the same for every kind, as for an RFP.</p>
+<p class="legend" style="margin-top:4px"><span class="tb-c" title="change addendum">AD</span>change addendum <span class="tb-c" title="Q&amp;A addendum">QA</span>Q&amp;A addendum <span class="tb-c" title="reissued RFP">RE</span>reissued RFP <span class="tb-c" title="buyer attachment">AT</span>buyer attachment (pricing workbook, forms, sample contract) <span class="tb-c" title="call transcript">TR</span>call transcript <span class="tb-c" title="deal notes">DN</span>deal notes. A badge on a box means that kind of document does something different there; a box with no badge works the same for every kind, as for an RFP.</p>
 
 <h3>1. A document becomes units</h3>
 <div class="scroll" style="padding:12px">
@@ -266,7 +266,7 @@ ul.differs li { margin: 4px 0; max-width: none; }
 </svg>
 </div>
 <p>CLASSIFY proposes a type and the user confirms it; the cutter for that form cuts the units. A transcript also gets a speaker map that the user confirms. Other forms go straight from the cutter to the units.</p>
-<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <span class="tb-c" title="Q&amp;A addendum">QA</span> <b>Confirm:</b> addenda are also put in issue order (number, then date), and the user confirms any order of precedence the buyer states.</li><li><span class="tb-c" title="attachment">AT</span> <b>Cut into units:</b> spreadsheet or PDF cutter for a pricing workbook, forms or sample contract.</li><li><span class="tb-c" title="call transcript">TR</span> <b>Cut into units:</b> sentences inside speaker turns, with the speaker stored on each unit; then the speaker map and its confirmation, which only transcripts have.</li><li><span class="tb-c" title="deal notes">DN</span> <b>Cut into units:</b> notes cutter: entries and their lines.</li></ul>
+<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <span class="tb-c" title="Q&amp;A addendum">QA</span> <b>Confirm:</b> addenda are also put in issue order (number, then date), and the user confirms any order of precedence the buyer states.</li><li><span class="tb-c" title="buyer attachment">AT</span> <b>Cut into units:</b> spreadsheet or PDF cutter for a pricing workbook, forms or sample contract.</li><li><span class="tb-c" title="call transcript">TR</span> <b>Cut into units:</b> sentences inside speaker turns, with the speaker stored on each unit; then the speaker map and its confirmation, which only transcripts have.</li><li><span class="tb-c" title="deal notes">DN</span> <b>Cut into units:</b> notes cutter: entries and their lines.</li></ul>
 
 <h3>2. Units become facts and links</h3>
 <div class="scroll" style="padding:12px">
@@ -387,7 +387,7 @@ ul.differs li { margin: 4px 0; max-width: none; }
 </svg>
 </div>
 <p>The pair check, the ladder and the user's decisions settle what disagrees; the decisions go into the correction log. The stored facts and relations, applied in issue order with the log replayed over them, give the bid's fact list, its summaries and the exports.</p>
-<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <b>Apply the ladder:</b> between buyer documents the later issue wins, unless a stated order of precedence says otherwise.</li><li><span class="tb-c" title="attachment">AT</span> <b>Apply the ladder:</b> an attachment issued with the RFP has no order against it, so a disagreement is a Q fact, not a replacement.</li><li><span class="tb-c" title="call transcript">TR</span> <span class="tb-c" title="deal notes">DN</span> <b>Exports:</b> internal by default, so their citations are left out of anything sent outside the team.</li></ul>
+<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <b>Apply the ladder:</b> between buyer documents the later issue wins, unless a stated order of precedence says otherwise.</li><li><span class="tb-c" title="buyer attachment">AT</span> <b>Apply the ladder:</b> an attachment issued with the RFP has no order against it, so a disagreement is a Q fact, not a replacement.</li><li><span class="tb-c" title="call transcript">TR</span> <span class="tb-c" title="deal notes">DN</span> <b>Exports:</b> internal by default, so their citations are left out of anything sent outside the team.</li></ul>
 <h3 id="types">4. Where the document types differ</h3>
 <p>The badges from the three pictures, gathered by document type. Every document goes through the three pictures; its playbook changes only the steps below, and a highlighted cell is where a type departs from the RFP.</p>
 <div class="legend"><span><i class="lf"></i>Differs from the RFP</span><span><i class="ld"></i>Same as the RFP</span></div>
@@ -430,7 +430,7 @@ ul.differs li { margin: 4px 0; max-width: none; }
   <td class="diff">Every unit: mostly clarifies or adds; "no change" is none</td>
   <td class="same">1</td>
   <td class="same">Same as RFP</td></tr>
-<tr><td>Attachment</td>
+<tr><td>Buyer attachment</td>
   <td class="diff">Spreadsheet or PDF: pricing workbook, forms, sample contract</td>
   <td class="same">Same as RFP</td>
   <td class="same">Same as RFP</td>
