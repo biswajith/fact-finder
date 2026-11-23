@@ -218,7 +218,7 @@ ul.differs li { margin: 4px 0; max-width: none; }
 <h2 id="dataflow">Dataflow</h2>
 <p>The whole proposed system in three pictures, read in order. Each starts with a dashed box naming what the previous one handed over. The pictures are the same for every kind of document: a badge on a box marks where a kind of document does something different there, and the list under each picture says what. The <a href="#types">table after them</a> gathers the same differences in one place.</p>
 <div class="legend"><span><i class="lc"></i>Code</span><span><i class="lm"></i>Model answers, code checks</span><span><i class="lx"></i>User</span><span><i class="ld"></i>Data kept or shown</span><span><i class="ls"></i>Hand-over between pictures</span></div>
-<p class="legend" style="margin-top:4px"><span class="tb-c" title="change addendum">AD</span>change addendum <span class="tb-c" title="Q&amp;A addendum">QA</span>Q&amp;A addendum <span class="tb-c" title="reissued RFP">RE</span>reissued RFP <span class="tb-c" title="buyer attachment">AT</span>buyer attachment (pricing workbook, forms, sample contract) <span class="tb-c" title="call transcript">TR</span>call transcript <span class="tb-c" title="deal notes">DN</span>deal notes. A badge on a box means that kind of document does something different there; a box with no badge works the same for every kind, as for an RFP.</p>
+<p class="legend" style="margin-top:4px"><span class="tb-c" title="change addendum">AD</span>change addendum <span class="tb-c" title="Q&amp;A addendum">QA</span>Q&amp;A addendum <span class="tb-c" title="reissued RFP">RE</span>reissued RFP <span class="tb-c" title="fill-in template">TP</span>fill-in template <span class="tb-c" title="call transcript">TR</span>call transcript <span class="tb-c" title="deal notes">DN</span>deal notes. A badge on a box means that kind of document does something different there; a box with no badge works the same for every kind, as for an RFP.</p>
 
 <h3>1. A document becomes units</h3>
 <div class="scroll" style="padding:12px">
@@ -227,7 +227,7 @@ ul.differs li { margin: 4px 0; max-width: none; }
   <defs><marker id="da1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>
   <g class="b"><rect x="16" y="40" width="176" height="96" rx="10"/>
     <text class="n" x="30" y="62">INPUT</text><text class="t" x="30" y="84">Documents</text>
-    <text class="s" x="30" y="104">RFP, addenda, reissues,</text><text class="s" x="30" y="120">attachments, calls, notes</text></g>
+    <text class="s" x="30" y="104">RFP, addenda, reissues,</text><text class="s" x="30" y="120">templates, calls, notes</text></g>
   <g class="b m"><rect x="312" y="40" width="176" height="96" rx="10"/>
     <text class="n" x="326" y="62">MODEL</text><text class="t" x="326" y="84">CLASSIFY</text>
     <text class="s" x="326" y="104">Playbook, issue number</text><text class="s" x="326" y="120">and date, from first pages</text></g>
@@ -262,11 +262,11 @@ ul.differs li { margin: 4px 0; max-width: none; }
     <text class="n" x="30" y="382">TO PICTURE 2</text><text class="t" x="30" y="404">Units</text>
     <text class="s" x="30" y="424">ID, text, page or turn,</text><text class="s" x="30" y="440">heading, speaker side.</text></g>
   <g class="tb"><rect x="725" y="48" width="24" height="15" rx="7"/><text x="737" y="59" text-anchor="middle">AD</text></g><g class="tb"><rect x="752" y="48" width="24" height="15" rx="7"/><text x="764" y="59" text-anchor="middle">QA</text></g>
-  <g class="tb"><rect x="106" y="208" width="24" height="15" rx="7"/><text x="118" y="219" text-anchor="middle">AT</text></g><g class="tb"><rect x="133" y="208" width="24" height="15" rx="7"/><text x="145" y="219" text-anchor="middle">TR</text></g><g class="tb"><rect x="160" y="208" width="24" height="15" rx="7"/><text x="172" y="219" text-anchor="middle">DN</text></g>
+  <g class="tb"><rect x="106" y="208" width="24" height="15" rx="7"/><text x="118" y="219" text-anchor="middle">TP</text></g><g class="tb"><rect x="133" y="208" width="24" height="15" rx="7"/><text x="145" y="219" text-anchor="middle">TR</text></g><g class="tb"><rect x="160" y="208" width="24" height="15" rx="7"/><text x="172" y="219" text-anchor="middle">DN</text></g>
 </svg>
 </div>
 <p>CLASSIFY proposes a type and the user confirms it; the cutter for that form cuts the units. A transcript also gets a speaker map that the user confirms. Other forms go straight from the cutter to the units.</p>
-<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <span class="tb-c" title="Q&amp;A addendum">QA</span> <b>Confirm:</b> addenda are also put in issue order (number, then date), and the user confirms any order of precedence the buyer states.</li><li><span class="tb-c" title="buyer attachment">AT</span> <b>Cut into units:</b> spreadsheet or PDF cutter for a pricing workbook, forms or sample contract.</li><li><span class="tb-c" title="call transcript">TR</span> <b>Cut into units:</b> sentences inside speaker turns, with the speaker stored on each unit; then the speaker map and its confirmation, which only transcripts have.</li><li><span class="tb-c" title="deal notes">DN</span> <b>Cut into units:</b> notes cutter: entries and their lines.</li></ul>
+<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <span class="tb-c" title="Q&amp;A addendum">QA</span> <b>Confirm:</b> addenda are also put in issue order (number, then date), and the user confirms any order of precedence the buyer states.</li><li><span class="tb-c" title="fill-in template">TP</span> <b>Cut into units:</b> a spreadsheet or form cutter: one unit per row, field or instruction on the sheet. Blank cells are left out.</li><li><span class="tb-c" title="call transcript">TR</span> <b>Cut into units:</b> sentences inside speaker turns, with the speaker stored on each unit; then the speaker map and its confirmation, which only transcripts have.</li><li><span class="tb-c" title="deal notes">DN</span> <b>Cut into units:</b> notes cutter: entries and their lines.</li></ul>
 
 <h3>2. Units become facts and links</h3>
 <div class="scroll" style="padding:12px">
@@ -324,14 +324,14 @@ ul.differs li { margin: 4px 0; max-width: none; }
   <path class="ar" d="M488 408 H604"/>
   <text class="n" x="548" y="388" text-anchor="middle">pairs with</text>
   <text class="n" x="548" y="400" text-anchor="middle">different values</text>
-  <g class="tb"><rect x="402" y="48" width="24" height="15" rx="7"/><text x="414" y="59" text-anchor="middle">AD</text></g><g class="tb"><rect x="429" y="48" width="24" height="15" rx="7"/><text x="441" y="59" text-anchor="middle">TR</text></g><g class="tb"><rect x="456" y="48" width="24" height="15" rx="7"/><text x="468" y="59" text-anchor="middle">DN</text></g>
+  <g class="tb"><rect x="375" y="48" width="24" height="15" rx="7"/><text x="387" y="59" text-anchor="middle">AD</text></g><g class="tb"><rect x="402" y="48" width="24" height="15" rx="7"/><text x="414" y="59" text-anchor="middle">TP</text></g><g class="tb"><rect x="429" y="48" width="24" height="15" rx="7"/><text x="441" y="59" text-anchor="middle">TR</text></g><g class="tb"><rect x="456" y="48" width="24" height="15" rx="7"/><text x="468" y="59" text-anchor="middle">DN</text></g>
   <g class="tb"><rect x="725" y="48" width="24" height="15" rx="7"/><text x="737" y="59" text-anchor="middle">TR</text></g><g class="tb"><rect x="752" y="48" width="24" height="15" rx="7"/><text x="764" y="59" text-anchor="middle">DN</text></g>
   <g class="tb"><rect x="79" y="208" width="24" height="15" rx="7"/><text x="91" y="219" text-anchor="middle">AD</text></g><g class="tb"><rect x="106" y="208" width="24" height="15" rx="7"/><text x="118" y="219" text-anchor="middle">QA</text></g><g class="tb"><rect x="133" y="208" width="24" height="15" rx="7"/><text x="145" y="219" text-anchor="middle">TR</text></g><g class="tb"><rect x="160" y="208" width="24" height="15" rx="7"/><text x="172" y="219" text-anchor="middle">DN</text></g>
   <g class="tb"><rect x="456" y="208" width="24" height="15" rx="7"/><text x="468" y="219" text-anchor="middle">RE</text></g>
 </svg>
 </div>
 <p>The label round answers about every unit, and code builds the facts and sets their levels. RELATE links the units of a change or context document to earlier units, and code applies those links with the ladder. GROUP finds repeated points across the bid; code keeps same values as one point and hands on every pair whose values differ, with the facts that still state an old value.</p>
-<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <b>Label round:</b> as for an RFP, but a section reference is held back until RELATE answers.</li><li><span class="tb-c" title="call transcript">TR</span> <b>Label round:</b> the transcript playbook: its own categories, a tentative flag, the question-and-answer rule.</li><li><span class="tb-c" title="deal notes">DN</span> <b>Label round:</b> the notes playbook.</li><li><span class="tb-c" title="call transcript">TR</span> <span class="tb-c" title="deal notes">DN</span> <b>Build facts:</b> level 2 for buyer units and 3 for ours, from the speakers of a fact's units; deal notes are level 4. Buyer documents are level 1.</li><li><span class="tb-c" title="change addendum">AD</span> <span class="tb-c" title="Q&amp;A addendum">QA</span> <b>RELATE:</b> every unit, against earlier buyer units and headings: replaces, removes, adds; a Q&amp;A answer mostly clarifies or adds.</li><li><span class="tb-c" title="call transcript">TR</span> <span class="tb-c" title="deal notes">DN</span> <b>RELATE:</b> against buyer documents: confirms, clarifies, disagrees, adds. An RFP and an attachment skip RELATE: they are the base.</li><li><span class="tb-c" title="reissued RFP">RE</span> <b>Apply relations:</b> a reissue has no RELATE: it is aligned with the previous version by text, and corrections move to the new fact IDs.</li></ul>
+<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <b>Label round:</b> as for an RFP, but a section reference is held back until RELATE answers.</li><li><span class="tb-c" title="fill-in template">TP</span> <b>Label round:</b> the template playbook. A row or field to fill is a submission or requirement item; a value the buyer filled in, such as a module list or a quantity, is a fact; an instruction on the sheet is a fact.</li><li><span class="tb-c" title="call transcript">TR</span> <b>Label round:</b> the transcript playbook: its own categories, a tentative flag, the question-and-answer rule.</li><li><span class="tb-c" title="deal notes">DN</span> <b>Label round:</b> the notes playbook.</li><li><span class="tb-c" title="call transcript">TR</span> <span class="tb-c" title="deal notes">DN</span> <b>Build facts:</b> level 2 for buyer units and 3 for ours, from the speakers of a fact's units; deal notes are level 4. Buyer documents are level 1.</li><li><span class="tb-c" title="change addendum">AD</span> <span class="tb-c" title="Q&amp;A addendum">QA</span> <b>RELATE:</b> every unit, against earlier buyer units and headings: replaces, removes, adds; a Q&amp;A answer mostly clarifies or adds.</li><li><span class="tb-c" title="call transcript">TR</span> <span class="tb-c" title="deal notes">DN</span> <b>RELATE:</b> against buyer documents: confirms, clarifies, disagrees, adds. An RFP and a fill-in template skip RELATE: they are base documents.</li><li><span class="tb-c" title="reissued RFP">RE</span> <b>Apply relations:</b> a reissue has no RELATE: it is aligned with the previous version by text, and corrections move to the new fact IDs.</li></ul>
 
 <h3>3. Disagreements are settled, and the outputs made</h3>
 <div class="scroll" style="padding:12px">
@@ -382,12 +382,12 @@ ul.differs li { margin: 4px 0; max-width: none; }
   <g class="b st"><rect x="608" y="360" width="176" height="96" rx="10"/>
     <text class="n" x="622" y="382">FROM STORED RESULTS</text><text class="t" x="622" y="404">Facts and relations</text>
     <text class="s" x="622" y="424">Every document’s, in</text><text class="s" x="622" y="440">issue order.</text></g>
-  <g class="tb"><rect x="725" y="48" width="24" height="15" rx="7"/><text x="737" y="59" text-anchor="middle">AD</text></g><g class="tb"><rect x="752" y="48" width="24" height="15" rx="7"/><text x="764" y="59" text-anchor="middle">AT</text></g>
+  <g class="tb"><rect x="752" y="48" width="24" height="15" rx="7"/><text x="764" y="59" text-anchor="middle">AD</text></g>
   <g class="tb"><rect x="429" y="368" width="24" height="15" rx="7"/><text x="441" y="379" text-anchor="middle">TR</text></g><g class="tb"><rect x="456" y="368" width="24" height="15" rx="7"/><text x="468" y="379" text-anchor="middle">DN</text></g>
 </svg>
 </div>
 <p>The pair check, the ladder and the user's decisions settle what disagrees; the decisions go into the correction log. The stored facts and relations, applied in issue order with the log replayed over them, give the bid's fact list, its summaries and the exports.</p>
-<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <b>Apply the ladder:</b> between buyer documents the later issue wins, unless a stated order of precedence says otherwise.</li><li><span class="tb-c" title="buyer attachment">AT</span> <b>Apply the ladder:</b> an attachment issued with the RFP has no order against it, so a disagreement is a Q fact, not a replacement.</li><li><span class="tb-c" title="call transcript">TR</span> <span class="tb-c" title="deal notes">DN</span> <b>Exports:</b> internal by default, so their citations are left out of anything sent outside the team.</li></ul>
+<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <b>Apply the ladder:</b> between buyer documents the later issue wins, unless a stated order of precedence says otherwise.</li><li><span class="tb-c" title="call transcript">TR</span> <span class="tb-c" title="deal notes">DN</span> <b>Exports:</b> internal by default, so their citations are left out of anything sent outside the team.</li></ul>
 <h3 id="types">4. Where the document types differ</h3>
 <p>The badges from the three pictures, gathered by document type. Every document goes through the three pictures; its playbook changes only the steps below, and a highlighted cell is where a type departs from the RFP.</p>
 <div class="legend"><span><i class="lf"></i>Differs from the RFP</span><span><i class="ld"></i>Same as the RFP</span></div>
@@ -402,7 +402,7 @@ ul.differs li { margin: 4px 0; max-width: none; }
   <th>Visibility<small>picture 3</small></th>
 </tr></thead>
 <tbody>
-<tr><td>RFP</td>
+<tr><td style="white-space:normal;min-width:150px">RFP<br><small style="font-weight:400;font-family:var(--font-body);color:var(--muted)">and documents with content issued with it, such as a sample contract</small></td>
   <td class="same">PDF pages and headings</td>
   <td class="same">Confirm type, number, date</td>
   <td class="same">All buyer categories, as today</td>
@@ -430,12 +430,12 @@ ul.differs li { margin: 4px 0; max-width: none; }
   <td class="diff">Every unit: mostly clarifies or adds; "no change" is none</td>
   <td class="same">1</td>
   <td class="same">Same as RFP</td></tr>
-<tr><td>Buyer attachment</td>
-  <td class="diff">Spreadsheet or PDF: pricing workbook, forms, sample contract</td>
+<tr><td>Fill-in template</td>
+  <td class="diff">Spreadsheet or form cutter: one unit per row, field or instruction; blank cells left out</td>
   <td class="same">Same as RFP</td>
-  <td class="same">Same as RFP</td>
+  <td class="diff">Template playbook: rows and fields to fill are submission or requirement items; values the buyer filled in and instructions are facts</td>
   <td class="same">Not run: a base document</td>
-  <td class="diff">1; issued with the RFP, so a disagreement with it is a Q fact, not a replacement</td>
+  <td class="same">1</td>
   <td class="same">Same as RFP</td></tr>
 <tr><td>Call transcript</td>
   <td class="diff">Sentences inside speaker turns; the speaker is stored on each unit</td>
@@ -499,7 +499,8 @@ ul.differs li { margin: 4px 0; max-width: none; }
 <tr><td>Change addendum ("Section 3.15 is replaced with…")</td><td>Buyer document</td><td>Paged PDF</td><td>Change</td></tr>
 <tr><td>Q&amp;A addendum</td><td>Buyer document</td><td>Paged PDF</td><td>Change</td></tr>
 <tr><td>Reissued full RFP</td><td>Buyer document</td><td>Paged PDF</td><td>Base, aligned with the previous version</td></tr>
-<tr><td>Pricing workbook, forms, sample contract</td><td>Buyer document</td><td>Spreadsheet or PDF</td><td>Base (attachment)</td></tr>
+<tr><td>Sample contract, appendices</td><td>Buyer document</td><td>Paged PDF</td><td>Base, issued with the RFP</td></tr>
+<tr><td>Fill-in template: pricing workbook, response template, forms</td><td>Buyer document</td><td>Spreadsheet or PDF form</td><td>Base. The copy we fill in is our response, a separate document</td></tr>
 <tr><td>Call transcript</td><td>Per unit: buyer or our side</td><td>Transcript</td><td>Context</td></tr>
 <tr><td>Internal deal notes</td><td>Deal notes</td><td>Notes</td><td>Context</td></tr>
 </tbody></table></div>
