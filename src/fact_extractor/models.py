@@ -9,7 +9,7 @@ Kind = Literal["sentence", "heading", "table_row", "list_item"]
 
 # Flags the model may write in the note field (prompt 10.1).
 # post-award: the fact applies only to the bidder who wins (REVIEW.md, "Before the bid and after award").
-FLAGS = ("mandatory", "desirable", "risk", "unclear", "replaced", "post-award")
+FLAGS = ("mandatory", "desirable", "risk", "unclear", "replaced", "post-award", "tentative", "precedence", "both-sides")
 
 # Fact categories (spec section 5).
 CATEGORIES: dict[str, str] = {
@@ -22,6 +22,12 @@ CATEGORIES: dict[str, str] = {
     "E": "evaluation criterion",
     "R": "requirement",
     "Q": "contradiction",
+    "PRIORITY": "buyer priority",
+    "DECIDER": "decider or influencer",
+    "BUDGET": "buyer budget",
+    "QUESTION": "open question",
+    "COMPETITOR": "competitor intelligence",
+    "ACTION": "action for our team",
 }
 
 
