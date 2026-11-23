@@ -248,10 +248,17 @@ def parse_brief(text: str, facts: list[dict], rows: tuple[str, ...]) -> list[dic
     return [got.get(r, {"row": r, "text": "", "fact_ids": [], "checked": False}) for r in rows]
 
 
-def group_task(code: str, facts: list[dict]) -> str:
+def group_task(code: str, facts: list[dict], doc_labels: dict[str, str] | None = None) -> str:
+    """The GROUP task. `doc_labels` (fact ID -> "d2") is given across a bid: page numbers repeat
+    from one document to the next, so each line's page field then starts with its document."""
+    def page(f: dict) -> str:
+        label = f["citations"][0]["page_label"] if f["citations"] else ""
+        if doc_labels is None:
+            return label
+        return " ".join(x for x in (doc_labels.get(f["fact_id"], ""), f"p.{label}" if label else "") if x)
+
     lines = "\n".join(
-        f"{n}|{f['citations'][0]['page_label'] if f['citations'] else ''}|{f['text'].replace('|', '/')}"
-        for n, f in enumerate(facts, start=1)
+        f"{n}|{page(f)}|{f['text'].replace('|', '/')}" for n, f in enumerate(facts, start=1)
     )
     return f"TASK GROUP\nCategory: {definition(code).split(':', 1)[0]}\n\n{lines}"
 

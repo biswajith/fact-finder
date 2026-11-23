@@ -341,16 +341,30 @@ class Item:
 def items(records: list[dict]) -> list[Item]:
     """Collapse grouped facts, keeping the order of `records`: a group sits where its first
     member is. A group with only one member in `records` (the others filtered out) is
-    shown as the plain fact it is."""
+    shown as the plain fact it is.
+
+    In a bid (records with a `level`) a group shows its governing member first: not replaced, then
+    the lowest level number, then the latest document in the order `records` lists them. A group
+    whose members are all replaced shows as plain facts. Other records keep their order."""
     members: dict[str, list[dict]] = {}
     for r in records:
         if r["group_id"]:
             members.setdefault(r["group_id"], []).append(r)
+    place: dict[int, int] = {}
+    for r in records:
+        place.setdefault(r.get("doc_no") or 0, len(place))
+    plain: set[str] = set()
+    for gid, ms in members.items():
+        if any(m.get("level") for m in ms):
+            if all("replaced" in m.get("flags", []) for m in ms):
+                plain.add(gid)
+                continue
+            ms.sort(key=lambda m: ("replaced" in m.get("flags", []), m.get("level") or 9, -place[m.get("doc_no") or 0]))
     out: list[Item] = []
     done: set[str] = set()
     for r in records:
         gid = r["group_id"]
-        if not gid or len(members[gid]) < 2:
+        if not gid or gid in plain or len(members[gid]) < 2:
             out.append(Item("fact", r["text"], [r]))
         elif gid not in done:
             done.add(gid)

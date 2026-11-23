@@ -371,7 +371,18 @@ def _bid(args) -> int:
         except Exception as e:
             print(f"{d['doc_id']}: failed: {e}", file=sys.stderr)
             code = 1
-    facts = B.build(bid)
+    from .web import has_api_key
+
+    if has_api_key():  # no key: the bid is built from what is stored; every pair is recorded as not checked
+        from .llm import OpenAIClient
+        from .web.consistency import ConsistencyChecker
+
+        client, checker = client or OpenAIClient(args.model), ConsistencyChecker()
+    else:
+        client, checker = None, None
+    facts = asyncio.run(B.settle(
+        bid, client, checker, on_step=lambda no, step, status, detail: print(f"bid: {step} {status} {detail}".rstrip(), file=sys.stderr),
+    ))
     print(f"{len(facts)} facts in the bid's list: {bid.folder / 'facts.json'}")
     return code
 

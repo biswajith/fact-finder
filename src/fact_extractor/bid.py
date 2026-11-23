@@ -680,7 +680,32 @@ def _apply_relations(bid: Bid, manifest: dict, records: Records, out: dict) -> R
     return applied.facts
 
 
-FACT_STEPS: list[FactStep] = [_stamp, _apply_relations]  # later packages add their steps here, in order
+def _apply_groups(bid: Bid, manifest: dict, records: Records, out: dict) -> Records:
+    """Apply the stored groups of the bid (`groups.json`, written by `settle`). Once a bid has
+    them, they replace the groups each document came with. Group IDs hash the bid."""
+    from . import bidgroup
+
+    stored = _read(bid.folder / "groups.json", None)
+    if stored:
+        bidgroup.apply_stored_groups(records, stored, bid.bid_id)
+    return records
+
+
+def _apply_pairs(bid: Bid, manifest: dict, records: Records, out: dict) -> Records:
+    """The conflicts and review flags the stored pair answers (`pairs.json`) give. Asks no model."""
+    from . import bidgroup
+
+    answers = _read(bid.folder / "pairs.json", None)
+    if answers:
+        order = [d["doc_id"] for d in issue_order(manifest)]
+        out["conflicts"] = [*out.get("conflicts", []), *bidgroup.settle(
+            bidgroup.pairs(records), answers, records, order, manifest.get("precedence"),
+        )]
+    return records
+
+
+# later packages add their steps here, in order
+FACT_STEPS: list[FactStep] = [_stamp, _apply_relations, _apply_groups, _apply_pairs]
 
 
 def build(bid: Bid) -> Records:
@@ -731,7 +756,37 @@ def build(bid: Bid) -> Records:
         return records
 
 
+async def settle(bid: Bid, client, checker, cfg=None, on_step: Step | None = None) -> Records:
+    """Run the bid-level model calls, store what they answer, and build the fact list again.
+    GROUP runs over the bid's facts (a category already answered for the same facts is not asked
+    again), then the pair check over the pairs code lists (a pair already answered is not asked
+    again; one that was skipped is). `client` or `checker` may be None: that part is then not run
+    (every pair is recorded as skipped). Steps are reported as document 0, steps `group` and `pairs`."""
+    from . import bidgroup
+
+    def say(step: str, status: str, detail: str = "") -> None:
+        if on_step:
+            on_step(0, step, status, detail)
+
+    facts = build(bid)
+    if not facts:
+        return []
+    say("group", "running")
+    report = await bidgroup.group_bid(facts, bid.bid_id, client, cfg, _read(bid.folder / "groups.json", {}))
+    with bid.lock:
+        _write_json(bid.folder / "groups.json", report)
+    say("group", "done", f"{len(report['asked'])} categories asked")
+    facts = build(bid)  # with the groups: the pairs start from the ones whose values differ
+    say("pairs", "running")
+    found = bidgroup.pairs(facts)
+    answers = await bidgroup.check_pairs(found, facts, checker, _read(bid.folder / "pairs.json", {}))
+    with bid.lock:
+        _write_json(bid.folder / "pairs.json", answers)
+    say("pairs", "done", f"{sum(1 for p in found if not answers[p['id']]['skipped'])} of {len(found)} pairs answered")
+    return build(bid)
+
+
 __all__ = [
-    "Bid", "create", "list_bids", "issue_order", "doc_numbers", "propose_speakers", "ready", "extract_document",
+    "Bid", "create", "settle", "list_bids", "issue_order", "doc_numbers", "propose_speakers", "ready", "extract_document",
     "build", "level_of", "apply_levels", "slug", "citation_level",
 ]

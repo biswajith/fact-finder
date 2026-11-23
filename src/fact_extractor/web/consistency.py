@@ -77,7 +77,11 @@ class ConsistencyChecker:
         self.threshold = threshold
         self._client = client  # anything with `async ainvoke(request) -> DecisionResponse`; built on first use
 
-    async def _ask(self, new_text: str, related: list[dict]) -> tuple[dict[str, float], Any]:
+    async def _ask(
+        self, new_text: str, related: list[dict], instructions: str | None = None,
+    ) -> tuple[dict[str, float], Any]:
+        """One question per related fact. `instructions` (with an {existing} slot) replaces the usual
+        question; the bid's pair check uses it to ask whether a fact depends on a changed value."""
         from langchain_core.messages import HumanMessage
         from langchain_openai.decisions import Predicate, PredicateAnswer, Question
 
@@ -86,7 +90,7 @@ class ConsistencyChecker:
             from langchain_openai import OpenAIDecisions
 
             self._client = OpenAIDecisions(model=self.model, max_retries=1, timeout=30.0)
-        questions: dict[str, Question] = {f"q{i}": Predicate(instructions=INSTRUCTIONS.format(existing=" ".join(f["text"].split())))
+        questions: dict[str, Question] = {f"q{i}": Predicate(instructions=(instructions or INSTRUCTIONS).format(existing=" ".join(f["text"].split())))
                      for i, f in enumerate(related)}
         response = await self._client.ainvoke({"input": [HumanMessage(f"NEW: {' '.join(new_text.split())}")],
                                                "questions": questions})
