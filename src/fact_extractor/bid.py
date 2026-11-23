@@ -166,6 +166,20 @@ class Bid:
 
         return self._change(no, go)
 
+    def set_proposal(self, no: int, proposed: dict) -> dict:
+        """Replace the proposal of a document the user has not confirmed yet (the model's CLASSIFY answer
+        after the rules'), and take its type, number and date as the document's own. Does nothing once the
+        document is confirmed or extracted: the user's choice stands."""
+        def go(m: dict, d: dict) -> None:
+            if d["confirmed"] or d["run"] or d["status"] in ("extracting", "extracted"):
+                return
+            d["proposed"] = proposed
+            d["playbook"], d["issue_number"], d["issue_date"] = proposed["playbook"], proposed["issue_number"], proposed["issue_date"]
+            if playbooks.load(d["playbook"]).cutter == "transcript" and not d["speakers"]:
+                d["speakers"] = self._propose(m, d, self.data(d))
+
+        return self._change(no, go)
+
     def b_fact_texts(self, m: dict | None = None) -> list[str]:
         """The texts of the B facts of the extracted base documents: where the buyer's people are named."""
         m = m or self.manifest()

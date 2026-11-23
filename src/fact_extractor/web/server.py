@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import atexit
 import json
+import re
 import secrets
 import shutil
 import tempfile
@@ -22,9 +23,10 @@ from typing import AsyncIterator, Callable
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
-from .. import stability
+from .. import bid as B
+from .. import classify, cutters, playbooks, results, stability
 from . import has_api_key, model_name
 from . import runs as R
 from .agent import ChatModel, OpenAIChatModel, chat, check_fact
@@ -39,6 +41,9 @@ BUILD_COMMAND = "npm --prefix web install && npm --prefix web run build"
 PAGE_CACHE = 32
 MAX_PDF = 100 * 1024 * 1024
 VOTES = (1, 3, 5)
+BID_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,80}$")
+UPLOAD_TYPES = (".pdf", ".json", ".txt", ".md", ".csv", ".xlsx")
+AUDIENCES = ("", "internal", "external")
 
 
 class FactIn(BaseModel):
@@ -108,6 +113,44 @@ class ExtractIn(BaseModel):
     confirm: bool = False
 
 
+class BidIn(BaseModel):
+    name: str = ""
+    deal_id: str = ""
+
+
+class BidPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = None
+    team: list[dict] | None = None
+    precedence: list[str] | None = None
+
+
+class DocPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    doc_id: str | None = None
+    playbook: str | None = None
+    issue_number: int | str | None = None
+    issue_date: str | None = None
+    previous: str | None = None
+    confirmed: bool | None = None
+    speakers: list[dict] | None = None
+    speakers_confirmed: bool | None = None
+
+
+class BidPlanIn(BaseModel):
+    votes: int | None = None
+
+
+class BidProcessIn(BaseModel):
+    confirm: bool = False
+    votes: int | None = None
+    model: str | None = None
+
+
+class RelationIn(BaseModel):
+    reason: str | None = None
+
+
 def _csv(value: str | None) -> list[str]:
     return [v.strip() for v in (value or "").split(",") if v.strip()]
 
@@ -118,14 +161,23 @@ def _view(view: str) -> str:
     return view
 
 
+def _ints(value: str, what: str) -> list[int]:
+    try:
+        return [int(v) for v in _csv(value)]
+    except ValueError:
+        raise BadRequest(f"{what} must be whole numbers separated by commas") from None
+
+
 def fact_filters(q: str = "", categories: str = "", statuses: str = "", flags: str = "",
                  page_from: int | None = None, page_to: int | None = None, view: str = "All",
-                 split_only: bool = False, edited: bool = False, include_deleted: bool = False) -> dict:
-    """The query parameters shared by /facts/list and /facts.csv."""
+                 split_only: bool = False, edited: bool = False, include_deleted: bool = False,
+                 docs: str = "", levels: str = "") -> dict:
+    """The query parameters shared by /facts/list and /facts.csv. `docs` (document numbers) and
+    `levels` only mean something in a bid."""
     pages = (page_from or 1, page_to or 10**9) if page_from or page_to else None
     return {"q": q, "categories": _csv(categories), "statuses": _csv(statuses), "flags": _csv(flags),
             "pages": pages, "view": _view(view), "split_only": split_only, "edited": edited,
-            "include_deleted": include_deleted}
+            "include_deleted": include_deleted, "docs": _ints(docs, "docs"), "levels": _ints(levels, "levels")}
 
 
 def with_computed(f: dict) -> dict:
@@ -140,6 +192,10 @@ def filtered(ws: Workspace, p: dict, with_categories: bool = True) -> list[dict]
                           p["q"], p["pages"], p["view"], p["split_only"])
     if p["edited"]:
         rows = [f for f in rows if f["edited"] or f["origin"] != "extracted"]
+    if p["docs"]:
+        rows = [f for f in rows if f.get("doc_no") in p["docs"]]
+    if p["levels"]:
+        rows = [f for f in rows if f.get("level") in p["levels"]]
     return R.document_order(rows)
 
 
@@ -173,6 +229,41 @@ def check_pdf(data: bytes) -> int:
         raise BadRequest("the file is not a readable PDF") from e
 
 
+def check_upload(name: str, data: bytes) -> None:
+    """A 400 unless `data` can be read as the kind of file its name says."""
+    unreadable = BadRequest("the file could not be read")
+    ext = Path(name.replace("\\", "/")).suffix.lower()
+    if ext == ".pdf":
+        check_pdf(data)
+    elif ext == ".xlsx":
+        import io
+
+        try:
+            from openpyxl import load_workbook
+
+            load_workbook(io.BytesIO(data), read_only=True).close()
+        except Exception as e:
+            raise unreadable from e
+    else:
+        try:
+            if not data.decode("utf-8-sig").strip():
+                raise unreadable
+        except UnicodeDecodeError as e:
+            raise unreadable from e
+
+
+def pdf_start(data: bytes, words: int = classify.FIRST_WORDS, pages: int = 5) -> str:
+    """The text CLASSIFY reads of a PDF: its first pages, up to `words` words."""
+    try:
+        import pymupdf
+
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            text = " \n".join(doc[i].get_text() for i in range(min(pages, doc.page_count)))
+    except Exception:
+        return ""
+    return "\n".join(" ".join(line.split()) for line in text.splitlines() if line.strip())[: words * 8]
+
+
 def safe_pdf_name(name: str) -> str:
     n = R.safe_name(Path(name.replace("\\", "/")).name)[:100] if name.strip() else "upload.pdf"
     return n if n.lower().endswith(".pdf") else n + ".pdf"
@@ -189,12 +280,15 @@ def _has_pdf(facts_path: Path) -> bool:
 
 def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                summary_model: CompletionModel | None = None, extractor: Callable | None = None,
-               chat_planning: Planning | None = None, checker: ConsistencyChecker | None = None) -> FastAPI:
+               chat_planning: Planning | None = None, checker: ConsistencyChecker | None = None,
+               classifier=None, bid_client=None) -> FastAPI:
     """Build the app. Models are injected by tests; otherwise the OpenAI-backed ones are created
     on first use, and a missing OPENAI_API_KEY shows up as a chat error or a section error.
     `extractor` replaces `runs.run_extraction` (the one call that spends tokens) in tests.
     `chat_planning` sets how each chat message is planned; with the real chat model and none
-    given, it comes from FACT_EXTRACTOR_CHAT_PLANNING and _PLAN_APPROVAL. An injected chat model gets none unless passed."""
+    given, it comes from FACT_EXTRACTOR_CHAT_PLANNING and _PLAN_APPROVAL. An injected chat model gets none unless passed.
+    `classifier` (an LLMClient) answers CLASSIFY at upload to a bid; `bid_client` (an LLMClient) reads a bid's
+    documents when it is processed. Without them the OpenAI client is used, and only when a key is set."""
     root = Path(runs_folder)
     extract_fn = extractor or R.run_extraction
     app = FastAPI(title="fact-extractor web", docs_url=None, redoc_url=None)
@@ -228,6 +322,51 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
     def changed(ws: Workspace) -> None:
         summaries.notify_change(ws)
 
+    def get_bid(bid_id: str) -> B.Bid:
+        """The bid, or a 404. The ID is checked before it is used to make a path."""
+        if not BID_ID.match(bid_id or ""):
+            raise NotFound("no such bid")
+        bid = B.Bid(root, bid_id)
+        if not bid.exists():
+            raise NotFound("no such bid")
+        return bid
+
+    def forget(bid: B.Bid) -> None:
+        """Drop the cached workspace of the bid, so the next read loads the facts as they are now."""
+        workspaces.pop(bid.folder.resolve() / "facts.json", None)
+
+    def entry(d: dict) -> dict:
+        """A document of the manifest with what is still missing before it may be read."""
+        return {**d, "missing": B.ready(d)}
+
+    def bid_view(bid: B.Bid, m: dict | None = None) -> dict:
+        m = m or bid.manifest()
+        pbs = [{"name": pb.name, "description": pb.description, "role": pb.role, "form": pb.cutter,
+                "level": pb.level, "visibility": pb.visibility, "calls": list(pb.calls), "votes": pb.votes}
+               for pb in playbooks.all()]
+        return {**m, "documents": [entry(d) for d in m["documents"]], "order": [d["doc_id"] for d in B.issue_order(m)],
+                "playbooks": pbs, "run": f"{B.BIDS}/{bid.bid_id}" if (bid.folder / "facts.json").is_file() else ""}
+
+    def bid_pdf(bid: B.Bid, d: dict) -> Path | None:
+        """The uploaded PDF of a document of the bid; None when it is another kind of file."""
+        path = (bid.folder / d["file"]).resolve()
+        if not str(d["file"]).lower().endswith(".pdf") or not path.is_file() or not path.is_relative_to(bid.folder.resolve()):
+            return None
+        return path
+
+    def bid_documents(ws: Workspace) -> list[dict]:
+        folder = ws.facts_path.parent
+        bid = B.Bid(folder.parent.parent, folder.name)
+        out = []
+        for d in B.issue_order(bid.manifest()):
+            if not d.get("run"):
+                continue
+            pb = playbooks.load(d["playbook"])
+            out.append({"no": d["no"], "doc_id": d["doc_id"], "file_name": d["file_name"], "playbook": d["playbook"],
+                        "level": pb.level, "visibility": pb.visibility, "issue_date": d.get("issue_date"),
+                        "issue_number": d.get("issue_number"), "has_pdf": bid_pdf(bid, d) is not None})
+        return out
+
     # --- runs ---
     @app.get("/api/status")
     async def status() -> dict:
@@ -239,9 +378,14 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         for r in find_runs(root):
             run = str(r.path.parent.relative_to(root))
             corrections = Workspace(r.path).live_count() if (r.path.parent / "workspace").is_dir() else 0
-            out.append({"run": run, "doc_id": r.doc_id, "run_id": r.run_id, "facts": r.facts,
-                        "modified": datetime.fromtimestamp(r.mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        "has_pdf": _has_pdf(r.path), "corrections": corrections})
+            row = {"run": run, "doc_id": r.doc_id, "run_id": r.run_id, "facts": r.facts,
+                   "modified": datetime.fromtimestamp(r.mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                   "has_pdf": _has_pdf(r.path), "corrections": corrections}
+            if r.kind == "bid":  # an ordinary run's row stays as it was
+                m = R._read_bid(r.path) or {}
+                row.update(kind="bid", name=m.get("name") or r.doc_id, documents=r.documents,
+                           has_pdf=any(str(d.get("file", "")).lower().endswith(".pdf") for d in m.get("documents") or []))
+            out.append(row)
         return out
 
     @app.get("/api/runs/table")
@@ -253,8 +397,11 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
     async def facts(run: str, include_deleted: int = 0) -> dict:
         ws = ws_for(run)
         r, state = ws.run(), ws.state()
-        return {"doc_id": r.doc_id, "run_id": r.run_id, "pages": r.pages,
-                "facts": [with_computed(f) for f in (state.facts if include_deleted else state.visible())]}
+        out = {"doc_id": r.doc_id, "run_id": r.run_id, "pages": r.pages,
+               "facts": [with_computed(f) for f in (state.facts if include_deleted else state.visible())]}
+        if ws.is_bid():
+            out["documents"] = bid_documents(ws)
+        return out
 
     @app.get("/api/facts/list")
     async def facts_list(run: str, p: dict = Depends(fact_filters)) -> dict:
@@ -266,11 +413,16 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                 "items": [{"kind": it.kind, "fact_ids": [f["fact_id"] for f in it.facts]} for it in R.items(rows)]}
 
     @app.get("/api/facts.csv")
-    async def facts_csv(run: str, p: dict = Depends(fact_filters)) -> Response:
+    async def facts_csv(run: str, audience: str = "", p: dict = Depends(fact_filters)) -> Response:
+        if audience not in AUDIENCES:
+            raise BadRequest(f"audience must be one of: {', '.join(a for a in AUDIENCES if a)}")
         ws = ws_for(run)
         r = ws.run()
         name = R.csv_name(r.doc_id, r.run_id)
-        return Response(R.to_csv(filtered(ws, p)), media_type="text/csv; charset=utf-8",
+        rows = filtered(ws, p)
+        if audience == "external":
+            rows, name = R.external_view(rows), name.replace("_facts.csv", "_facts_external.csv")
+        return Response(R.to_csv(rows, bid=ws.is_bid()), media_type="text/csv; charset=utf-8",
                         headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     @app.get("/api/overview")
@@ -492,22 +644,47 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                 raise NotFound("no such extraction")
             end = j["ended"] if j["ended"] is not None else time.monotonic()
             return {"status": j["status"], "seconds": round(end - j["started"], 1), "result": j["result"],
-                    "run": j["run"], "error": j["error"]}
+                    "run": j["run"], "error": j["error"], "steps": [dict(s) for s in j.get("steps", [])]}
 
     # --- page image ---
     @app.get("/api/page")
-    async def page(run: str, page: int, fact_id: str | None = None) -> Response:
+    async def page(run: str, page: int, fact_id: str | None = None, doc: str | None = None) -> Response:
         ws = ws_for(run)
-        pdf = ws.run().pdf
-        if pdf is None:
-            raise NotFound("this run has no PDF")
-        boxes: list = []
+        f = None
         if fact_id:
             f = ws.state().get(fact_id)
             if f is None:
                 raise NotFound(f"no fact {fact_id}")
-            boxes = [c["bbox"] for c in f["citations"] if c["page"] == page and c["bbox"]]
-        key = (str(pdf), pdf.stat().st_mtime_ns, page, json.dumps(boxes))
+        doc_id = ""
+        if ws.is_bid():
+            folder = ws.facts_path.parent
+            bid = B.Bid(folder.parent.parent, folder.name)
+            docs = B.issue_order(bid.manifest())
+            if doc:
+                found = next((d for d in docs if d["doc_id"] == doc), None)
+                if found is None:
+                    raise NotFound(f"no document {doc}")
+            elif f is not None:
+                cited = next((c["doc_id"] for c in f["citations"] if c["page"] == page and c["doc_id"]), "")
+                found = next((d for d in docs if d["doc_id"] == cited), None)
+                if found is None:
+                    raise NotFound("this fact cites no document on that page")
+            else:
+                found = next((d for d in docs if bid_pdf(bid, d)), None)
+                if found is None:
+                    raise NotFound("this document has no page images")
+            pdf = bid_pdf(bid, found)
+            if pdf is None:
+                raise NotFound("this document has no page images")
+            doc_id = found["doc_id"]
+        else:
+            pdf = ws.run().pdf
+            if pdf is None:
+                raise NotFound("this run has no PDF")
+        boxes: list = []
+        if f is not None:
+            boxes = [c["bbox"] for c in f["citations"] if c["page"] == page and c["bbox"] and (not doc_id or c["doc_id"] == doc_id)]
+        key = (str(pdf), pdf.stat().st_mtime_ns, doc_id, page, json.dumps(boxes))
         png = pages.get(key)
         if png is None:
             try:
@@ -520,6 +697,301 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         else:
             pages.move_to_end(key)
         return Response(png, media_type="image/png")
+
+
+    # --- bids: many documents, one fact list ---
+    @app.get("/api/bids")
+    async def list_bids() -> list[dict]:
+        return B.list_bids(root)
+
+    @app.post("/api/bids")
+    async def create_bid(body: BidIn) -> dict:
+        if not body.name.strip():
+            raise BadRequest("name is missing")
+        bid = B.create(root, body.name, body.deal_id.strip())
+        return bid_view(bid)
+
+    @app.get("/api/bids/{bid_id}")
+    async def get_bid_route(bid_id: str) -> dict:
+        bid = get_bid(bid_id)
+        return bid_view(bid)
+
+    @app.patch("/api/bids/{bid_id}")
+    async def patch_bid(bid_id: str, body: BidPatch) -> dict:
+        bid = get_bid(bid_id)
+        fields = body.model_dump(exclude_unset=True)
+        if "name" in fields and not (fields["name"] or "").strip():
+            raise BadRequest("name must not be empty")
+        team = None
+        if "team" in fields:
+            team, seen = [], set()
+            for t in fields["team"] or []:
+                name = t.get("name") if isinstance(t, dict) else None
+                if not isinstance(name, str):
+                    raise BadRequest("every team member needs a name")
+                if name.strip() and name.strip().casefold() not in seen:
+                    seen.add(name.strip().casefold())
+                    team.append({"name": name.strip()})
+        with bid.lock:
+            m = bid.manifest()
+            if "precedence" in fields:
+                order = fields["precedence"] or None
+                known = {d["doc_id"] for d in m["documents"]}
+                if order is not None and (len(set(order)) != len(order) or not set(order) <= known):
+                    raise BadRequest("precedence must list each document of the bid once, by its ID")
+                rebuild = order != m.get("precedence")
+                m["precedence"] = order
+            else:
+                rebuild = False
+            if "name" in fields:
+                m["name"] = fields["name"].strip()
+            if team is not None:
+                m["team"] = team
+            bid.save(m)
+            if team is not None:
+                for d in m["documents"]:
+                    if d.get("playbook") in playbooks.names() and not d["speakers_confirmed"] and not d.get("run"):
+                        bid.refresh_speakers(d["no"])
+        if rebuild and (bid.folder / "facts.json").is_file():
+            await asyncio.to_thread(B.build, bid)
+            forget(bid)
+        return bid_view(bid)
+
+    @app.post("/api/bids/{bid_id}/documents")
+    async def upload_document(bid_id: str, request: Request, name: str = "") -> dict:
+        bid = get_bid(bid_id)
+        file_name = Path(name.replace("\\", "/")).name.strip()
+        if Path(file_name).suffix.lower() not in UPLOAD_TYPES:
+            raise BadRequest("this file type is not supported")
+        data = await read_body(request)
+        check_upload(file_name, data)
+        try:
+            doc = await asyncio.to_thread(bid.add_document, data, file_name)
+        except ValueError as e:
+            raise BadRequest(str(e)) from e
+        client = classifier
+        if client is None and has_api_key():
+            try:
+                from ..llm import OpenAIClient
+
+                client = OpenAIClient()
+            except Exception:
+                client = None
+        if client is not None:  # one small call; any failure leaves the rules' proposal
+            try:
+                text = pdf_start(data) if file_name.lower().endswith(".pdf") else classify.first_text(
+                    cutters.cut(cutters.form_of(file_name, data), data, file_name))
+                got = await classify.by_model(file_name, text, client, rules=doc["proposed"]) if text.strip() else None
+                if got is not None:
+                    doc = await asyncio.to_thread(bid.set_proposal, doc["no"], got)
+            except Exception:
+                pass
+        return entry(bid.document(doc["no"]))
+
+    def one_document(fn, *args, **kw) -> dict:
+        try:
+            return fn(*args, **kw)
+        except KeyError as e:
+            raise NotFound(str(e.args[0]) if e.args else "no such document") from e
+        except ValueError as e:
+            raise BadRequest(str(e)) from e
+
+    @app.patch("/api/bids/{bid_id}/documents/{no}")
+    async def patch_document(bid_id: str, no: int, body: DocPatch) -> dict:
+        bid = get_bid(bid_id)
+        fields = body.model_dump(exclude_unset=True)
+        for key in ("doc_id", "playbook", "confirmed", "speakers", "speakers_confirmed"):
+            if key in fields and fields[key] is None:
+                raise BadRequest(f"{key} must not be null")
+        return entry(one_document(bid.update_document, no, **fields))
+
+    @app.delete("/api/bids/{bid_id}/documents/{no}")
+    async def delete_document(bid_id: str, no: int) -> dict:
+        bid = get_bid(bid_id)
+        one_document(lambda: bid.remove_document(no) or {})
+        return {"ok": True}
+
+    def plan_bid(bid: B.Bid, votes: int | None) -> dict:
+        m = bid.manifest()
+        store = results.ResultStore(root)
+        from .. import units as U
+
+        planned, skipped = [], []
+        for d in B.issue_order(m):
+            if d.get("run"):
+                continue
+            if not d["confirmed"]:
+                skipped.append({"no": d["no"], "doc_id": d["doc_id"], "why": "type not confirmed"})
+                continue
+            pb = playbooks.load(d["playbook"])
+            row = {"no": d["no"], "doc_id": d["doc_id"], "file_name": d["file_name"], "playbook": d["playbook"],
+                   "missing": B.ready(d), "units": 0, "calls": [], "total_calls": 0, "stored": None, "error": ""}
+            try:
+                data = bid.data(d)
+                if pb.cutter == "pdf":
+                    tagged = R.tag_pdf(data, d["doc_id"], root)
+                else:
+                    from ..api import document_from_units
+
+                    tagged, _ = document_from_units(d["doc_id"], cutters.cut(pb.cutter, data, d["file_name"]))
+                rows = R.plan_rows(tagged, votes, pb)
+                row.update(units=len(tagged.anchors), calls=rows, total_calls=sum(r["times"] for r in rows))
+                found = store.find(d["sha256"], U.VERSION, d["doc_id"], pb.key)
+                if found is not None:
+                    row["stored"] = {"run": str(found.folder.relative_to(root)), "facts": found.meta.get("facts"),
+                                     "created": found.meta.get("created")}
+            except Exception as e:
+                row["error"] = f"could not read this document: {e}"
+            planned.append(row)
+        return {"documents": planned, "skipped": skipped, "relate_again": bid.needs_relate(m),
+                "total_calls": sum(r["total_calls"] for r in planned)}
+
+    def check_votes(votes: int | None) -> None:
+        if votes is not None and votes not in VOTES:
+            raise BadRequest(f"votes must be one of {', '.join(map(str, VOTES))}")
+
+    @app.post("/api/bids/{bid_id}/plan")
+    async def plan_route(bid_id: str, body: BidPlanIn | None = None) -> dict:
+        bid = get_bid(bid_id)
+        votes = body.votes if body else None
+        check_votes(votes)
+        return await asyncio.to_thread(plan_bid, bid, votes)
+
+    def note_step(job_id: str, no: int, step: str, status: str, detail: str = "") -> None:
+        with jobs_lock:
+            jobs[job_id]["steps"].append({"doc_no": no, "step": step, "status": status, "detail": detail})
+
+    def bid_work(job_id: str, bid: B.Bid, votes: int | None, model: str | None) -> None:
+        """Read every ready document in issue order, run RELATE again where documents were added before
+        others, then GROUP, the pair check and the fact list. One event loop for the whole job."""
+        say = lambda *a: note_step(job_id, *a)  # noqa: E731
+
+        async def go() -> tuple[int, list[str]]:
+            client = bid_client
+            if client is None:
+                from ..llm import OpenAIClient
+
+                client = OpenAIClient(model or None)
+            store = results.ResultStore(root)
+            m = bid.manifest()
+            todo = [d for d in B.issue_order(m) if d["confirmed"] and not d.get("run")]
+            skipped = [d for d in m["documents"] if not d["confirmed"] and not d.get("run")]
+            say(0, "plan", "done", "reading " + (", ".join(f"d{d['no']}" for d in todo) or "nothing new") + (
+                "; skipped, not confirmed: " + ", ".join(f"d{d['no']} {d['file_name']}" for d in skipped) if skipped else ""))
+            failed: list[str] = []
+            tried: set[int] = set()
+
+            async def relate_again() -> None:
+                for no in bid.needs_relate():
+                    if no in tried:
+                        continue
+                    tried.add(no)
+                    try:
+                        await B.extract_document(bid, no, client, votes=votes, store=store, on_step=say, relate_only=True)
+                    except Exception as e:
+                        say(no, "relate", "failed", str(e))
+                        failed.append(f"d{no}: {e}")
+
+            for d in todo:
+                try:
+                    await B.extract_document(bid, d["no"], client, votes=votes, store=store, on_step=say)
+                except Exception as e:  # marked failed in the manifest; the others go on
+                    failed.append(f"d{d['no']}: {e}")
+                    continue
+                await relate_again()
+            await relate_again()
+            await B.settle(bid, client, app.state.checker, on_step=say)
+            say(0, "build", "running")
+            facts = B.build(bid)
+            say(0, "build", "done", f"{len(facts)} facts")
+            return len(facts), failed
+
+        try:
+            n, failed = asyncio.run(go())
+            docs = [d for d in bid.manifest()["documents"] if d.get("run")]
+            if not docs or not n:
+                finish(job_id, status="failed", error="no document was extracted" + (": " + "; ".join(failed) if failed else ""))
+            else:
+                finish(job_id, status="done", run=f"{B.BIDS}/{bid.bid_id}",
+                       result=f"{n} facts from {len(docs)} documents" + (f"; failed: {'; '.join(failed)}" if failed else ""))
+        except BaseException as e:
+            finish(job_id, status="failed", error=f"{type(e).__name__}: {e}")
+        finally:
+            forget(bid)
+
+    @app.post("/api/bids/{bid_id}/process")
+    async def process_route(bid_id: str, body: BidProcessIn) -> dict:
+        bid = get_bid(bid_id)
+        if not body.confirm:
+            raise BadRequest("confirm must be true: reading the documents calls the model and spends API tokens")
+        if bid_client is None and not has_api_key():
+            raise BadRequest("OPENAI_API_KEY is not set")
+        check_votes(body.votes)
+        m = bid.manifest()
+        waiting = [d for d in m["documents"] if d["confirmed"] and not d.get("run")]
+        problems = [f"d{d['no']}: {', '.join(B.ready(d))}" for d in waiting if B.ready(d)]
+        if problems:
+            raise BadRequest("these documents are not ready: " + "; ".join(problems))
+        if not waiting and not any(d.get("run") for d in m["documents"]):
+            raise BadRequest("the bid has no confirmed document")
+        with jobs_lock:
+            if any(j["status"] == "running" for j in jobs.values()):
+                raise Conflict("an extraction is already running")
+            job_id = secrets.token_hex(8)
+            jobs[job_id] = {"status": "running", "started": time.monotonic(), "ended": None,
+                            "result": None, "run": None, "error": None, "steps": []}
+        threading.Thread(target=bid_work, args=(job_id, bid, body.votes, (body.model or "").strip() or None),
+                         daemon=True).start()
+        return {"job_id": job_id}
+
+    # --- relations and groups of a bid ---
+    def touched(ws: Workspace, key: str, value: str) -> list[str]:
+        """The IDs of the facts that now carry relation `value` (key "relation") or sit in group `value`."""
+        if key == "relation":
+            return [f["fact_id"] for f in ws.state().facts if any(r.get("id") == value for r in f.get("relations") or [])]
+        return [f["fact_id"] for f in ws.state().facts if f.get("group_id") == value]
+
+    def changed_facts(ws: Workspace, ids: list[str]) -> list[dict]:
+        state = ws.state()
+        return [with_computed(f) for f in (state.get(i) for i in ids) if f is not None]
+
+    async def relation_change(run: str, rid: str, op: str, reason: str = "") -> dict:
+        ws = ws_for(run)
+        ids = touched(ws, "relation", rid)
+        if op == "reject":
+            await asyncio.to_thread(ws.reject_relation, rid, "ui", reason)
+        else:
+            await asyncio.to_thread(ws.restore_relation, rid, "ui")
+        changed(ws)
+        ids = ids or touched(ws, "relation", rid)
+        return {"ok": True, "relation_id": rid, "rejected": op == "reject", "facts": changed_facts(ws, ids)}
+
+    @app.post("/api/relations/{rid}/reject")
+    async def reject_relation(rid: str, run: str, body: RelationIn | None = None) -> dict:
+        return await relation_change(run, rid, "reject", (body.reason if body else None) or "")
+
+    @app.post("/api/relations/{rid}/restore")
+    async def restore_relation(rid: str, run: str) -> dict:
+        return await relation_change(run, rid, "restore")
+
+    async def group_change(run: str, gid: str, op: str, reason: str = "") -> dict:
+        ws = ws_for(run)
+        ids = touched(ws, "group", gid)
+        if op == "ungroup":
+            await asyncio.to_thread(ws.ungroup, gid, "ui", reason)
+        else:
+            await asyncio.to_thread(ws.regroup, gid, "ui")
+        changed(ws)
+        ids = ids or touched(ws, "group", gid)
+        return {"ok": True, "group_id": gid, "ungrouped": op == "ungroup", "facts": changed_facts(ws, ids)}
+
+    @app.post("/api/groups/{gid}/ungroup")
+    async def ungroup(gid: str, run: str, body: RelationIn | None = None) -> dict:
+        return await group_change(run, gid, "ungroup", (body.reason if body else None) or "")
+
+    @app.post("/api/groups/{gid}/regroup")
+    async def regroup(gid: str, run: str) -> dict:
+        return await group_change(run, gid, "regroup")
 
     # --- chat ---
     @app.get("/api/chat")

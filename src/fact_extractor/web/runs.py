@@ -462,9 +462,29 @@ def overview(records: list[dict]) -> dict:
 # --- CSV ------------------------------------------------------------------------------
 
 
-def csv_row(r: dict) -> dict:
+BID_COLUMNS = ("document", "level", "visibility")  # added to a bid's CSV only
+
+
+def external_view(records: list[dict]) -> list[dict]:
+    """The records an outside reader may see: citations of an internal document are dropped, and a fact
+    left with none (it cited only internal sources, a Q fact and a conflict-only row included) is dropped
+    too. A fact that never had a citation stays."""
+    out = []
+    for r in records:
+        cites = [c for c in r["citations"] if c.get("visibility") != "internal"]
+        if r["citations"] and not cites:
+            continue
+        out.append(r if len(cites) == len(r["citations"]) else {**r, "citations": cites})
+    return out
+
+
+def csv_row(r: dict, bid: bool = False) -> dict:
     cites = r["citations"]
-    return {
+    extra = {
+        "document": r.get("doc_id", ""), "level": r.get("level") or "",
+        "visibility": "internal" if any(c.get("visibility") == "internal" for c in cites) else "external",
+    } if bid else {}
+    return {**extra,
         "category": r["category"],
         "category_name": CATEGORIES.get(r["category"], ""),
         "text": r["text"],
@@ -480,13 +500,13 @@ def csv_row(r: dict) -> dict:
     }
 
 
-def to_csv(records: list[dict]) -> bytes:
-    """UTF-8 with a byte order mark, so Excel reads it as UTF-8."""
+def to_csv(records: list[dict], bid: bool = False) -> bytes:
+    """UTF-8 with a byte order mark, so Excel reads it as UTF-8. A bid's CSV has three more columns."""
     buf = io.StringIO()
-    w = csv.DictWriter(buf, fieldnames=CSV_COLUMNS)
+    w = csv.DictWriter(buf, fieldnames=(*CSV_COLUMNS, *BID_COLUMNS) if bid else CSV_COLUMNS)
     w.writeheader()
     for r in records:
-        w.writerow(csv_row(r))
+        w.writerow(csv_row(r, bid))
     return buf.getvalue().encode("utf-8-sig")
 
 
@@ -595,13 +615,17 @@ def tag_pdf(pdf_bytes: bytes, doc_id: str, runs_root: str | Path = "runs"):
         return tag_pages(doc_id, read_pdf(str(path)))
 
 
-def plan_rows(doc, votes: int = 3) -> list[dict]:
+def plan_rows(doc, votes: int | None = 3, playbook=None) -> list[dict]:
     """The calls of the first round of one extraction: every unit labelled `votes` times and
     stated once, one contradiction check and one cross-reference call. All are sent together.
-    The group and summary calls that follow depend on the facts found and are not listed."""
-    from .. import units
+    The group and summary calls that follow depend on the facts found and are not listed.
+    With a `playbook` only its calls are listed (and `votes` None means the playbook's own), and
+    RELATE adds one call per batch of units."""
+    from .. import relate, units
 
     cfg = units.Config()
+    calls = playbook.calls if playbook is not None else ("LABEL", "STATE", "CHECK", "XREF")
+    votes = votes or (playbook.votes if playbook is not None else 3)
 
     def pages(ids: list[str]) -> str:
         first, last = doc.anchors[ids[0]].page, doc.anchors[ids[-1]].page
@@ -611,12 +635,20 @@ def plan_rows(doc, votes: int = 3) -> list[dict]:
         {"call": f"LABEL{k}", "times": votes, "units": len(ids), "pages": pages(ids)}
         for k, ids in enumerate(units.chunks(doc, cfg.units_per_label_call), start=1)
     ]
-    rows += [
-        {"call": f"STATE{k}", "times": 1, "units": len(ids), "pages": pages(ids)}
-        for k, ids in enumerate(units.chunks(doc, cfg.units_per_state_call), start=1)
-    ]
+    if "STATE" in calls:
+        rows += [
+            {"call": f"STATE{k}", "times": 1, "units": len(ids), "pages": pages(ids)}
+            for k, ids in enumerate(units.chunks(doc, cfg.units_per_state_call), start=1)
+        ]
     whole = {"times": 1, "units": len(doc.anchors), "pages": f"1-{doc.page_count}"}
-    return rows + [{"call": "CHECK", **whole}, {"call": "XREF", **whole}]
+    rows += [{"call": c, **whole} for c in ("CHECK", "XREF") if c in calls]
+    if "RELATE" in calls:
+        ids = list(doc.anchors)
+        rows += [
+            {"call": f"RELATE{k}", "times": 1, "units": len(part), "pages": pages(part)}
+            for k, part in enumerate((ids[i:i + relate.BATCH] for i in range(0, len(ids), relate.BATCH)), start=1)
+        ]
+    return rows
 
 
 def stored_result(pdf_bytes: bytes, doc_id: str, runs_root: str | Path = "runs"):
