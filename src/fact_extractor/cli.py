@@ -100,8 +100,34 @@ def main(argv: list[str] | None = None) -> int:
     web = sub.add_parser("web", help="open the chat workspace (corrections, summaries) in a browser (needs the web extra)")
     web.add_argument("--runs", default="runs", help="folder that holds the runs (default: runs)")
     web.add_argument("--port", type=int, default=8765)
+    bd = sub.add_parser("bid", help="a bid: several documents about one opportunity, read one by one and listed together")
+    bsub = bd.add_subparsers(dest="bid_cmd", required=True)
+    b = bsub.add_parser("create", help="start an empty bid")
+    b.add_argument("name")
+    b.add_argument("--deal-id", default="")
+    b = bsub.add_parser("add", help="add files to a bid and show what each looks like")
+    b.add_argument("bid")
+    b.add_argument("files", nargs="+")
+    b.add_argument("--type", default=None, help="the playbook (document type), instead of the proposed one")
+    b.add_argument("--number", type=int, default=None, help="issue number, e.g. of an addendum")
+    b.add_argument("--date", default=None, help="issue date YYYY-MM-DD")
+    b.add_argument("--yes", action="store_true", help="confirm the type, number and date shown")
+    b = bsub.add_parser("speakers", help="show or set who is on which side in a call; NAME=buyer|ours|unknown")
+    b.add_argument("bid")
+    b.add_argument("no", type=int)
+    b.add_argument("sides", nargs="*", metavar="NAME=side")
+    b = bsub.add_parser("run", help="extract every document that is ready, then build the bid's fact list")
+    b.add_argument("bid")
+    b.add_argument("--votes", type=int, default=None, help="labelling passes per unit (default: the playbook's)")
+    b.add_argument("--model", default=None, help="defaults to $FACT_EXTRACTOR_MODEL or gpt-6-luna")
+    b = bsub.add_parser("show", help="the documents of a bid, in issue order, and what each still needs")
+    b.add_argument("bid")
+    for b in bsub.choices.values():
+        b.add_argument("--store", default="runs", help="the folder runs and bids are kept in")
     args = ap.parse_args(argv)
 
+    if args.cmd == "bid":
+        return _bid(args)
     if args.cmd == "web":
         return _web(args)
     if args.cmd == "golden":
@@ -258,6 +284,96 @@ def _web(args) -> int:
     except KeyboardInterrupt:
         pass
     return 0
+
+
+def _bid(args) -> int:
+    from . import bid as B
+
+    if args.bid_cmd == "create":
+        made = B.create(args.store, args.name, args.deal_id)
+        print(made.bid_id)
+        return 0
+    bid = B.Bid(args.store, args.bid)
+    if not bid.exists():
+        print(f"no bid named {args.bid!r} in {args.store}", file=sys.stderr)
+        return 1
+    if args.bid_cmd == "add":
+        code = 0
+        for path in args.files:
+            try:
+                with open(path, "rb") as f:
+                    doc = bid.add_document(f.read(), os.path.basename(path))
+                fields = {k: v for k, v in (("playbook", args.type), ("issue_number", args.number), ("issue_date", args.date)) if v is not None}
+                if args.yes:
+                    fields["confirmed"] = True
+                if fields:
+                    doc = bid.update_document(doc["no"], **fields)
+            except (ValueError, OSError) as e:
+                print(f"{path}: {e}", file=sys.stderr)
+                code = 1
+                continue
+            p = doc["proposed"]
+            print(
+                f"{doc['no']}  {doc['doc_id']}  {doc['playbook']}  number {doc['issue_number'] or '-'}  "
+                f"date {doc['issue_date'] or '-'}  ({p['by']}'s proposal: {p['playbook']})  "
+                + ("confirmed" if doc["confirmed"] else "not confirmed; use --yes")
+            )
+        return code
+    if args.bid_cmd == "speakers":
+        try:
+            doc = bid.refresh_speakers(args.no) if not bid.document(args.no)["speakers_confirmed"] else bid.document(args.no)
+            if args.sides:
+                given = []
+                for item in args.sides:
+                    name, _, side = item.rpartition("=")
+                    given.append({"name": name, "side": side})
+                doc = bid.update_document(args.no, speakers=given)
+                # a speaker not named takes the proposed side; the sides are then confirmed
+                rest = [{"id": s["id"], "side": s["proposed"]} for s in doc["speakers"] if not s["side"]]
+                doc = bid.update_document(args.no, speakers=rest, speakers_confirmed=True)
+        except (ValueError, KeyError) as e:
+            print(e, file=sys.stderr)
+            return 1
+        for s in doc["speakers"]:
+            print(f"{s['name']}: {s['side'] or '-'} (proposed {s['proposed']}, {s['why']})")
+        print("speakers confirmed" if doc["speakers_confirmed"] else "not confirmed: give NAME=side for the speakers")
+        return 0
+    if args.bid_cmd == "show":
+        m = bid.manifest()
+        print(f"{m['name']} ({m['bid_id']}), deal {m['deal_id']}")
+        for d in B.issue_order(m):
+            need = B.ready(d)
+            print(
+                f"{d['no']:>3}  {d['doc_id']}  {d['playbook']}  number {d['issue_number'] or '-'}  date {d['issue_date'] or '-'}  "
+                f"{d['status']}" + (f"  needs: {', '.join(need)}" if need and not d["run"] else "")
+            )
+        return 0
+    # run
+    from .llm import OpenAIClient
+    from .results import ResultStore
+
+    store = ResultStore(args.store)
+    client = None
+    code = 0
+    for d in B.issue_order(bid.manifest()):
+        if d["status"] == "extracted" and d["run"]:
+            continue
+        need = B.ready(d)
+        if need:
+            print(f"{d['doc_id']}: left out, {', '.join(need)}", file=sys.stderr)
+            continue
+        client = client or OpenAIClient(args.model)
+        try:
+            asyncio.run(B.extract_document(
+                bid, d["no"], client, votes=args.votes, store=store,
+                on_step=lambda no, step, status, detail: print(f"{d['doc_id']}: {step} {status} {detail}".rstrip(), file=sys.stderr),
+            ))
+        except Exception as e:
+            print(f"{d['doc_id']}: failed: {e}", file=sys.stderr)
+            code = 1
+    facts = B.build(bid)
+    print(f"{len(facts)} facts in the bid's list: {bid.folder / 'facts.json'}")
+    return code
 
 
 def hit_rate(result) -> float:

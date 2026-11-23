@@ -37,6 +37,8 @@ class RunRef:
     mtime: float
     doc_id: str
     run_id: str
+    kind: str = "document"  # "bid" for a bid's fact list (_bids/<bid_id>/facts.json), else "document"
+    documents: int = 0  # for a bid: how many documents it holds
 
 
 @dataclass
@@ -73,6 +75,16 @@ def _read_report(path: Path) -> dict | None:
     return rep if isinstance(rep, dict) else None
 
 
+def _read_bid(facts_path: Path) -> dict | None:
+    """The manifest of the bid whose fact list this is, or None when it is an ordinary run."""
+    try:
+        with open(facts_path.parent / "bid.json", encoding="utf-8") as f:
+            m = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return m if isinstance(m, dict) else None
+
+
 def find_runs(folder: str | Path) -> list[RunRef]:
     """Every run under `folder` (a `<doc>/<run>/facts.json`), newest first. A facts file that is
     not a JSON list is skipped."""
@@ -85,6 +97,14 @@ def find_runs(folder: str | Path) -> list[RunRef]:
         if data is None:
             continue
         first = data[0] if data and isinstance(data[0], dict) else {}
+        manifest = _read_bid(p)
+        if manifest is not None:  # a bid is listed once, under its own ID
+            out.append(RunRef(
+                path=p, label=str(p.relative_to(root)), facts=len(data), mtime=p.stat().st_mtime,
+                doc_id=str(manifest.get("bid_id") or p.parent.name), run_id="bid", kind="bid",
+                documents=len(manifest.get("documents") or []),
+            ))
+            continue
         out.append(RunRef(
             path=p, label=str(p.relative_to(root)), facts=len(data), mtime=p.stat().st_mtime,
             doc_id=str(first.get("doc_id", "")), run_id=str(first.get("run_id", "")),
@@ -174,6 +194,10 @@ def load_run(path: str | Path) -> Run:
     with open(path, encoding="utf-8") as f:
         records = normalize(json.load(f))
     report = _read_report(path)
+    if _read_bid(path) is not None:  # a bid: no source file, the bid's ID in place of a document's
+        bid_id = path.parent.name
+        pages = (report or {}).get("pages") or max((c["page"] for r in records for c in r["citations"] if c["page"]), default=1)
+        return Run(path, records, report, None, bid_id, "bid", int(pages), None)
     # The PDF sits beside the run, or one level up when a document's runs share it.
     pdf = next((p for p in (path.parent / "source.pdf", path.parent.parent / "source.pdf") if p.is_file()), None)
     first = records[0] if records else {}
@@ -272,13 +296,20 @@ def id_position(cid: str) -> tuple:
 
 
 def document_order(records: list[dict]) -> list[dict]:
-    """By first citation: page, then position in the ID. Facts without citations go last."""
+    """By first citation: page, then position in the ID. Facts without citations go last. In a
+    bid the document comes first, in the order the documents appear on `records`; a record with
+    no `doc_no` sorts as it always did."""
+    place: dict[int, int] = {}
+    for r in records:
+        if r.get("doc_no"):
+            place.setdefault(r["doc_no"], len(place) + 1)
 
     def key(r: dict) -> tuple:
+        doc = place.get(r.get("doc_no") or 0, 0)
         if not r["citations"]:
-            return (10**9, (10**9, 10**9, 9, 0, ""))
+            return (doc, 10**9, (10**9, 10**9, 9, 0, ""))
         c = r["citations"][0]
-        return (c["page"] or 10**9, id_position(c["id"]))
+        return (doc, c["page"] or 10**9, id_position(c["id"]))
 
     return sorted(records, key=key)
 
