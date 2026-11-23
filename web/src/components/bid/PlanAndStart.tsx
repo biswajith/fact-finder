@@ -1,4 +1,4 @@
-import { Button, Checkbox, ProgressCircle } from '@adobe/react-spectrum';
+import { Button, Checkbox } from '@adobe/react-spectrum';
 import { extractCount, missingWords, rowsInOrder, stepsByDocument } from '../../bid';
 import type { BidFlow } from '../../bidFlow';
 import type { Bid, JobStep, Status } from '../../types';
@@ -9,31 +9,65 @@ const STEP_NAMES: Record<string, string> = {
   group: 'Group repeated points', pairs: 'Check facts that disagree', build: 'Build the fact list',
 };
 
-function StepMark({ s }: { s: JobStep }) {
-  if (s.status === 'running') return <ProgressCircle aria-label={`${STEP_NAMES[s.step] ?? s.step} is running`} isIndeterminate size="S" />;
-  if (s.status === 'failed') return <span className="pg-mark bad" role="img" aria-label="failed">✗</span>;
-  return <span className="pg-mark ok" role="img" aria-label={s.status === 'reused' ? 'reused' : 'done'}>✓</span>;
+function Check() {
+  return (
+    <svg className="pg-check" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <path d="M2.5 7.5l3 3 6-7" />
+    </svg>
+  );
 }
 
-function Steps({ steps, bid }: { steps: JobStep[]; bid: Bid }) {
+function StepMark({ s }: { s: JobStep }) {
+  if (s.status === 'running') return <span className="pg-mark" role="img" aria-label="running"><span className="pg-pulse small" /></span>;
+  if (s.status === 'failed') return <span className="pg-mark bad" role="img" aria-label="failed">✗</span>;
+  return <span className="pg-mark" role="img" aria-label={s.status === 'reused' ? 'reused' : 'done'}><Check /></span>;
+}
+
+function clock(seconds: number): string {
+  const t = Math.max(0, Math.round(seconds));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+}
+
+/** The running job as a checklist: a finished document folds to one line, the running one lists its steps. */
+function Progress({ steps, bid, running, seconds }: { steps: JobStep[]; bid: Bid; running: boolean; seconds: number | null }) {
   const groups = stepsByDocument(steps, rowsInOrder(bid));
-  if (!groups.length) return null;
+  if (!running && !groups.length) return null;
+  const now = groups.flatMap((g) => g.steps.filter((s) => s.status === 'running').map((s) => `${STEP_NAMES[s.step] ?? s.step}, ${g.title}`));
   return (
-    <div className="pg-steps">
-      {groups.map((g) => (
-        <div key={g.no} className="pg-step-group">
-          <strong className="wrap-text">{g.title}</strong>
-          <ul>
-            {g.steps.map((s) => (
-              <li key={s.step}>
-                <StepMark s={s} />
-                <span>{STEP_NAMES[s.step] ?? s.step}{s.status === 'reused' ? ' (reused)' : ''}</span>
-                {s.status === 'failed' && s.detail && <span className="pg-bad wrap-text">{s.detail}</span>}
-              </li>
-            ))}
-          </ul>
+    <div className="pg-live">
+      {running && (
+        <div className="pg-live-head">
+          <span className="pg-pulse" aria-hidden="true" />
+          <strong>Extracting</strong>
+          <span className="muted">This takes a few minutes.</span>
+          {seconds !== null && <span className="pg-live-time muted" aria-label={`${Math.round(seconds)} seconds so far`}>{clock(seconds)}</span>}
+          <span className="sr-only" role="status" aria-live="polite">{now.length ? `Running: ${now.join('; ')}` : 'Extracting'}</span>
         </div>
-      ))}
+      )}
+      {groups.map((g) => {
+        const finished = g.steps.every((s) => s.status === 'done' || s.status === 'reused');
+        const reused = finished && g.steps.every((s) => s.status === 'reused');
+        return (
+          <div key={g.no} className="pg-live-group">
+            <div className="pg-live-title">
+              {finished && <Check />}
+              <strong className="wrap-text">{g.title}</strong>
+              {finished && <span className="muted">{reused ? 'reused' : `${g.steps.length} ${g.steps.length === 1 ? 'step' : 'steps'}`}</span>}
+            </div>
+            {!finished && (
+              <ul>
+                {g.steps.map((s) => (
+                  <li key={s.step} className={s.status}>
+                    <StepMark s={s} />
+                    <span>{STEP_NAMES[s.step] ?? s.step}{s.status === 'reused' ? ' (reused)' : ''}{s.status === 'running' ? '...' : ''}</span>
+                    {s.status === 'failed' && s.detail && <span className="pg-bad wrap-text">{s.detail}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -66,7 +100,7 @@ export function PlanAndStart({ flow, bid, status }: { flow: BidFlow; bid: Bid; s
       {flow.planError ? (
         <ErrorBox message={`Could not plan the calls: ${flow.planError}`} onRetry={flow.replan} />
       ) : flow.planLoading && !plan ? (
-        <div className="row"><ProgressCircle aria-label="Planning the calls" isIndeterminate size="S" /> Reading the documents...</div>
+        <div className="row" role="status"><span className="pg-pulse" aria-hidden="true" /> Reading the documents...</div>
       ) : plan ? (
         <>
           {plan.documents.map((d) => (
@@ -124,14 +158,8 @@ export function PlanAndStart({ flow, bid, status }: { flow: BidFlow; bid: Bid; s
       {flow.startError && <ErrorBox message={flow.startError} />}
       <div className="pg-actions">
         <Button variant="accent" isDisabled={!canStart} onPress={() => void flow.start()}>{label}</Button>
-        {flow.running && (
-          <span className="pg-progress" role="status" aria-live="polite">
-            <ProgressCircle aria-label="Extracting" isIndeterminate size="S" />
-            Extracting... this takes a few minutes.{job ? ` ${Math.round(job.seconds)} s so far.` : ''}
-          </span>
-        )}
       </div>
-      {job?.steps && job.steps.length > 0 && <Steps steps={job.steps} bid={bid} />}
+      <Progress steps={job?.steps ?? []} bid={bid} running={flow.running} seconds={job ? job.seconds : null} />
     </div>
   );
 }
