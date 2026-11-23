@@ -587,7 +587,7 @@ def test_clean_blocks_drops_unknown_ids_and_short_timelines():
     t = ("Due soon.\n[[source:f_aaaaaaaaaa]]\n[[source:f_zzzzzzzzzz]]\nAnd:\n"
          "[[timeline:f_aaaaaaaaaa,f_zzzzzzzzzz,f_bbbbbbbbbb]]\n[[timeline:f_aaaaaaaaaa,f_zzzzzzzzzz]]\nEnd [[source:f_zzzzzzzzzz]] inline.")
     assert A.clean_blocks(t, known) == ("Due soon.\n[[source:f_aaaaaaaaaa]]\nAnd:\n"
-                                        "[[timeline:f_aaaaaaaaaa,f_bbbbbbbbbb]]\nEnd [[source:f_zzzzzzzzzz]] inline.")
+                                        "[[timeline:f_aaaaaaaaaa,f_bbbbbbbbbb]]\nEnd\ninline.")
     assert A.clean_blocks("plain [f_aaaaaaaaaa]", known) == "plain [f_aaaaaaaaaa]"
 
 

@@ -26,11 +26,11 @@ describe('splitBlocks', () => {
     ]);
   });
 
-  it('keeps a token that is not alone on its line as text', () => {
-    const t = `See [[source:${A}]] for it.`;
-    expect(splitBlocks(t)).toEqual([{ kind: 'text', text: t }]);
-    const u = `- [[source:${A}]]`;
-    expect(splitBlocks(u)).toEqual([{ kind: 'text', text: u }]);
+  it('gives a token written inside a sentence a line of its own', () => {
+    expect(splitBlocks(`See it here. [[source:${A}]]`)).toEqual([
+      { kind: 'text', text: 'See it here.' },
+      { kind: 'source', factId: A },
+    ]);
   });
 
   it('keeps malformed tokens as text', () => {

@@ -130,21 +130,33 @@ Rules you always follow:
 7. Do not make up facts about the document. When you are unsure, search the source, or say that you do not know.
 8. Each section (buyer, submission, gates, scoring, questions, contract, requirements) has one summary in fixed rows, each row citing the facts it rests on. After a change, a summary that depends on it is marked out of date and rebuilt automatically; you do not need to rebuild it. Call generate_summary only when the customer asks for a summary to be written, or for a section that has no rows yet.
 9. Be efficient: every reply that calls tools costs a round trip, so do in one reply everything that does not depend on a result you have not seen yet. Put the different things you need to find into one search call (queries), and make independent calls together in the same reply. Do not repeat a search that already returned what you need; once you have the facts, answer.
-10. Be brief and concrete. The customer is a bid manager, not an engineer.
-
-Answer format:
-- Give the answer first, in one sentence. Then choose the form from what the answer holds, not from how the question was asked:
-  - One or two points: plain sentences.
-  - Three or more items that each have the same two or more details (a part and what goes in it; an item, its value and its limit; what two documents say about the same items): a table, one row per item, with a Source column holding the fact IDs.
-  - Three or more items with one detail each, or parts or steps in an order (an outline, a checklist, a sequence): a list, numbered when the order matters, each item ending with its fact IDs.
-- Never pack three or more items into one sentence, and never use a list or a table for a single point.
-- A caution about the answer (an open conflict, a replaced or unclear fact) goes in its own sentence after the table or list.
-- When the customer asks where something is said, or needs to see the wording, put [[source:FACT_ID]] on a line of its own after the sentence that states it. Use at most three per answer. The interface fills in the source text from the stored fact; do not copy the source text into the answer yourself.
-- When the answer is mostly dates or deadlines (three or more), give one sentence, then [[timeline:ID,ID,...]] on a line of its own, and do not also list the dates. The interface fills in the dates from the stored facts.
-- Use only IDs of facts that a tool returned in this conversation.
+10. Be concrete and complete. The customer is a bid manager, not an engineer: no filler, but give every item the question asks for, each on its own row or line. Do not shorten several items into one phrase.
 
 Fact categories: {categories}.
 Fact flags: {flags}.
+
+HOW TO WRITE THE ANSWER (check this before you write the final reply)
+Line 1 is the answer in one sentence. Then count the items the answer holds and pick the form:
+- 1 or 2 items: plain sentences.
+- 3 or more items that share the same details (a part and what it must contain; an item, its value and its limit; what two documents say about the same things): a Markdown table, one row per item, last column "Source" with the fact IDs in square brackets.
+- 3 or more items with one detail each, or parts or steps in an order (an outline, a checklist, a sequence): a Markdown list, numbered when order matters, each item ending with its fact IDs.
+An outline, a structure, a list of what to include, a set of requirements or a set of terms always has 3 or more items: it is never written as a paragraph. Never join three or more items with commas in one sentence.
+The shape of a table answer (the words are placeholders):
+
+One sentence that answers the question.
+
+| Part | What it must contain | Source |
+|---|---|---|
+| first part | its content | [fact ID] |
+| second part | its content | [fact ID] |
+
+One sentence for any caution: an open conflict, a replaced or unclear fact.
+
+Two markers the interface fills in from the stored facts. Each goes on a line of its own, with a blank line before and after, never inside a sentence or a table:
+- [[source:FACT_ID]] shows that fact's source wording. Use it when the customer asks where something is said or needs the wording; at most three per answer. Do not copy source text yourself.
+- [[timeline:ID,ID,...]] shows those facts by date. Use it when the answer is three or more dates or deadlines: one sentence, then the marker, and do not also list the dates.
+Use only IDs of facts that a tool returned in this conversation.
+
 The current counts of facts and open conflicts come in a "Current state" message just before each customer message."""
 
 
@@ -155,6 +167,16 @@ def clean_blocks(text: str, known_ids: set[str]) -> str:
     """Drop the [[source:...]] and [[timeline:...]] lines of an answer that name facts the run does not
     have. A timeline keeps only known IDs and is dropped whole when fewer than two are left. The
     interface shows these lines as blocks drawn from the stored facts, so a made-up ID must not reach it."""
+    # a marker written inside a sentence gets a line of its own, as the interface reads it
+    mark = re.compile(r"\[\[(?:source|timeline):[^\[\]\n]*\]\]")
+    lines = []
+    for line in text.split("\n"):
+        if mark.search(line) and mark.sub("", line).strip():
+            lines += [x.strip() for x in re.split(r"(\[\[(?:source|timeline):[^\[\]\n]*\]\])", line) if x.strip()]
+        else:
+            lines.append(line)
+    text = "\n".join(lines)
+
     def fix(m: re.Match) -> str:
         ids = [i.strip() for i in m.group(2).split(",") if i.strip()]
         if m.group(1) == "source":
@@ -171,13 +193,22 @@ def system_prompt(ws: Workspace) -> str:
     return SYSTEM_PROMPT.format(categories="; ".join(f"{c} = {n}" for c, n in CATEGORIES.items()), flags=", ".join(FLAGS))
 
 
+# Said again next to the customer's message: the chat model runs without reasoning, and a rule that is
+# only in the long system prompt was not applied (an outline came back as one paragraph, 2026-11-23).
+ANSWER_FORM = ("Form of your final reply: the answer in one sentence, then, when it holds three or more items "
+               "(an outline, parts, requirements, terms, steps), a Markdown table (items that share details, with a "
+               "Source column) or a Markdown list (one detail each), never a paragraph of items joined by commas. "
+               "A [[source:ID]] or [[timeline:ID,ID]] marker goes on a line of its own.")
+
+
 def state_message(ws: Workspace) -> str:
     """The volatile part of the context, sent after the history and just before the new customer message."""
     state = ws.state()
     count = Counter(f["category"] for f in state.visible())
     counts = ", ".join(f"{count.get(c, 0)} {name}" for c, name in CATEGORIES.items())
     return (f"Current state: {len(state.visible())} facts ({counts}). "
-            f"Open conflicts waiting for the customer: {sum(1 for c in state.conflicts if c['status'] == 'open')}.")
+            f"Open conflicts waiting for the customer: {sum(1 for c in state.conflicts if c['status'] == 'open')}. "
+            + ANSWER_FORM)
 
 
 def _history_start(history: list[dict]) -> int:

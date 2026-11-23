@@ -29,7 +29,14 @@ function parseLine(line: string): Block | null {
  * fence stays text. With `streaming`, an unfinished last line that starts with `[[` is held back until it ends.
  */
 export function splitBlocks(text: string, opts: { streaming?: boolean } = {}): Block[] {
-  const lines = text.split('\n');
+  // The model sometimes writes a marker inside a sentence: such a line is cut so each marker has its own line.
+  const MARK = /\[\[(?:source|timeline):[^\[\]\n]*\]\]/g;
+  const lines = text.split('\n').flatMap((line) => {
+    const rest = line.replace(MARK, '').trim();
+    if (!rest || rest === '-' || rest === '*' || !MARK.test(line)) return [line];
+    MARK.lastIndex = 0;
+    return line.split(/(\[\[(?:source|timeline):[^\[\]\n]*\]\])/).map((x) => x.trim()).filter(Boolean);
+  });
   if (opts.streaming && lines[lines.length - 1].trimStart().startsWith('[[')) lines.pop();
   const out: Block[] = [];
   let buf: string[] = [];
