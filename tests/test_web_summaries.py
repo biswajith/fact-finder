@@ -108,14 +108,6 @@ async def test_seeded_from_extraction_rows_and_shape(tmp_path):
     assert not ws.dir.exists()  # lazy: nothing written
 
 
-async def test_old_run_seeds_buyer_from_buyer_brief(tmp_path):
-    folder = make_run(tmp_path, facts=MORE)
-    (folder / "report.json").write_text(json.dumps({"buyer_brief": [
-        {"row": "Buyer", "text": "The County", "fact_ids": ["f_b1"], "checked": True}]}))
-    d = sec(S.SummaryService(Scripted()), Workspace(folder / "facts.json"), "buyer")
-    assert d["source"] == "extraction" and d["rows"][0]["text"] == "The County" and not d["stale"]
-
-
 async def test_seeded_section_is_stale_only_after_a_change_in_its_own_facts(tmp_path):
     ws = seeded_run(tmp_path, {"submission": SUBMISSION_ROWS, "buyer": [
         {"row": "Buyer", "text": "The County", "fact_ids": ["f_b1"], "checked": True}]})

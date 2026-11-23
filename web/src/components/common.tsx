@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
-import { ActionGroup, Badge, Button, InlineAlert, Heading, Content, Item, ProgressCircle } from '@adobe/react-spectrum';
+import { ActionGroup, Button, InlineAlert, Heading, Content, Item, ProgressCircle } from '@adobe/react-spectrum';
 import { useRun } from '../store';
-import type { Fact, Flag, ViewName } from '../types';
-import { CATEGORY_NAMES } from '../types';
+import type { Fact, ViewName } from '../types';
 
 export function Loading({ label = 'Loading' }: { label?: string }) {
   return (
@@ -34,35 +33,6 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="muted" style={{ padding: '24px 0', textAlign: 'center' }}>{children}</div>;
 }
 
-const FLAG_VARIANT: Record<Flag, 'negative' | 'info' | 'yellow' | 'neutral' | 'purple' | 'seafoam'> = {
-  mandatory: 'negative',
-  desirable: 'info',
-  risk: 'yellow',
-  unclear: 'neutral',
-  replaced: 'purple',
-  'post-award': 'seafoam',
-};
-
-export function FlagBadges({ flags }: { flags: Flag[] }) {
-  return (
-    <>
-      {flags.map((f) => (
-        <Badge key={f} variant={FLAG_VARIANT[f] ?? 'neutral'}>
-          {f}
-        </Badge>
-      ))}
-    </>
-  );
-}
-
-export function CategoryChip({ code }: { code: Fact['category'] }) {
-  return (
-    <span className="cat" style={{ color: CATEGORY_COLORS[code], background: categorySoft(code) }} title={CATEGORY_NAMES[code]} aria-label={CATEGORY_NAMES[code]}>
-      {code}
-    </span>
-  );
-}
-
 export function firstPage(f: Fact): string {
   const c = f.citations[0];
   return c ? c.page_label || String(c.page) : '';
@@ -86,13 +56,10 @@ export function formatTime(at: string | number | null | undefined): string {
   return Number.isNaN(d.getTime()) ? String(at) : d.toLocaleString();
 }
 
-/** Colour of a category on the cards and in the list (the old review app's palette). */
+/** Colour of a category on the cards and in the list. */
 export const CATEGORY_COLORS: Record<string, string> = Object.fromEntries(
   ['B', 'C', 'G', 'X', 'D', 'S', 'E', 'R', 'Q'].map((c) => [c, `var(--cat-${c})`]),
 );
-/** Soft tint of a category colour, for chips. */
-export const categorySoft = (code: string): string => `var(--cat-${code}-soft)`;
-
 export function PageChip({ page }: { page: string }) {
   return page ? <span className="pg">p. {page}</span> : null;
 }

@@ -159,8 +159,6 @@ def user_message(facts: list[dict], decided: list[str]) -> str:
 def _extraction_rows(ws: Workspace, key: str) -> list[dict] | None:
     rep = ws.run().report or {}
     rows = (rep.get("summaries") or {}).get(key)
-    if not rows and key == "buyer":
-        rows = rep.get("buyer_brief")
     return [dict(r) for r in rows] if rows else None
 
 

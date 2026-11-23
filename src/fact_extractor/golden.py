@@ -11,8 +11,9 @@ How the pieces fit:
   lines placed so goldset's chunker only cuts at page and section boundaries (`source_text`).
 - There is one prompt per category. The case input is the ID of one unit; the expected output
   is that unit's gold line(s) in exactly the gold format, or NONE. The wording shares the
-  extractor's definitions: the category from `prompts.DEFINITIONS`, the fact rules and the
-  flag tests from `prompts.SYSTEM`, read, never changed (`prompt_text`).
+  extractor's definitions: the category from `prompts.DEFINITIONS` and the flag tests from
+  `prompts.FLAG_TESTS`, the same constants `units.SYSTEM` is built from. The reader, fact
+  and writing rules come from `prompts.SYSTEM`, read, never changed (`prompt_text`).
 - `mandatory` and `desirable` are never asked of the model; code sets them from the cited
   unit's own wording (`units.modal_flags`), the same as in the extractor.
 - `to_gold` parses and checks every accepted case again, drops what cannot be a gold line,
@@ -42,6 +43,7 @@ from . import prompts
 from .models import TaggedDocument
 from .results import safe_name
 from .tagging import tag_pages
+from .units import MODEL_FLAGS as EXTRACTOR_FLAGS
 from .units import modal_flags
 
 CODES = "BCGXDSER"  # every category goldset builds a reference for; Q is skipped (see above)
@@ -89,9 +91,8 @@ def _section(title: str) -> str:
 
 
 def _flag_tests() -> str:
-    """The extractor's tests for the flags the model decides, word for word."""
-    lines = _section("FLAGS").splitlines()
-    return "\n".join(ln for ln in lines if any(ln.startswith(f"- {f}:") for f in MODEL_FLAGS))
+    """The extractor's tests for the flags the model decides, word for word, as in `units.SYSTEM`."""
+    return "\n".join("- " + prompts.FLAG_TESTS[f] for f in EXTRACTOR_FLAGS)
 
 
 def _writing_rules() -> str:
@@ -134,6 +135,7 @@ Write one line per fact whose main source is the input unit, in exactly this for
   IDs that are in the source.
 - flags: empty, or a comma-separated list of risk, unclear, post-award. Decide each on its own with the tests
   below. Never write mandatory or desirable: code sets them from the unit's own wording. Never write replaced.
+- A unit that is unclear still gets its line, with the unclear flag.
 - Write NONE, alone, when the unit states no fact of category {code}, or when it only repeats, continues, or
   qualifies a point whose main unit is a neighbouring unit.
 - A statement can fit more than one category. Write the line when it fits {code}, even if a category that comes

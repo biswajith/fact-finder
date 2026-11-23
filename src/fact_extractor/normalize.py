@@ -1,4 +1,4 @@
-"""Canonical numbers, dates and times for the number check (spec 7, REVIEW.md item 3).
+"""Canonical numbers, dates and times for the number check (spec 7, REVIEW.md, "Spec departures" item 1).
 
 `values(text)` returns a set of canonical tokens. A fact passes when every
 token of the fact is in the token set of its cited text. The fact is parsed

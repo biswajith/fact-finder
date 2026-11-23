@@ -30,7 +30,7 @@ function ReportBody({ rep, run }: { rep: Report; run: string }) {
   const [sel, setSel] = useState<number | null>(null);
   useEffect(() => setSel(null), [run]);
   const call = sel !== null ? calls[sel] : undefined;
-  const stages = useMemo(() => Object.entries(secs).filter(([k]) => k !== 'total').map(([k, v]) => `${k} ${v} s`).join(', '), [secs]);
+  const stages = useMemo(() => Object.entries(secs).filter(([k]) => k !== 'total').map(([k, v]) => `${k.replace(/_/g, ' ')} ${v} s`).join(', '), [secs]);
   return (
     <>
       <div className="rp-stats" role="list" aria-label="Run totals">
@@ -106,8 +106,7 @@ function AllRuns() {
     <>
       <h2 className="pg-h2">All runs in this folder</h2>
       <div className="pg-note">
-        Wall-clock seconds from the run report. Extract is the first round of calls; sweep and check is everything after it.
-        A run with no report shows no timing.
+        Wall-clock seconds from the run report. A run with no report shows no timing.
       </div>
       {t.loading && !t.data ? <Loading label="Loading runs" /> : t.error && !t.data ? <ErrorBox message={t.error} onRetry={t.reload} /> : (
         <div className="pg-table-wrap">
@@ -115,8 +114,7 @@ function AllRuns() {
             <thead>
               <tr>
                 <th scope="col">Run</th><th scope="col">Document</th><th scope="col" className="num">Facts</th>
-                <th scope="col" className="num">Total (s)</th><th scope="col" className="num">Extract (s)</th>
-                <th scope="col" className="num">Sweep and check (s)</th><th scope="col" className="num">Output tokens</th><th scope="col">Finished</th>
+                <th scope="col" className="num">Total (s)</th><th scope="col" className="num">Output tokens</th><th scope="col">Finished</th>
               </tr>
             </thead>
             <tbody>
@@ -124,8 +122,6 @@ function AllRuns() {
                 <tr key={r.run}>
                   <td>{r.run}</td><td>{r.document}</td><td className="num">{r.facts}</td>
                   <td className="num">{r['total s']?.toFixed(1) ?? ''}</td>
-                  <td className="num">{r['extract s']?.toFixed(1) ?? ''}</td>
-                  <td className="num">{r['sweep and check s']?.toFixed(1) ?? ''}</td>
                   <td className="num">{fmtNum(r['output tokens']).replace('-', '')}</td>
                   <td>{r.finished}</td>
                 </tr>

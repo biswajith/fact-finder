@@ -1,30 +1,13 @@
-# Review: RFP fact extraction spec (v1, 2 Nov 2026)
+# Review: RFP fact extraction spec (v1, 2 Nov 2026), and decisions since
 
-The core design is sound: tag every unit with an ID, cache the whole tagged
-document as a shared prefix, split the *work* (not the document) across
-parallel calls, have the model emit short pipe lines with IDs, and let code
-build the citation. That attacks the real cost (output tokens) and removes
-misquoting by construction. The issues below are things that would bite in
-implementation or quietly cost recall/precision. Each one lists the decision
-taken in this codebase.
+Where the code departs from the spec, and why, followed by a log of changes and
+measurements. The spec's pipeline (the model wrote facts, code deduped them) was
+replaced by the unit-label pipeline on 2026-11-18 and removed on 2026-11-21; the
+review notes that only concerned it were removed with it.
 
-## Must fix (spec contradicts itself or would break)
+## Spec departures still in the code
 
-1. **Dedupe rule 8.1 destroys split requirements.** 10.5 says "If one sentence
-   holds several separate requirements, write one line for each" — those lines
-   share CODE and IDs. 8.1 rule 1 ("same CODE and same IDs are one fact, keep
-   the longer text") then merges them back into one and drops the others.
-   *Decision:* same CODE + same IDs merges only when text similarity is also
-   high (≥ 0.6). Identical-ID facts with different content are kept.
-
-2. **"Split the page range in half" has no meaning for calls A, B, C** (section
-   11, output cut off). They cover the whole document. *Decision:* a cut A/B/C
-   call is rerun as one call per allowed category (A → B-only and C-only, etc.).
-   If a single-category call is still cut, its valid lines are kept and the call
-   is marked `partial` so the run report shows it. R calls split their range as
-   specified; a one-page range that is still cut is marked `partial`.
-
-3. **Number check 7.3 fails correct facts.** The output rules ask the model to
+1. **Number check 7.3 fails correct facts.** The output rules ask the model to
    *reformat* (dates as YYYY-MM-DD) while the check wants every number to
    "appear in the cited text". "5 PM" vs "5:00 PM", "March 3, 2027" vs
    "2027-03-03", "$1,200,000" vs "1200000", "$1.2 million" all need
@@ -33,176 +16,48 @@ taken in this codebase.
    with scale words applied, ordinals stripped). The cited text set also
    includes the section heading of each cited ID, so "Section 4.2" in a fact
    passes when the cited sentence sits under heading 4.2.
-
-4. **Message order 5.2 vs prompts 10.6/10.7.** The sweep and check prompts put
-   large variable content (`{{uncited_ids}}`, `{{merged_fact_lines}}`) in the
-   task message. That is fine for caching (it is after the document) — but the
-   spec also says the check call uses *medium* effort. Reasoning effort is a
-   request parameter, not prefix bytes, so this does not break the cache.
-   Worth stating explicitly so nobody "fixes" it by moving effort into a
-   prompt. No change, documented in `prompts.py`.
-
-5. **Escaping.** If RFP text itself contains `[p3.1]`-style brackets or a line
+2. **Escaping.** If RFP text itself contains `[p3.1]`-style brackets or a line
    starting with `[`, the tagged document becomes ambiguous and the model can
    cite a fake ID that then *exists in text but not the map*. Also, table cells
    are joined with ` | ` (4.2 example) while `|` is the output separator, so
    the model is primed to copy `|` into facts. *Decision:* square brackets in
    source text are rendered as `(`…`)`, and table cells are joined with ` ; `
    in the tagged text. Anchor-map `text` keeps the original.
+3. **Cache warm-up (5.2)** "start the others when the first begins to stream"
+   — the cache entry is written when the prefix is processed, which is before
+   the first output token, so waiting for the first streamed token is the
+   right signal. Implemented exactly that way, with a timeout fallback so a
+   slow first call does not serialise the run.
+4. **Status `conflict`** is listed but never assigned by any step.
+   *Decision:* facts cited by any Q line from the check get status
+   `conflict` (and keep the Q line ID in a `conflicts` field).
+5. **Multi-page sentences / tables.** A sentence that runs over a page break
+   gets the ID of the page where it starts; a table continued on the next
+   page restarts row numbering on the new page (IDs stay page-local) and
+   reuses the header from the previous page if the new fragment has none.
+6. **Category E, evaluation criteria** (not in the spec): each criterion with
+   points or weight, screening, price scoring, interviews. The spec had no place
+   for how proposals are scored.
+7. **Flags** (`models.FLAGS`): `mandatory`, `desirable`, `risk`, `unclear`,
+   `replaced` and `post-award` (see "Before the bid and after award"), stored as
+   a `flags` list on each fact; free text stays in `note`.
 
-## Should fix (gaps, ambiguity)
+- "Keep numbers and units as in the source" (6.1) vs "Dates as YYYY-MM-DD":
+  dates are the one exception.
 
-6. **END count semantics.** Is `END|n` the count of fact lines including Q
-   lines? For the sweep, including NONE lines? *Decision:* every non-END line.
-   A count mismatch with an END present is logged but does not trigger a rerun
-   (the output was not cut); only a missing END does.
+## Changes and measurements
 
-7. **Section-aware ranges (5.1) vs page ranges (10.5).** Sections start
-   mid-page, ranges are whole pages. *Decision:* a page belongs to the section
-   of its first candidate; a "section block" is the run of pages whose first
-   candidate is in that section. Blocks are packed greedily to ~40 candidates;
-   a block with ≥ 60 candidates is split by page.
+### Scoring against a reference list
 
-8. **"will" as a candidate word** flags lots of buyer statements ("The County
-   will award…"). That inflates R-call sizing and the sweep list. Kept as
-   specified for recall, but the sweep handles it cheaply via `NONE|no fact`.
-   Worth measuring on the gold set.
-
-9. **Coverage is "cited by any fact".** A "must" sentence cited only by a D or
-   S fact is treated as covered and never becomes an R fact. That is likely
-   the intended trade-off but should be explicit. *Decision:* configurable;
-   default follows the spec.
-
-10. **Sweep output validation.** The sweep's contract is "every listed ID in
-    exactly one line". *Decision:* IDs missing from the sweep output are
-    reported in the run log; NONE lines are validated for ID existence only.
-
-11. **Q lines from every call** will repeat the same contradiction from
-    several calls. *Decision:* Q lines go through the same dedupe, then into
-    the check call's fact list, so the check can confirm/extend them.
-
-12. **Wall time is sequential in three stages** (extract ~17 s → sweep ~5 s →
-    check ~25 s). Total in the table is right but has no slack against the
-    60 s target once a cut-off rerun happens. *Option (not default):* run the
-    check on the pre-sweep facts in parallel with the sweep. The sweep adds few
-    facts, so contradictions involving only sweep facts are rare. Exposed as
-    `parallel_check=True`.
-
-13. **Cache warm-up (5.2)** "start the others when the first begins to stream"
-    — the cache entry is written when the prefix is processed, which is before
-    the first output token, so waiting for the first streamed token is the
-    right signal. Implemented exactly that way, with a timeout fallback so a
-    slow first call does not serialise the run.
-
-14. **Store identity.** `fact_id` format is unspecified; re-running a document
-    should not duplicate facts. *Decision:* `fact_id` = hash of
-    (doc_id, category, main cited ID, counter for repeats); store keyed by
-    (deal_id, doc_id, run_id). Until 2026-11-18 the hash used the sorted IDs
-    and the normalised text, which changed on nine facts in ten between two
-    runs (see "Run-to-run stability"). Storage here is in-memory (per request).
-
-15. **Status `conflict`** is listed but never assigned by any step.
-    *Decision:* facts cited by any Q line from the check get status
-    `conflict` (and keep the Q line ID in a `conflicts` field).
-
-16. **Multi-page sentences / tables.** A sentence that runs over a page break
-    gets the ID of the page where it starts; a table continued on the next
-    page restarts row numbering on the new page (IDs stay page-local) and
-    reuses the header from the previous page if the new fragment has none.
-
-17. **The sweep can be bigger than any extraction call.** One line per uncited
-    ID, ~30 tokens each: 200 uncited candidates (easy with "will" counted) is
-    ~6,000 tokens, over the 3,000 cap. The sweep gets cut, and section 11 has no
-    rule for it. *Decision:* the sweep goes out in parallel chunks of 60 IDs, and
-    a cut sweep chunk is halved like an R range.
-
-18. *(Repair removed 2026-11-16, see "Trimming tests"; failed lines are now kept
-    as `needs_review` without a repair call.)* **Repair `DROP` vs "do not drop it".** Prompt 10.8 lets the model answer
-    `DROP`, but section 7 says a line that fails twice is kept as
-    `needs_review`. *Decision:* a DROP keeps the original line as
-    `needs_review` with the drop reason in `problems`. Nothing the model wrote
-    is lost silently.
-
-## Minor
-
-- "Keep numbers and units as in the source" (6.1) vs "Dates as YYYY-MM-DD" —
-  dates are the one exception; say so.
-- Rule "Split very long sentences at semicolons only if longer than 60 words"
-  — the split parts get consecutive IDs; that is how it is implemented.
-- Decisions API and OpenEvals are external; here the Decisions hand-off is a
-  pluggable callback and a stub is provided.
-
-## Open questions in section 14
-
-Agree with the list. For very large tables, storing the table as an object
-and citing it once is the better default: one R fact per row would dominate
-the output budget of a call (a 300-row pricing sheet ≈ 9,000 tokens ≈ 75 s).
-
-## Bid manager tailoring (changes to the spec's prompts)
-
-The harness runs for a bid manager, who decides bid/no-bid, builds the
-compliance matrix and submission checklist, and must spot contract risk. The
-spec's prompts aim at a generic "sales team". Changes:
-
-- **New category E, evaluation criteria**, written by call A with buyer facts: each
-  criterion with points or weight, screening, price scoring, interviews. The
-  spec had no place for how proposals are scored; the first POC run on the
-  Ulster County RFP lost its "5.0 EVALUATION CRITERIA" section (35/30/... points)
-  across G, X and R. The E call also writes a Q line when weights do not add up.
-- **Flags in the note field**: `mandatory`, `desirable` (R lines), `risk`
-  (unusual contract terms in C), `unclear` (questions to ask the buyer),
-  `replaced`. Stored as a `flags` list on each fact; free text stays in `note`.
-- **System prompt**: audience is the bid manager; facts must be specific and
-  actionable; never a `|` between an event and its date; END never gets a code
-  in front (both seen in the POC run).
-- **G tightened**: only conditions that decide whether the bidder may bid or
-  win. Process rules (addenda, interpretations) were filling G in the POC.
-- **D**: relative deadlines ("within 10 days of award") are D facts, and the
-  form is "event: date".
-- **S**: one fact per required form, so S works as a submission checklist.
-- **R**: questions the proposal must answer ("describe", "indicate") are
-  requirements; candidate words for the sweep gain should, describe, provide,
-  indicate, submit, include.
-- **Check prompt**: also looks for points that do not add up and RFP terms that
-  differ from the sample contract.
-- **Contract terms (C) get their own calls `K1`, `K2`** (one per half of the
-  document's text; three calls `K1` to `K3` since 2026-11-18, see "Run-to-run
-  stability"), and a cut one-category call now splits by pages, and standard legal text with
-  no amount, deadline, action or risk is skipped. With one-fact-per-clause, C
-  alone wrote 150+ facts and hit the 3,000-token cap twice in one run (93 s).
-- **Check alongside the sweep by default** (`--sequential-check` turns it off):
-  the 20 s check no longer waits for the sweep. Sweep facts are not checked for
-  contradictions; on the POC the sweep added few facts. Sweep chunks are 30 IDs.
-- **Parallelism default 16**: every extraction call of a ~50-page RFP runs at
-  once; at 8, four R calls queued for 7–10 s in the POC.
-
-### Changes after the reference comparison
-
-A reference list (580 facts, written by three independent subagents in
-`poc/gold/`) scored the tailored run with `fact-extractor compare`: 90.5% of
-reference facts found under some code, but only 35% of disqualifiers and 59% of
-buyer facts. Fixes:
-
-- **X** now requires a stated consequence (rejected, disqualified, not opened,
-  not considered). Submission rules with no consequence are S. The run had put
-  copies, labels and title pages in X and missed "failure to provide insurance
-  shall disqualify".
-- **B** names the background a bid team prices from (headcounts, volumes, claim
-  counts) and every contact, one fact each. The "skip text with nothing to act
-  on" rule had removed them; it now reads "nothing to know, do, or decide".
-- **Q lines on the same IDs merge** in dedupe whatever their wording.
-- **Check prompt** also looks for references to blank or missing sections and
-  for two as-of dates for the same data (both missed in the run).
-
-**Matcher fix (2026-11-11).** The scores above, and in `poc/compare_run*.json`,
-came from a lenient matcher: one extracted fact could count for several gold
-facts (run 9: 555 matches from 425 facts, one used 7 times), the category and
-citation bonuses could carry a match with almost no shared words, and overlap
-was measured against the shorter text, so short vague facts scored high. Now
-matching is one-to-one (best pairs first), bonuses only break ties, and text
-similarity must reach 0.4 measured against the gold fact's words. Run 9 drops
-from 95.7% to 72.1% found under some code; 89 of the new misses are gold facts
-folded into an extracted fact already matched elsewhere (column `merged`).
+**Matcher fix (2026-11-11).** The first scores came from a lenient matcher: one
+extracted fact could count for several gold facts (run 9: 555 matches from 425
+facts, one used 7 times), the category and citation bonuses could carry a match
+with almost no shared words, and overlap was measured against the shorter text,
+so short vague facts scored high. Now matching is one-to-one (best pairs
+first), bonuses only break ties, and text similarity must reach 0.4 measured
+against the gold fact's words. Run 9 drops from 95.7% to 72.1% found under some
+code; 89 of the new misses are gold facts folded into an extracted fact already
+matched elsewhere (column `merged`).
 
 **Value check (2026-11-11).** Each matched pair now also compares dates, times,
 amounts and counted durations ("five working days"): `ok`, `wrong` (a different
@@ -289,200 +144,22 @@ caught 1 of 9 real reference mistakes, because most headings and references
 have no such shape (docs/xref-measurement.md). The Article 17 case it did catch
 (the survival clause citing an article that is "INTENTIONALLY LEFT BLANK") is
 rule b. Q facts from XREF and CHECK on the same units merge into one fact
-(source `CHECK,XREF`). The legacy pipeline no longer runs the cross-reference
-check.
+(source `CHECK,XREF`).
 
 Not measured yet: how many of the 9 mistakes the new call finds on the two test
 RFPs (needs a real run).
-
-### Recall options (two passes, wide sweep)
-
-Scored against the 580-fact reference list (`fact-extractor compare`):
-
-| Run | Facts | Reference facts found | Missed |
-| --- | --- | --- | --- |
-| 1 pass, sweep of shall/must sentences | 569 | 94.0% | 35 |
-| 1 pass, sweep of every uncited sentence | 632 | 95.7% | 25 |
-| 2 passes merged, sweep of every uncited sentence | 721 | 98.6% | 8 |
-| Same, rerun at normal API speed (2026-11-02 23:07) | 701 | 99.3% | 4 |
-
-- **Two passes** (`passes=2`; default until 2026-11-16, now 1, see "Trimming tests"): every extraction call runs twice and the
-  passes are merged one-to-one (`merge.union_passes`): a second-pass fact merges
-  with at most one first-pass fact (same code, shared ID, similar wording);
-  facts within a pass never merge, so split requirements survive. About 2% of
-  the merged facts are still near-duplicates. Costs twice the extraction tokens.
-- **Wide sweep** (`sweep_all=True`, default): the coverage sweep covers every
-  uncited sentence, row or heading with three or more words (766 of 849 IDs on
-  the POC RFP), not only the 333 shall/must candidates.
-- The 1-pass misses were mostly the non-collusion affidavit's certifications,
-  insurance options and office contacts; the second pass found them.
-- **Check budget**: the medium-effort check spent all 3,000 tokens on hidden
-  reasoning over a 700-fact list and wrote nothing. It now gets 8,000.
-- **Time**: not measured fairly. During both runs the API was slow for every
-  call (time to first token 45 to 75 s, against 4 to 8 s earlier the same day,
-  and two 120 s timeouts), so 237 s and 333 s say nothing about the design. At
-  normal API speed the second pass adds no stage (calls run in parallel), but it
-  doubles concurrent requests (30), which may meet account limits. CLI:
-  `--passes 1` and `--narrow-sweep` trade recall for time.
-- **Time at normal API speed** (rerun, 2026-11-02 23:07): 72.7 s in the
-  pipeline (extract 35.6 s, sweep and check 37.1 s), plus 14 s of PDF tagging
-  before it. 47 calls, no failures, no retries, no 429s; cache hit 32%.
-  Time to first token p50 6.4 s, p95 8.8 s at 30 concurrent calls, against 4 to
-  6 s at 15 to 24 earlier: slightly higher, but not what sets the total.
-  Tokens/s p50 91, p95 105. The total is set by two long calls: the slowest
-  extraction call (C#2, 26 s, 2,885 output tokens) and the check (34 s, of which
-  31 s is hidden reasoning before the first token, over a 700-fact list). To get
-  under 60 s, the check is the target (lower effort, or check by category on
-  smaller lists), and tagging (14 s, mostly table detection) is the second.
-
-### Trimming tests (2026-11-16)
-
-`poc/ablation/run.sh` ran seven configurations on both RFPs; `score.sh` scores
-recall (`compare --judge`) and precision (`precision --grade`), and
-`summarize.py` writes `poc/ablation/summary.json`. Durham recall is against
-`poc/durham/gold/gold_draft.txt` (238 facts, written by a subagent that never
-saw any extractor output; **not yet checked by a person**).
-
-| Config | Ulster recall | Durham* recall | Ulster out tokens | Ulster s |
-| --- | --- | --- | --- | --- |
-| base (2 passes, wide sweep) | 0.910 / 0.946 (rerun) | 0.979 / 0.979 | 56-58k | 63-69 |
-| 1 pass | 0.916 | 0.950 | 36k | 48 |
-| 1 pass, narrow sweep | 0.869 | 0.912 | 26k | 44 |
-| 1 pass, no sweep | 0.829 | 0.853 | 24k | 55 |
-| 1 pass, no repair | 0.923 | 0.966 | 34k | 46 |
-| 1 pass, cap 8,000 | 0.919 | 0.971 | 34k | 46 |
-
-- **Run-to-run noise is about 3.5 points** on Ulster (base vs rerun, same config).
-- **The wide sweep earns its place**: without it recall drops 9-12 points;
-  the narrow sweep drops 4-5.
-- **The second pass adds 0-3 points**, within noise on Ulster, for ~60% more
-  output tokens and ~15-20 s.
-- **Repair adds nothing measurable**; without it 3-6 facts per run stay
-  `needs_review`.
-- **The output cap does not matter**: at most one cut call per run at 3,000.
-- **Precision (model-graded)**: 89-92% of facts fully supported, ~8% partly
-  (a dropped condition or overstatement), ~2% not supported, including a
-  reversed party ("Give County five days" where the source gives the
-  responder five days). The grader marks almost nothing as noise (0.4%), so
-  its usefulness verdict is not trustworthy until checked against labels in
-  `poc/ablation/labels/`. The near-duplicate count is rough: most pairs it
-  finds on Durham are sibling facts, not restatements.
-
-**Defaults changed after these tests (2026-11-16):** `passes` is now 1, and the
-repair call and its prompt are removed; lines that fail validation are kept as
-`needs_review`. The wide sweep stays on.
-Two Ulster runs with the new defaults: 0.882 and 0.908 found (47-48 s, 34k
-output tokens, 7-10 `needs_review`). Over the four one-pass Ulster runs the
-mean is ~0.907, against ~0.928 for the two two-pass runs: about 2 points, at
-the edge of run-to-run noise. Use `--passes 2` when those points matter more
-than the extra cost.
 
 ### Run-to-run stability (2026-11-18)
 
 Two runs of one configuration on one RFP give different fact lists. The code is
 not the source: tagging the same PDF twice gives the same bytes, the call plan
-is fixed, and nothing in the pipeline is random. The request sets no
-temperature or seed (`llm.py`) and extraction runs at low reasoning effort, so
-every call is a fresh sample. Measured on the two Ulster runs with the
-2026-11-16 defaults (`poc/ablation/after_change/ulster`, `ulster_rerun`):
+is fixed, and nothing in the pipeline is random. The request sets no temperature
+or seed (`llm.py`) and extraction runs at low reasoning effort, so every call is
+a fresh sample.
 
-| Measure | Run A | Run B | Shared |
-| --- | --- | --- | --- |
-| Facts | 640 | 656 | 57 with the same `fact_id` |
-| Source IDs cited | 623 | 617 | 582 |
-| IDs filed under the same set of codes | | | 320 of 582 |
-| Sweep facts | 145 | 117 | |
-| Sweep facts coded X / S | 35 / 18 | 0 / 1 | |
-| Reference facts missed (of 467) | 55 | 43 | 19 |
-
-The model finds nearly the same sentences each time. It files, groups and
-words them differently, and the pipeline passed each difference on:
-
-- **No call knew the category boundaries.** A task carried the definitions of
-  its own codes only, and R overlaps C, S and G. One sentence was picked up by
-  one, two or three calls depending on the run; dedupe compared facts within
-  one code only, so the copies stayed.
-- **The sweep had no definitions at all**, only the nine letters, and wrote a
-  fifth of the facts. "The County may reject any or all proposals" was X in one
-  run and G in the next.
-- **The sweep's input is what extraction left uncited**, which differs per run;
-  for IDs swept in both runs, fact-or-NONE flipped on 38 of 250.
-- **`fact_id` hashed the wording.**
-- **`K2` sat at the output cap** (2,300-3,000 of 3,000 tokens), so whether it
-  was cut and split changed between runs.
-- **The scorer adds its own noise.** 44 of run A's 55 misses have their source
-  sentence cited by some fact of that run: the fact was grouped or worded so
-  it did not pair with the reference line. The judge is a model call too: of
-  125 Ulster pairs judged in more than one run, 16 got a different verdict.
-  The gap between the two runs is 1.7 points on wording alone and 2.6 with the
-  judge.
-
-*Changes, all departures from the spec's prompts and section 8:*
-
-1. **The system prompt defines all nine categories and an order for ties**
-   (rule 13: X, G, D, S, E, C, R, B; skip a statement whose code belongs to
-   another call). A task still repeats the definitions of its own codes. The
-   prefix is still the same bytes in every call (~1,450 tokens, was ~500).
-   Rule 10 now says one line per separate item, where it used to say "do not
-   split one fact", against the R task's "one line for each".
-2. **Dedupe merges across codes**, only for a plain restatement: same main ID,
-   each fact holds 80% of the other's content words, and the kept fact has
-   every number and date of the dropped one. The code first in the order above
-   is kept, with the flags of both. A looser rule (60% of the dropped fact's
-   words) also merged second views a bid manager wants (the due date as D next
-   to "late proposals are not opened" as X) and cost about 2 points of recall.
-3. **`fact_id` no longer depends on wording** (item 14).
-4. **Three contract calls** (`K1` to `K3`) in place of two.
-5. **`fact-extractor stability a.json b.json`** reports agreement on cited IDs,
-   codes per ID and fact IDs. `score.sh` gives all runs of a document one judge
-   cache (`poc/ablation/judge.<doc>.json`, seeded from the verdicts of the
-   earlier runs).
-
-*Measured by replaying changes 2 and 3 over the saved facts (no model call):*
-
-| Run pair | Facts | Shared `fact_id` before | after | Recall on wording, before | after |
-| --- | --- | --- | --- | --- | --- |
-| Ulster, 1 pass | 640, 656 -> 615, 627 | 57 | 367 | 0.820, 0.837 | 0.818, 0.833 |
-| Durham, 2 passes | 462, 488 -> 428, 463 | 64 | 315 | 0.954, 0.941 | 0.950, 0.941 |
-
-About 25 cross-code restatements go per run, nearly all R copies of a C, S or
-G fact, for one or two reference facts that then pair with nothing.
-
-*Measured with all five changes* (2026-11-18, two runs per RFP, one pass,
-`poc/ablation/stable` and `stable_rerun`, scored with the shared judge cache):
-
-| | Ulster before | Ulster after | Durham before | Durham after |
-| --- | --- | --- | --- | --- |
-| Facts | 640, 656 | 564, 615 | 424 | 385, 422 |
-| Recall, any code | 0.882, 0.908 | 0.872, 0.895 | 0.950 | 0.937, 0.950 |
-| Recall, same code | 0.704, 0.747 | 0.741, 0.775 | 0.786 | 0.836, 0.819 |
-| Cited-ID agreement | 0.884 | 0.915 | 0.958 (2 passes) | 0.901 |
-| Code agreement per ID | 0.55 | 0.73 | 0.69 (2 passes) | 0.82 |
-| `fact_id` agreement | 0.05 | 0.56 | 0.07 (2 passes) | 0.67 |
-| Output tokens | 34-35k | 35-37k | 25k | 23-24k |
-
-"Before" is the 2026-11-16 defaults; Durham had one one-pass run, so its
-agreement figures come from the two-pass pair.
-
-- **Filing is steadier**: two runs now agree on the codes of 73% (Ulster) and
-  82% (Durham) of the sentences both cite, and more reference facts are found
-  under their own code.
-- **Recall is about one point lower on Ulster** (mean 0.884 against 0.895 for
-  the pair before, 0.907 over all four earlier one-pass runs) and unchanged on
-  Durham. Two runs cannot separate one point from noise; the likely cause is
-  rule 13 (a call skips a statement it thinks belongs to another call) and the
-  ~25 merged restatements.
-- **What still varies is how much the R calls write**: 246 against 292 R facts
-  on Ulster, and the commonest difference is a sentence one run files as R and
-  the other does not cite under R at all (49 IDs). Dates swing too (16 against
-  31 D facts on Ulster).
-- **The third contract call did not take `K` off the cap on Ulster**: the
-  ranges hold equal text, but contract facts are not spread evenly: `K2`
-  (pages 18-26) wrote 66-69 lines and up to 2,884 of 3,000 tokens, `K1` 12-19
-  lines.
-  No call was cut in these four runs.
-- The first run after a prompt change reads nothing from the cache (hit rate
-  0.04-0.06); the second is back at 0.54-0.58, as before.
+`fact-extractor stability a.json b.json` reports how far two runs agree on cited
+IDs, codes per ID and fact IDs. Read a difference between two configurations
+against the difference between two runs of one configuration first.
 
 ### Before the bid and after award (2026-11-18)
 
@@ -501,46 +178,18 @@ price, or is a term to object to.
    only to the bidder who wins. It can stand next to other flags.
 2. **G is narrowed** to conditions the bidder must meet by submission. A duty
    that starts after award is a C fact with `post-award`.
-3. **The UI has a View switch** on Summary and Facts: *Bid* hides `post-award`
+3. **The UI has a View switch** on Overview and Facts: *Bid* hides `post-award`
    facts unless they have the `risk` flag or state an amount (these are listed
    as "After award, but price or decide it now"); *After award* shows only
-   `post-award` facts. Runs made before the flag show everything under Bid.
-
-*Measured* (two runs per RFP, `poc/ablation/award` and `award_rerun`):
-
-| | Ulster | Durham |
-| --- | --- | --- |
-| Recall, any code | 0.889, 0.884 (was 0.872, 0.895) | 0.941, 0.962 (was 0.937, 0.950) |
-| Code agreement per ID | 0.73 (was 0.73) | 0.79 (was 0.82) |
-| G facts | 6, 6 (was 14, 12) | 3, 3 (was 15, 12) |
-| Facts flagged `post-award` | 273, 248 | 26, 48 |
-| Sentences flagged in both runs, of those flagged in either | 157 of 196 | 13 of 48 |
-
-- Recall did not move. The Durham insurance facts are now all C with
-  `post-award`, and the three Durham gates left are real ones (state law,
-  Oracle-approved partner, similar past projects).
-- **The flag is steady on contract terms and not on requirements.** On Ulster,
-  with a long sample contract, two runs agree on 80% of the flagged sentences.
-  On Durham one run flagged 1 R fact and the other 32: a statement-of-work
-  item is both something the proposal must describe and something the winner
-  must deliver, and the rule does not say which wins. Until it does, read the
-  After award view as reliable for C facts and as a rough guide for R facts.
-- Still open: a rule for R facts (for example: flag an R fact `post-award`
-  only when the RFP asks for no response to it in the proposal), and whether
-  the bid view should use an explicit "price this" flag instead of looking for
-  an amount in the text.
+   `post-award` facts.
 
 ### General principles, not point fixes (2026-11-18)
 
-The post-award rule was first patched case by case: an insurance example in the
-G definition, a clause for R facts in the rule, a paragraph in the requirements
-task. Each patch fixed the RFP it was written for and moved the variation
-elsewhere: the R clause made two Durham runs agree (2 of 2 flagged
-requirements) and two Ulster runs disagree (48 of 96, from 61 of 81). The
-patches were removed and the prompt rebuilt from statements that hold for any
-RFP. Tested on Durham only, two runs per version.
-
-*What the system prompt now says, in this order:*
+Patching a prompt case by case (an insurance example in one definition, a clause
+for one kind of fact in a rule) fixed the RFP it was written for and moved the
+variation elsewhere. The system prompt in `prompts.py` (`SYSTEM`, read today only
+by `golden.py` for its fact rules and flag tests) was rebuilt from statements that
+hold for any RFP, in this order:
 
 1. **The reader**: three moments a fact can serve (deciding to bid, writing and
    submitting, after winning).
@@ -553,48 +202,6 @@ RFP. Tested on Durham only, two runs per version.
    "would a bidder who does not win ever have to do, hold, or respect this?"
 5. **Citations** and **writing** rules.
 
-*What tasks say:* their codes, the definitions of those codes, where to look,
-and one closing line that is the same in every task ("check each flag against
-its test, line by line"). No task restates or adds to a flag.
-
-*What each general change did (Durham, pairs of runs):*
-
-| Version | Facts | Recall | S facts | Code agreement | Post-award agreement |
-| --- | --- | --- | --- | --- | --- |
-| Patched rule (`award_v3`) | 429, 452 | 0.966, 0.954 | 28, 97 | 0.61 | 23 of 23 |
-| Principles (`general`) | 378, 379 | 0.933, 0.941 | 29, 40 | 0.79 | 20 of 46 |
-| + same closing line in every task (`general_v2`) | 356, 429 | 0.945, 0.975 | 28, 97 | 0.58 | 43 of 52 |
-| + S and R defined apart (`general_v3`) | 335, 365 | 0.937, 0.945 | 21, 21 | 0.74 | 30 of 48 |
-
-- **"A fact is a point, not a sentence" removed the page-8 duplicate**: three
-  sentences on disqualification for insufficient understanding gave three X
-  facts before, and one fact citing all of them in four of the six runs that
-  followed. The other two wrote two and three facts over the same sentences,
-  so the principle helps and does not settle it.
-- **Flags in the system prompt alone were applied all-or-nothing per call**
-  (the contract calls flagged every insurance term in one run and none in the
-  next). One identical reminder at the end of every task brought agreement on
-  post-award from 20 of 46 to 43 of 52; the next pair, with the same reminder,
-  gave 30 of 48. Insurance terms were post-award in all four runs with the
-  reminder; what still flips is mostly requirements.
-- **The largest swing in facts and codes was one overlap between two
-  definitions.** S ("every required form... section order") and R ("each item
-  the proposal must answer") both claimed proposal content, so the D/S call
-  wrote about 30 S facts in one run and about 100 in the next, hit the output
-  cap and split. The patched version had it too (28 and 97). With S
-  defined as the package and R as the content, S is 21 and 21 and no call
-  split.
-- **Recall is 1 to 2 points under the patched version** (0.94 against 0.96)
-  with about 80 fewer facts per run. The reference list is a draft and counts
-  S copies of R facts as found, so part of this is the measurement.
-
-*Limits of this evidence:* two runs per version, one RFP. Code agreement moved
-between 0.58 and 0.82 across pairs that differ little, so a single pair cannot
-rank two prompts on it, and the same holds for post-award agreement (43 of 52
-and 30 of 48 under one prompt). Only the S count moved by clearly more than
-its own noise. Ulster has not been run with the
-general prompt.
-
 ### A fact is a labelled source unit: trial (2026-11-18)
 
 The pipeline asks the model to write facts, so the model decides which
@@ -603,8 +210,8 @@ give the same list. Over 14 Durham runs, of 578 tagged units 315 were used by
 every run, 119 by none and 144 by some. The reference list has one fact per
 main ID for 219 of its 227 main IDs.
 
-Trial (`poc/unit_trial/trial.py`, Durham only, nothing in `src/` changed): the
-model writes no facts. For every unit it gives a label (a code, `=` for a
+Trial (`poc/unit_trial/trial.py`, since deleted: it became `units.py`; Durham
+only, nothing in `src/` changed): the model writes no facts. For every unit it gives a label (a code, `=` for a
 continuation of the unit before, `-` for nothing) and flags; three votes per
 unit, majority wins; the whole thing run twice (A and B). Scored by source ID
 against the reference list, with the current pipeline scored the same way.

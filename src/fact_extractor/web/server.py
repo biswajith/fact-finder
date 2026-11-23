@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import atexit
 import json
-import os
 import secrets
 import shutil
 import tempfile
@@ -20,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncIterator, Callable
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
@@ -33,7 +32,7 @@ from .consistency import ConsistencyChecker
 from .planning import Planning, planning_from_env
 from .runs import find_runs, render_page
 from .summaries import SECTIONS, CompletionModel, SummaryService
-from .workspace import BadRequest, Conflict, NotFound, Workspace, WorkspaceError, attached_pdf
+from .workspace import BadRequest, Conflict, NotFound, Workspace, WorkspaceError
 
 STATIC = Path(__file__).parent / "static"
 BUILD_COMMAND = "npm --prefix web install && npm --prefix web run build"
@@ -107,10 +106,6 @@ class ExtractIn(BaseModel):
     model: str | None = None
     votes: int = 3
     confirm: bool = False
-
-
-class PdfPick(BaseModel):
-    path: str
 
 
 def _csv(value: str | None) -> list[str]:
@@ -187,12 +182,9 @@ def sse(event: dict) -> str:
     return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
 
-def _pdf_of(facts_path: Path) -> tuple[bool, str | None]:
-    """Whether the run has a PDF (its own or an attached one) and the PDF's name."""
-    if any(p.is_file() for p in (facts_path.parent / "source.pdf", facts_path.parent.parent / "source.pdf")):
-        return True, "source.pdf"
-    att = attached_pdf(facts_path.parent)
-    return (True, att[1]) if att else (False, None)
+def _has_pdf(facts_path: Path) -> bool:
+    """Whether the run has a source.pdf (in its own folder or its document's)."""
+    return any(p.is_file() for p in (facts_path.parent / "source.pdf", facts_path.parent.parent / "source.pdf"))
 
 
 def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
@@ -245,19 +237,16 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
     async def runs() -> list[dict]:
         out = []
         for r in find_runs(root):
-            if r.path.name != "facts.json":
-                continue
-            run = str(r.path.parent.relative_to(root)) if r.path.parent != root else "."
+            run = str(r.path.parent.relative_to(root))
             corrections = Workspace(r.path).live_count() if (r.path.parent / "workspace").is_dir() else 0
-            has_pdf, pdf_name = _pdf_of(r.path)
             out.append({"run": run, "doc_id": r.doc_id, "run_id": r.run_id, "facts": r.facts,
                         "modified": datetime.fromtimestamp(r.mtime, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        "has_pdf": has_pdf, "corrections": corrections, "pdf_name": pdf_name})
+                        "has_pdf": _has_pdf(r.path), "corrections": corrections})
         return out
 
     @app.get("/api/runs/table")
     async def runs_table() -> list[dict]:
-        return R.runs_table([r for r in find_runs(root) if r.path.name == "facts.json"])
+        return R.runs_table(find_runs(root))
 
     # --- facts ---
     @app.get("/api/facts")
@@ -274,8 +263,7 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         others = filtered(ws, p, with_categories=False)
         by_category = Counter(f["category"] for f in others)
         return {"total": len(rows), "by_category": dict(by_category),
-                "items": [{"kind": it.kind, "fact_ids": [f["fact_id"] for f in it.facts]} for it in R.items(rows)],
-                "facts": [with_computed(f) for f in rows]}
+                "items": [{"kind": it.kind, "fact_ids": [f["fact_id"] for f in it.facts]} for it in R.items(rows)]}
 
     @app.get("/api/facts.csv")
     async def facts_csv(run: str, p: dict = Depends(fact_filters)) -> Response:
@@ -414,32 +402,6 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
     async def pdfs() -> list[dict]:
         return [{"path": str(p), "name": p.name} for p in R.pdfs_in(".")]
 
-    @app.put("/api/pdf")
-    async def put_pdf(run: str, request: Request, name: str = "") -> dict:
-        ws = ws_for(run)
-        if ws.has_own_pdf():
-            raise BadRequest("this run has its own source.pdf")
-        if request.headers.get("content-type", "").startswith("application/json"):
-            try:
-                body = PdfPick.model_validate(await request.json())
-            except ValueError as e:
-                raise BadRequest("body must be {\"path\": \"...\"} or a PDF") from e
-            path = under_cwd(body.path)
-            await asyncio.to_thread(check_pdf, path.read_bytes())
-            ws.attach_path(path)
-        else:
-            data = await read_body(request)
-            check_pdf(data)
-            ws.attach_bytes(data, safe_pdf_name(name))
-        pages.clear()
-        return {"has_pdf": True, "name": ws.pdf_name()}
-
-    @app.delete("/api/pdf")
-    async def delete_pdf(run: str) -> dict:
-        ws_for(run).detach_pdf()
-        pages.clear()
-        return {"has_pdf": ws_for(run).run().pdf is not None}
-
     @app.post("/api/uploads")
     async def upload(request: Request, name: str = "") -> dict:
         data = await read_body(request)
@@ -466,7 +428,7 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
 
     def plan_args(body: PlanIn | ExtractIn) -> tuple[bytes, str]:
         if body.votes not in VOTES:
-            raise BadRequest("votes must be 1, 3 or 5")
+            raise BadRequest(f"votes must be one of {', '.join(map(str, VOTES))}")
         data = source_bytes(body.path, body.upload_id)
         return data, body.doc_id.strip()
 

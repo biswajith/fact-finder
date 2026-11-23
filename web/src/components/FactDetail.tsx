@@ -4,9 +4,9 @@ import * as api from '../api';
 import { useRun } from '../store';
 import type { Fact, FactPatch } from '../types';
 import { CATEGORY_NAMES } from '../types';
-import { formatTime } from './common';
+import { FactLink, formatTime } from './common';
 import { FactForm, type FactFormValues } from './FactForm';
-import { CatPill, FactTags, STATUS_LABEL, Tag } from './facts/parts';
+import { CatPill, FactTags } from './facts/parts';
 import './facts.css';
 
 function PageImage({ run, factId, pages }: { run: string; factId: string; pages: { page: number; label: string }[] }) {
@@ -43,7 +43,7 @@ function PageImage({ run, factId, pages }: { run: string; factId: string; pages:
 }
 
 function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
-  const { run, act, setChatDraft, openFact, liveFacts } = useRun();
+  const { run, act, setChatDraft, liveFacts } = useRun();
   // A point stated in several places: the facts of its "same" group, this one included.
   const stated = useMemo(
     () => (fact.group_id && fact.group_kind === 'same' ? liveFacts.filter((f) => f.group_id === fact.group_id) : []),
@@ -84,9 +84,7 @@ function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
   return (
     <>
       <div className="fx-panel-head">
-        <button type="button" className="fx-back" onClick={onClose}>&larr; Back to chat</button>
         <CatPill code={fact.category} />
-        <span className="id">{fact.fact_id}</span>
         <button type="button" className="fx-close" aria-label="Close" title="Close (Esc)" onClick={onClose}>&times;</button>
       </div>
       <div className="fx-panel-body">
@@ -97,8 +95,6 @@ function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
             <p className={`fx-big${fact.deleted ? ' deleted' : ''}`}>{fact.text}</p>
             <div className="fx-tags">
               <FactTags f={fact} stated={stated.length} />
-              <Tag>Status: {STATUS_LABEL[fact.status] ?? fact.status}</Tag>
-              {fact.source_call && <Tag>Source call: {fact.source_call}</Tag>}
             </div>
             {fact.deleted && <div className="fx-alert danger"><strong>This fact was deleted.</strong>Restore it to bring it back.</div>}
             {(fact.original?.text !== undefined || fact.original?.category !== undefined) && (
@@ -125,9 +121,7 @@ function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
               <div className="fx-sec">
                 <h3>Contradicted by</h3>
                 <div className="row">
-                  {fact.conflicts.map((id) => (
-                    <button key={id} type="button" className="linkbtn" aria-label={`Open fact ${id}`} onClick={() => openFact(id)}>{id}</button>
-                  ))}
+                  {fact.conflicts.map((id) => <FactLink key={id} id={id} />)}
                 </div>
               </div>
             )}
@@ -153,6 +147,12 @@ function FactBody({ fact, onClose }: { fact: Fact; onClose: () => void }) {
               </div>
             )}
             {pages.length > 0 && <PageImage key={fact.fact_id} run={run} factId={fact.fact_id} pages={pages} />}
+            <details className="fx-details">
+              <summary>Details</summary>
+              <div className="muted wrap-text">
+                ID {fact.fact_id}{fact.source_call ? ` · source call ${fact.source_call}` : ''}
+              </div>
+            </details>
           </>
         )}
       </div>
@@ -206,9 +206,8 @@ export function FactDetail() {
       ) : (
         <>
           <div className="fx-panel-head">
-            <button type="button" className="fx-back" onClick={close}>&larr; Back to chat</button>
             <strong>Fact {openFactId}</strong>
-            <button type="button" className="fx-close" style={{ marginLeft: 'auto' }} aria-label="Close" onClick={close}>&times;</button>
+            <button type="button" className="fx-close" aria-label="Close" onClick={close}>&times;</button>
           </div>
           <div className="fx-panel-body">
             <div className="fx-state">{facts.loading ? 'Loading...' : 'This fact is not in the current run.'}</div>

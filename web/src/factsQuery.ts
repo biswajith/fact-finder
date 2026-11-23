@@ -1,8 +1,8 @@
 // Pure helpers for the Facts tab: the filter query string and the grouping of the list.
-import type { Fact, FactItem, FactsListFilters, FactStatus, Flag } from './types';
+import type { Fact, FactItem, FactsListFilters, FactStatus } from './types';
 
 export const ALL_STATUSES: FactStatus[] = ['valid', 'needs_review', 'conflict'];
-export const PAGE_SIZES = [15, 30, 60] as const;
+export const PAGE_SIZES = [60, 120, 240] as const;
 
 export const emptyFilters = (): FactsListFilters => ({
   q: '', categories: [], statuses: [...ALL_STATUSES], flags: [], pageFrom: null, pageTo: null,
@@ -51,9 +51,8 @@ export function pagesOf(facts: Fact[]): string {
   return [...seen].join('; ');
 }
 
-/** Resolve the server's items against the facts it returned; items whose facts are missing are dropped. */
-export function listEntries(items: FactItem[], facts: Fact[]): ListEntry[] {
-  const byId = new Map(facts.map((f) => [f.fact_id, f]));
+/** Resolve the server's items against the loaded facts (by ID); items whose facts are missing are dropped. */
+export function listEntries(items: FactItem[], byId: ReadonlyMap<string, Fact>): ListEntry[] {
   const out: ListEntry[] = [];
   for (const it of items) {
     const fs = it.fact_ids.map((id) => byId.get(id)).filter((f): f is Fact => !!f);
@@ -75,8 +74,6 @@ export function paginate<T>(entries: T[], size: number, page: number): { slice: 
   const cur = Math.min(Math.max(1, page), pages);
   return { slice: entries.slice((cur - 1) * size, cur * size), page: cur, pages };
 }
-
-export const flagsLabel = (flags: Flag[]) => flags.join(', ');
 
 /** The most helpful percent for the comparison figures; "-" when there is none. */
 export function pct(v: number | null | undefined): string {

@@ -3,7 +3,7 @@ import { factsListQuery } from './factsQuery';
 import type {
   ChatEvent, ChatMessage, ChatSession, ChatSessionDetail, CompareResponse, Conflict, CorrectionEntry, ExtractJob, ExtractPlan, ExtractRequest, Fact,
   FactPatch, FactsListFilters, FactsListResponse, FactsResponse, NewFact, OverviewResponse, PdfChoice, PdfSource,
-  PdfState, Report, ResolveBody, RunInfo, RunsTableRow, Status, SummariesResponse, UploadInfo, ViewName,
+  Report, ResolveBody, RunInfo, RunsTableRow, Status, SummariesResponse, UploadInfo, ViewName,
 } from './types';
 
 export class ApiError extends Error {
@@ -99,10 +99,6 @@ export const getCompare = (a: string, b: string, signal?: AbortSignal) =>
   request<CompareResponse>('GET', `/compare?${q({ a, b })}`, undefined, signal);
 
 export const getPdfs = (signal?: AbortSignal) => request<PdfChoice[]>('GET', '/pdfs', undefined, signal);
-export const attachPdfPath = (run: string, path: string) => request<PdfState>('PUT', `/pdf?${q({ run })}`, { path });
-export const attachPdfUpload = (run: string, file: File) =>
-  send<PdfState>('PUT', `/pdf?${q({ run, name: file.name })}`, file, 'application/pdf');
-export const detachPdf = (run: string) => request<PdfState>('DELETE', `/pdf?${q({ run })}`);
 
 export const uploadPdf = (file: File) => send<UploadInfo>('POST', `/uploads?${q({ name: file.name })}`, file, 'application/pdf');
 export const planExtract = (source: PdfSource, doc_id: string, votes: number) =>

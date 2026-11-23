@@ -15,18 +15,22 @@ const OP_LABEL: Record<CorrectionEntry['op'], string> = {
   undo: 'Undo',
 };
 
+/** The changes still in effect: not undone, and not the undo entries themselves. The sidebar pill and this page's header both count these. */
+export const activeChanges = (list: CorrectionEntry[]) => list.filter((c) => !c.undone && c.op !== 'undo');
+
 const fmt = (v: unknown) =>
   Array.isArray(v) ? v.join(', ') || '(none)' : v === '' ? '(empty)' : v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v);
 
 export function ChangesTab() {
-  const { run, corrections, factById, reloadAll, act } = useRun();
+  const { run, corrections, reloadAll, act } = useRun();
   if (corrections.loading && !corrections.data) return <Loading label="Loading changes" />;
   if (corrections.error && !corrections.data) return <ErrorBox message={corrections.error} onRetry={() => void reloadAll()} />;
   const list = corrections.data ?? [];
+  const active = activeChanges(list).length;
   const undoneCount = list.filter((c) => c.undone).length;
   return (
     <>
-      <PageHeader title="Changes" subtitle={list.length ? `${list.length} change${list.length === 1 ? '' : 's'}${undoneCount ? ` · ${undoneCount} undone` : ''}` : undefined} />
+      <PageHeader title="Changes" subtitle={list.length ? `${active} change${active === 1 ? '' : 's'}${undoneCount ? ` · ${undoneCount} undone` : ''}` : undefined} />
       <div className="pg-stack">
         {corrections.error && <ErrorBox message={corrections.error} onRetry={() => void reloadAll()} />}
         {list.length === 0 && (
@@ -37,7 +41,8 @@ export function ChangesTab() {
         )}
         <ol className="tl">
           {list.map((c) => {
-            const fact = c.fact_id ? factById.get(c.fact_id) : undefined;
+            // A raise names its conflict above; a choice shows the chosen option instead of its index.
+            const fields = c.op === 'raise' || c.op === 'resolve' ? {} : c.fields ?? {};
             return (
               <li key={c.id} className={`tl-item${c.undone ? ' undone' : ''}`} aria-label={`${OP_LABEL[c.op]} ${c.fact_id ?? c.conflict_id ?? ''}`}>
                 <div className="tl-head">
@@ -55,26 +60,32 @@ export function ChangesTab() {
                 </div>
                 {c.fact_id && (
                   <div className="tl-fact">
-                    <FactLink id={c.fact_id} label={c.fact_id} />
+                    <FactLink id={c.fact_id} />
                     {c.fact_text && <span className="wrap-text muted">{c.fact_text}</span>}
                   </div>
                 )}
-                {c.conflict_id && !c.fact_id && <div className="muted">Conflict {c.conflict_id}</div>}
-                {c.target && <div className="muted">Cancels change {c.target}</div>}
-                {c.fields &&
-                  Object.entries(c.op === 'raise' ? { title: c.fields.title } : c.fields).map(([k, v]) => {
-                    const before = c.op === 'edit' && fact?.original ? (fact.original as Record<string, unknown>)[k] : undefined;
-                    return (
-                      <div key={k} className="tl-diff">
-                        <span className="k">{k === 'option' ? 'Option' : k[0].toUpperCase() + k.slice(1)}</span>
-                        <span>
-                          {before !== undefined && <span className="old">{fmt(before)}</span>}
-                          {before !== undefined && <span className="arrow">→</span>}
-                          <span className="new">{fmt(v)}</span>
-                        </span>
-                      </div>
-                    );
-                  })}
+                {c.conflict_id && !c.fact_id && (
+                  <div className="wrap-text">Conflict: {c.conflict_title ?? <span className="muted">no longer listed</span>}</div>
+                )}
+                {c.op === 'resolve' && c.choice && (
+                  <div className="tl-diff">
+                    <span className="k">Chosen</span>
+                    <span className="new">{c.choice}</span>
+                  </div>
+                )}
+                {Object.entries(fields).map(([k, v]) => {
+                  const before = c.op === 'edit' ? c.before?.[k] : undefined;
+                  return (
+                    <div key={k} className="tl-diff">
+                      <span className="k">{(k[0].toUpperCase() + k.slice(1)).replace(/_/g, ' ')}</span>
+                      <span>
+                        {before !== undefined && <span className="old">{fmt(before)}</span>}
+                        {before !== undefined && <span className="arrow">→</span>}
+                        <span className="new">{fmt(v)}</span>
+                      </span>
+                    </div>
+                  );
+                })}
                 {c.reason && <div className="tl-reason">Reason: {c.reason}</div>}
               </li>
             );

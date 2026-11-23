@@ -1,49 +1,43 @@
 import { useMemo, useState } from 'react';
+import { Button } from '@adobe/react-spectrum';
 import * as api from '../api';
 import { useAsync } from '../hooks';
 import { useRun } from '../store';
 import type { CalendarDate, Fact, Overview, OverviewCounts, OverviewEntry, OverviewResponse, SummaryRow, SummarySection, ViewName } from '../types';
-import { CATEGORY_COLORS, ErrorBox, Loading, PageChip, formatTime } from './common';
+import { CATEGORY_COLORS, ErrorBox, Loading, PageChip, ViewSwitch, formatTime } from './common';
 import { PageCites } from './CitationChip';
 import { emptyFilters } from '../factsQuery';
 import { openConflictCount, unverifiedNote } from '../overviewView';
 import { AwardObligations } from './overview/AwardView';
 import { CollapseProvider, ExpandCollapseAll, Section } from './overview/Collapsible';
+import { PageHeader } from './shell/PageHeader';
+import './overview.css';
 
-/** The summary sections, in card order. */
-const SECTIONS: { key: string; title: string; code: string }[] = [
-  { key: 'buyer', title: 'Buyer information', code: 'B' },
-  { key: 'submission', title: 'Submission instructions', code: 'S' },
-  { key: 'gates', title: 'Go/no-go gates', code: 'G' },
-  { key: 'scoring', title: 'Scoring criteria', code: 'E' },
-  { key: 'questions', title: 'Clarifications', code: 'Q' },
-  { key: 'contract', title: 'Contract terms and risks', code: 'C' },
-  { key: 'requirements', title: 'Requirements', code: 'R' },
-];
-/** Sections with no fact list in /api/overview: the facts page is the way in. */
-const FACTS_PAGE_CATEGORY: Record<string, string> = { contract: 'C', requirements: 'R' };
+type CardDef = { key: string; title: string; code: string };
+/** Open until the reader folds them: what decides whether and how to bid. */
+const OPEN_BY_DEFAULT = ['dates', 'submission', 'gates'];
 
-/** Sections that need a summary run: stale, or with no rows yet. */
 /** The facts behind a card: its summary's whole-run count under All, the view's own count otherwise. */
-export function cardCount(view: ViewName, s: SummarySection | undefined, listCount: number, categoryCount: number | null): number {
+function cardCount(view: ViewName, s: SummarySection | undefined, listCount: number, categoryCount: number | null): number {
   if (view === 'All') return s?.fact_count ?? listCount;
   return categoryCount ?? listCount;
 }
 
-export const needsSummary = (s: SummarySection) => s.stale || s.rows.length === 0;
+/** Sections that need a summary run: stale, or with no rows yet. */
+const needsSummary = (s: SummarySection) => s.stale || s.rows.length === 0;
 
 const SHOWN = 6; // lines a list shows before "Show all"
 
 type OpenByText = (text: string) => (() => void) | null;
 
 /** The overview for a view, re-fetched after every fact write. */
-export function useOverview(view: ViewName) {
+function useOverview(view: ViewName) {
   const { run, facts } = useRun();
   return useAsync((signal) => api.getOverview(run, view, signal), [run, view, facts.data]);
 }
 
 /** The facts of a view (Bid, After award), from the same filter the Facts page uses; none loaded for All. */
-export function useViewFacts(view: ViewName) {
+function useViewFacts(view: ViewName) {
   const { run, facts } = useRun();
   return useAsync((signal) => api.getFactsList(run, { ...emptyFilters(), view }, signal), [run, view, facts.data], view !== 'All');
 }
@@ -102,6 +96,14 @@ const BEHIND: Record<string, (o: Overview) => { heading: string; entries: Overvi
   questions: (o) => [{ heading: 'The RFP contradicts itself', entries: o.contradictions }, { heading: 'Unclear, ask the buyer', entries: o.unclear }],
 };
 
+/** A row's text; a run of items joined by semicolons shows one item per line (display only). */
+function RowText({ text, empty }: { text: string; empty: string }) {
+  if (!text) return <span className="wrap-text"><span className="ov-none">{empty}</span></span>;
+  const items = text.split(/;\s+/).filter(Boolean);
+  if (items.length < 2) return <span className="wrap-text">{text}</span>;
+  return <ul className="ov-kv-items">{items.map((t, i) => <li key={i} className="wrap-text">{t}</li>)}</ul>;
+}
+
 function Rows({ rows }: { rows: SummaryRow[] }) {
   return (
     <dl className="ov-kv">
@@ -115,9 +117,7 @@ function Rows({ rows }: { rows: SummaryRow[] }) {
                 <span>{unverifiedNote(r)}</span>
               </span>
             )}
-            <span className="wrap-text">
-              {r.text || <span className="ov-none">{r.unverified ? 'Nothing to show' : 'Not stated in the RFP'}</span>}
-            </span>
+            <RowText text={r.text} empty={r.unverified ? 'Nothing to show' : 'Not stated in the RFP'} />
             {r.fact_ids.length > 0 ? <PageCites ids={r.fact_ids} /> : <PageChip page={r.page} />}
           </dd>
         </div>
@@ -164,7 +164,7 @@ function StatusBadge({ s, busy, noKey, onUpdate }: { s: SummarySection; busy: bo
 
 /** One summary card: its rows with citations, and the facts behind them folded underneath. */
 function SummaryCard({ def, s, o, open, view, byCategory }: {
-  def: { key: string; title: string; code: string }; s?: SummarySection; o: Overview; open: OpenByText;
+  def: CardDef; s?: SummarySection; o: Overview; open: OpenByText;
   view: ViewName; byCategory: Record<string, number>;
 }) {
   const { run, act, setSummaries, status, showFacts, factById, openFact } = useRun();
@@ -173,7 +173,8 @@ function SummaryCard({ def, s, o, open, view, byCategory }: {
   const noKey = status?.has_key === false;
   const parts = BEHIND[def.key]?.(o) ?? [];
   const listCount = parts.reduce((n, p) => n + total(p.entries), 0);
-  const factsCat = FACTS_PAGE_CATEGORY[def.key];
+  // A section with no fact list in /api/overview (contract, requirements): the Facts page is the way in.
+  const factsCat = BEHIND[def.key] ? undefined : def.code;
   const count = cardCount(view, s, listCount, factsCat ? byCategory[factsCat] ?? 0 : null);
   const rows = s?.rows ?? [];
   const summarised = rows.length > 0;
@@ -184,11 +185,11 @@ function SummaryCard({ def, s, o, open, view, byCategory }: {
   };
   const uncovered = (s?.uncovered ?? []).map((id) => factById.get(id)).filter((f): f is Fact => !!f);
   const seeAll = factsCat ? (
-    <button type="button" className="linkbtn" onClick={() => showFacts({ categories: [factsCat], view })}>See all {count} facts</button>
+    <button type="button" className="linkbtn" onClick={() => showFacts({ categories: [factsCat], view })}>Show the {count} facts in Facts</button>
   ) : null;
   return (
     <Section
-      id={def.key} className="ov-card" title={s?.title ?? def.title} color={CATEGORY_COLORS[def.code] ?? 'var(--cat-B)'} count={count}
+      id={def.key} className="ov-card" title={def.title} color={CATEGORY_COLORS[def.code] ?? 'var(--cat-B)'} count={count}
       status={s ? <StatusBadge s={s} busy={busy} noKey={noKey} onUpdate={() => void generate()} /> : undefined}
       hint={s?.stale ? 'Out of date' : undefined}
     >
@@ -199,7 +200,7 @@ function SummaryCard({ def, s, o, open, view, byCategory }: {
           <div className="ov-foot">
             {parts.length > 0 && (
               <button type="button" aria-expanded={behindOpen} onClick={() => setBehindOpen(!behindOpen)}>
-                {behindOpen ? 'Hide' : 'Show'} the {count} facts behind this
+                {behindOpen ? 'Hide' : 'Show'} the {count} facts
               </button>
             )}
             {seeAll && <span>{seeAll}</span>}
@@ -247,7 +248,7 @@ const COUNT_TILES: { key: CountKey; label: string; hint: string; tone?: 'warn' |
   { key: 'unclear', label: 'Unclear', hint: 'to ask the buyer' },
 ];
 
-export function StatTiles({ counts, view, viewFactIds }: { counts: OverviewCounts; view: ViewName; viewFactIds: ReadonlySet<string> | null }) {
+function StatTiles({ counts, view, viewFactIds }: { counts: OverviewCounts; view: ViewName; viewFactIds: ReadonlySet<string> | null }) {
   const { goTo, showFacts, conflicts } = useRun();
   const openConflicts = openConflictCount(conflicts.data ?? [], view, viewFactIds);
   const go = (k: CountKey) => {
@@ -259,12 +260,13 @@ export function StatTiles({ counts, view, viewFactIds }: { counts: OverviewCount
     <div className="ov-stats" role="group" aria-label="Counts">
       {COUNT_TILES.map((t) => {
         const n = t.key === 'conflicts' ? openConflicts : counts[t.key];
+        if (!n) return null;
+        const hint = t.key === 'conflicts' && view !== 'All' ? 'in this view, need your choice' : t.hint;
         return (
-          <button key={t.key} type="button" className={`ov-stat${n && t.tone ? ` ${t.tone}` : ''}`}
-            aria-label={`${t.label}: ${n}. ${t.key === 'conflicts' ? 'Open conflicts' : 'Show these facts'}`} onClick={() => go(t.key)}>
+          <button key={t.key} type="button" className={`ov-stat${t.tone ? ` ${t.tone}` : ''}`} title={`${n} ${hint}`}
+            aria-label={`${t.label}: ${n}, ${hint}. ${t.key === 'conflicts' ? 'Open conflicts' : 'Show these facts'}`} onClick={() => go(t.key)}>
             <span className="l">{t.label}</span>
             <span className="v">{n}</span>
-            <span className="h">{t.key === 'conflicts' && view !== 'All' ? 'in this view, need your choice' : t.hint}</span>
           </button>
         );
       })}
@@ -329,7 +331,7 @@ function KeyDates({ dated, undated, open }: {
 }
 
 /** Subtitle for the page header: the buyer rows when present. */
-export function buyerLine(rows: SummaryRow[]): string {
+function buyerLine(rows: SummaryRow[]): string {
   const pick = (re: RegExp) => rows.find((r) => re.test(r.row) && r.text)?.text;
   const name = pick(/buyer|issuer|agency|organi[sz]ation|client|customer|entity/i) ?? rows.find((r) => r.text)?.text;
   const id = pick(/rfp|solicitation|reference|number|tender|ref/i);
@@ -337,10 +339,10 @@ export function buyerLine(rows: SummaryRow[]): string {
   return parts.join(' · ');
 }
 
-export function Glance({ ov, view }: {
+function OverviewBody({ ov, view }: {
   ov: ReturnType<typeof useOverview>; view: ViewName;
 }) {
-  const { liveFacts, openFact, summaries } = useRun();
+  const { liveFacts, factById, openFact, summaries } = useRun();
   const viewFacts = useViewFacts(view);
   const secs = summaries.data?.sections ?? [];
   const byText = useMemo(() => {
@@ -348,7 +350,9 @@ export function Glance({ ov, view }: {
     for (const f of liveFacts) if (!m.has(f.text)) m.set(f.text, f.fact_id);
     return m;
   }, [liveFacts]);
-  const viewFactIds = useMemo(() => (viewFacts.data ? new Set(viewFacts.data.facts.map((f) => f.fact_id)) : null), [viewFacts.data]);
+  const viewIds = useMemo(() => (viewFacts.data ? viewFacts.data.items.flatMap((it) => it.fact_ids) : null), [viewFacts.data]);
+  const viewFactIds = useMemo(() => (viewIds ? new Set(viewIds) : null), [viewIds]);
+  const awardFacts = useMemo(() => (viewIds ?? []).map((id) => factById.get(id)).filter((f): f is Fact => !!f), [viewIds, factById]);
   const open: OpenByText = (text) => {
     const id = byText.get(text);
     return id ? () => openFact(id) : null;
@@ -356,7 +360,8 @@ export function Glance({ ov, view }: {
   const data: OverviewResponse | null = ov.data;
   if (!data) return null;
   const { overview: o, counts } = data;
-  const ids = ['dates', ...SECTIONS.map((d) => d.key)];
+  const cards: CardDef[] = secs.map((s) => ({ key: s.key, title: s.title, code: s.codes[0] ?? 'B' }));
+  const ids = ['dates', ...cards.map((d) => d.key)];
   const tiles = <StatTiles counts={counts} view={view} viewFactIds={viewFactIds} />;
   if (view === 'After award') {
     return (
@@ -370,16 +375,15 @@ export function Glance({ ov, view }: {
         ) : !viewFacts.data ? (
           <Loading label="Loading after-award facts" />
         ) : (
-          <AwardObligations facts={viewFacts.data.facts} hasPostAward={data.has_post_award} />
+          <AwardObligations facts={awardFacts} hasPostAward={data.has_post_award} />
         )}
       </div>
     );
   }
-  const differs = view === 'Bid' && SECTIONS.some((d) => {
-    const s = secs.find((x) => x.key === d.key);
-    const listCount = (BEHIND[d.key]?.(o) ?? []).reduce((n, p) => n + total(p.entries), 0);
-    const cat = FACTS_PAGE_CATEGORY[d.key];
-    return s !== undefined && cardCount(view, s, listCount, cat ? data.by_category[cat] ?? 0 : null) !== s.fact_count;
+  const differs = view === 'Bid' && secs.some((s) => {
+    const listCount = (BEHIND[s.key]?.(o) ?? []).reduce((n, p) => n + total(p.entries), 0);
+    const cat = BEHIND[s.key] ? null : data.by_category[s.codes[0]] ?? 0;
+    return cardCount(view, s, listCount, cat) !== s.fact_count;
   });
   return (
     <div className="ov-glance" aria-busy={ov.loading}>
@@ -389,15 +393,64 @@ export function Glance({ ov, view }: {
         </p>
       )}
       {tiles}
-      <CollapseProvider>
+      <CollapseProvider defaultOpen={OPEN_BY_DEFAULT}>
         <ExpandCollapseAll ids={ids} />
         <div className="ov-stack">
           <KeyDates dated={o.calendar.dated} undated={o.calendar.undated} open={open} />
-          {SECTIONS.map((d) => (
+          {cards.map((d) => (
             <SummaryCard key={d.key} def={d} s={secs.find((x) => x.key === d.key)} o={o} open={open} view={view} byCategory={data.by_category} />
           ))}
         </div>
       </CollapseProvider>
+    </div>
+  );
+}
+
+/** The Overview page: header, view switch and the cards. */
+export function OverviewTab() {
+  const { summaries, run, act, setSummaries, reloadAll, runInfo, status } = useRun();
+  const [view, setView] = useState<ViewName>('All');
+  const ov = useOverview(view);
+  const sections = summaries.data?.sections ?? [];
+  const anyBusy = summaries.data?.updating ?? false;
+  const noKey = status?.has_key === false;
+  const todo = sections.filter(needsSummary).map((s) => s.key);
+  const subtitle = buyerLine(sections.find((s) => s.key === 'buyer')?.rows ?? []) || runInfo?.doc_id || undefined;
+  return (
+    <div className="ov-page">
+      <PageHeader
+        title="Overview"
+        subtitle={subtitle}
+        actions={
+          <>
+            {todo.length > 0 && view !== 'After award' && (
+              <Button
+                variant="secondary"
+                isQuiet
+                isDisabled={anyBusy || noKey}
+                onPress={async () => {
+                  const r = await act(() => api.generateSummaries(run, todo));
+                  if (r) setSummaries(r);
+                }}
+              >
+                <span title={noKey ? 'No API key: summaries are off' : anyBusy ? 'Summaries are updating' : undefined}>Update summaries</span>
+              </Button>
+            )}
+            <ViewSwitch view={view} onChange={setView} hasPostAward={ov.data?.has_post_award ?? true} />
+          </>
+        }
+      />
+      {summaries.error && !summaries.data && <ErrorBox message={summaries.error} onRetry={() => void reloadAll()} />}
+      {ov.loading && !ov.data ? (
+        <Loading label="Loading the overview" />
+      ) : ov.error && !ov.data ? (
+        <ErrorBox message={ov.error} onRetry={ov.reload} />
+      ) : (
+        <>
+          {ov.error && <ErrorBox message={ov.error} onRetry={ov.reload} />}
+          <OverviewBody ov={ov} view={view} />
+        </>
+      )}
     </div>
   );
 }

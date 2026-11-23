@@ -53,6 +53,25 @@ def test_no_log_gives_base_facts_and_source_conflict(ws):
     assert not ws.dir.exists()  # reading creates nothing
 
 
+def test_state_is_replayed_only_when_a_file_changes(ws):
+    s = ws.state()
+    assert ws.state() is s  # nothing changed: no replay
+    ws.edit("f_d1", {"text": "Bids due March 4"})
+    after_edit = ws.state()
+    assert after_edit is not s and after_edit.get("f_d1")["text"] == "Bids due March 4"
+    assert ws.state() is after_edit
+    # Another process appends to the log: the next read sees it.
+    target = ws.log()[-1]["id"]
+    with open(ws.corrections_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"id": "c_x", "at": "t", "source": "ui", "op": "undo", "target": target}) + "\n")
+    assert ws.state().get("f_d1")["text"] == "Bids due March 3"
+    # The facts file is rewritten: the run is read again.
+    rows = json.loads(ws.facts_path.read_text())
+    rows[0]["text"] = "Buyer is the City of Durham"
+    ws.facts_path.write_text(json.dumps(rows))
+    assert ws.state().get("f_b1")["text"] == "Buyer is the City of Durham"
+
+
 def test_edit_keeps_original_and_later_edit_wins(ws):
     ws.edit("f_d1", {"text": "Bids due March 4"}, "customer said so")
     f = ws.edit("f_d1", {"text": "Bids due March 5", "flags": []})
@@ -95,6 +114,38 @@ def test_corrections_listing(ws):
     assert [r["op"] for r in rows] == ["delete", "edit"]  # newest first
     assert [r["undone"] for r in rows] == [False, True]
     assert rows[0]["fact_text"] == "Vendor must keep 24/7 support"
+
+
+def test_corrections_before_is_the_value_just_before_each_edit(ws):
+    ws.edit("f_d1", {"text": "Bids due March 4"})
+    ws.edit("f_d1", {"text": "Bids due March 6", "note": "moved"})
+    rows = ws.corrections()
+    assert rows[0]["before"] == {"text": "Bids due March 4", "note": ""}  # not the first-extracted text
+    assert rows[1]["before"] == {"text": "Bids due March 3"}
+    ws.undo(ws.log()[0]["id"])  # with the first edit undone, the second replaced the extracted text
+    rows = [r for r in ws.corrections() if r["op"] == "edit"]
+    assert rows[0]["before"]["text"] == "Bids due March 3"
+    assert rows[1]["undone"] and rows[1]["before"] == {"text": "Bids due March 3"}
+
+
+def test_corrections_before_on_an_added_fact(ws):
+    f = ws.add({"category": "R", "text": "Bring two copies"})
+    ws.edit(f["fact_id"], {"text": "Bring three copies"})
+    assert ws.corrections()[0]["before"] == {"text": "Bring two copies"}
+
+
+def test_corrections_name_the_conflict_and_the_choice(ws):
+    ws.resolve("q:f_q1", option=1)
+    row = ws.corrections()[0]
+    assert row["conflict_title"] == "Due date is given twice" and row["choice"] == "Page 5: Term"
+    ws.reopen("q:f_q1")
+    ws.resolve("q:f_q1", text="March 4")
+    assert ws.corrections()[0]["choice"] == "Your own answer: March 4"
+    c = raise_it(ws)
+    row = ws.corrections()[0]
+    assert row["op"] == "raise" and row["conflict_title"] == "Which deadline moves" and "choice" not in row
+    assert ws.state().conflict("q:f_q1")["description"]  # kept for the chat agent; the card hides it
+    assert c["description"]
 
 
 def test_delete_and_restore(ws):

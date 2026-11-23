@@ -32,7 +32,6 @@ export interface RunInfo {
   modified: string | number;
   has_pdf: boolean;
   corrections: number;
-  pdf_name?: string | null;
 }
 
 export interface Citation {
@@ -147,6 +146,12 @@ export interface CorrectionEntry {
   target: string | null;
   undone: boolean;
   fact_text: string | null;
+  /** Edits: the changed fields' values just before this edit. */
+  before?: Record<string, unknown>;
+  /** Entries about a conflict: its title, when it is still listed. */
+  conflict_title?: string | null;
+  /** Choices: the chosen option's label, or "Your own answer: ...". */
+  choice?: string | null;
 }
 
 export interface SummaryRow {
@@ -207,7 +212,7 @@ export type ChatEvent =
   | { type: 'error'; message: string }
   | { type: 'done'; message: ChatMessage };
 
-// ---- Features carried over from the Streamlit app (spec 11) -------------------------------
+// ---- Overview, filtered facts, report, compare, PDFs, new run (spec 11) --------------------
 
 export type ViewName = 'All' | 'Bid' | 'After award';
 
@@ -269,8 +274,7 @@ export interface FactItem {
 export interface FactsListResponse {
   total: number;
   by_category: Record<string, number>;
-  items: FactItem[];
-  facts: Fact[];
+  items: FactItem[]; // fact IDs only: the facts themselves come from GET /facts
 }
 
 export interface ReportCall {
@@ -300,8 +304,6 @@ export interface RunsTableRow {
   document: string;
   facts: number;
   'total s': number | null;
-  'extract s': number | null;
-  'sweep and check s': number | null;
   'output tokens': number | null;
   finished: string;
 }
@@ -334,10 +336,6 @@ export interface CompareResponse {
 export interface PdfChoice {
   path: string;
   name: string;
-}
-export interface PdfState {
-  has_pdf: boolean;
-  name?: string;
 }
 export interface UploadInfo {
   upload_id: string;

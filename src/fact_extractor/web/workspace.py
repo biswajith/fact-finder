@@ -29,7 +29,6 @@ from .runs import Run, document_order, load_run, normalize
 
 EDITABLE = ("text", "category", "flags", "note")
 SESSION_ID = re.compile(r"^s_[0-9a-f]{12}$")
-OPS = ("edit", "delete", "add", "raise", "resolve", "undo")
 CUSTOM_LABEL = "Custom answer"
 
 
@@ -158,6 +157,7 @@ class State:
     facts: list[dict]  # effective facts in document order, deleted ones included
     conflicts: list[dict]  # open first
     live: list[dict] = field(default_factory=list)
+    before: dict[str, dict] = field(default_factory=dict)  # edit entry ID -> the edited fields' values just before it
 
     def get(self, fact_id: str) -> dict | None:
         return next((f for f in self.facts if f["fact_id"] == fact_id), None)
@@ -258,6 +258,16 @@ def _resolve_raised(c: dict, entry: dict) -> None:
     c["resolution"] = {"option": option, "label": label, "text": text, "at": entry["at"]}
 
 
+def _choice(c: dict | None, fields: dict) -> str | None:
+    """What a resolve entry chose, in words: the option's label or the customer's own answer."""
+    option = fields.get("option")
+    if option is None:
+        return f"Your own answer: {fields.get('text') or ''}"
+    if c is not None and isinstance(option, int) and 0 <= option < len(c["options"]):
+        return c["options"][option]["label"]
+    return None
+
+
 def _without_orphans(log: list[dict], live: list[dict]) -> list[dict]:
     """Drop the edits and deletes that came from choosing an option of a raised conflict when the
     choice itself (the `resolve` entry logged just before them) is no longer live. A conflict can
@@ -278,15 +288,22 @@ def replay(base: list[dict], log: list[dict], doc=None) -> State:
 
     An edit or delete that came from resolving a raised conflict only counts while that
     resolve entry is live, so reopening a conflict takes its changes back with it.
+    `before` holds, for every edit entry (undone ones too), the values it replaced at that point.
     """
     live = _without_orphans(log, live_entries(log))
+    live_ids = {e["id"] for e in live}
+    before: dict[str, dict] = {}
     facts = {r["fact_id"]: _blank(r) for r in base}
     originals = {r["fact_id"]: r for r in base}
     conflicts = _source_conflicts(base)
     derived: set[str] = set()
     template = base[0] if base else {}
-    for e in live:
+    for e in log:
         op, fid = e.get("op"), e.get("fact_id")
+        if op == "edit" and fid in facts:
+            before[e["id"]] = {k: copy.deepcopy(facts[fid].get(k)) for k in e.get("fields") or {}}
+        if e.get("id") not in live_ids:
+            continue
         if op == "add":
             facts[fid] = _user_fact(e, template, doc)
         elif op in ("edit", "delete") and fid in facts:
@@ -329,31 +346,7 @@ def replay(base: list[dict], log: list[dict], doc=None) -> State:
     gone = {f["fact_id"] for f in ordered if f["deleted"]}
     shown = [c for c in conflicts.values() if not (c["kind"] == "source" and c["fact_ids"][0] in gone)]
     shown.sort(key=lambda c: c["status"] != "open")
-    return State(ordered, shown, live)
-
-
-# --- a PDF attached to a run that has none ------------------------------------------------
-
-
-def attached_pdf(run_dir: Path) -> tuple[Path, str] | None:
-    """The PDF the customer attached to the run in `run_dir`: a picked path
-    (`workspace/pdf.json`) or an upload (`workspace/source.pdf`). None when there is none."""
-    ws = run_dir / "workspace"
-    try:
-        meta = json.loads((ws / "pdf.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        meta = None
-    if isinstance(meta, dict):
-        name = str(meta.get("name") or "")
-        if meta.get("path"):
-            path = Path(str(meta["path"]))
-            if path.is_file():
-                return path, name or path.name
-        elif (ws / "source.pdf").is_file():
-            return ws / "source.pdf", name or "source.pdf"
-    elif (ws / "source.pdf").is_file():
-        return ws / "source.pdf", "source.pdf"
-    return None
+    return State(ordered, shown, live, before)
 
 
 # --- one run folder -------------------------------------------------------------------------
@@ -368,10 +361,11 @@ class Workspace:
         self.lock = threading.RLock()
         self._run: Run | None = None
         self._stamp: tuple | None = None
-        self._own_pdf: Path | None = None
         self._doc = None
         self._doc_pdf: Path | None = None
         self._doc_loaded = False
+        self._state: State | None = None
+        self._state_key: tuple | None = None
 
     # files
     @property
@@ -394,47 +388,7 @@ class Workspace:
             stamp = (st.st_mtime_ns, st.st_size)
             if self._run is None or stamp != self._stamp:
                 self._run, self._stamp = load_run(self.facts_path), stamp
-                self._own_pdf = self._run.pdf
-            # A run without a PDF of its own uses the one attached to it, if any.
-            if self._own_pdf is None:
-                att = attached_pdf(self.facts_path.parent)
-                self._run.pdf = att[0] if att else None
             return self._run
-
-    def has_own_pdf(self) -> bool:
-        self.run()
-        return self._own_pdf is not None
-
-    def pdf_name(self) -> str | None:
-        """File name of the run's PDF: source.pdf for its own, the attached name otherwise."""
-        with self.lock:
-            if self.has_own_pdf():
-                return "source.pdf"
-            att = attached_pdf(self.facts_path.parent)
-            return att[1] if att else None
-
-    def attach_path(self, path: Path) -> None:
-        """Remember a PDF elsewhere on disk for this run (the file itself is not copied)."""
-        with self.lock:
-            (self.dir / "source.pdf").unlink(missing_ok=True)
-            atomic_write(self.dir / "pdf.json", json.dumps({"path": str(path), "name": path.name}))
-
-    def attach_bytes(self, data: bytes, name: str) -> None:
-        with self.lock:
-            self.dir.mkdir(parents=True, exist_ok=True)
-            tmp = self.dir / f"source.pdf.{uuid.uuid4().hex[:6]}.tmp"
-            try:
-                tmp.write_bytes(data)
-                os.replace(tmp, self.dir / "source.pdf")
-            finally:
-                tmp.unlink(missing_ok=True)
-            atomic_write(self.dir / "pdf.json", json.dumps({"path": None, "name": name}))
-
-    def detach_pdf(self) -> None:
-        """Forget the attached PDF. The run's own source.pdf is never touched."""
-        with self.lock:
-            (self.dir / "pdf.json").unlink(missing_ok=True)
-            (self.dir / "source.pdf").unlink(missing_ok=True)
 
     def document(self):
         """The tagged document of the run's PDF, or None without a PDF. Built once; slow on first use."""
@@ -466,10 +420,21 @@ class Workspace:
         return len(live_entries(self.log()))
 
     def state(self) -> State:
+        """The replayed log, kept until the facts file or the log changes. Shared:
+        callers must not change the facts or conflicts it holds."""
         with self.lock:
-            log = self.log()
-            needs_doc = any(e.get("op") == "add" and (e.get("fields") or {}).get("citation_ids") for e in log)
-            return replay(self.run().records, log, self.document() if needs_doc else None)
+            run = self.run()
+            try:
+                st = self.corrections_path.stat()
+                log_stamp = (st.st_mtime_ns, st.st_size)
+            except FileNotFoundError:
+                log_stamp = None
+            key = (self._stamp, log_stamp)
+            if self._state is None or key != self._state_key:
+                log = self.log()
+                needs_doc = any(e.get("op") == "add" and (e.get("fields") or {}).get("citation_ids") for e in log)
+                self._state, self._state_key = replay(run.records, log, self.document() if needs_doc else None), key
+            return self._state
 
     def _entry(self, op: str, source: str, **kw) -> dict:
         if source not in ("chat", "ui"):
@@ -544,7 +509,15 @@ class Workspace:
                 if e.get("op") == "undo":
                     continue
                 f = state.get(e["fact_id"]) if e.get("fact_id") else None
-                out.append({**e, "undone": e["id"] in gone, "fact_text": f["text"] if f else None})
+                row = {**e, "undone": e["id"] in gone, "fact_text": f["text"] if f else None}
+                if e["id"] in state.before:
+                    row["before"] = state.before[e["id"]]
+                if e.get("conflict_id"):
+                    c = state.conflict(e["conflict_id"])
+                    row["conflict_title"] = c["title"] if c else (e.get("fields") or {}).get("title") if e.get("op") == "raise" else None
+                    if e.get("op") == "resolve":
+                        row["choice"] = _choice(c, e.get("fields") or {})
+                out.append(row)
             return out
 
     # conflicts

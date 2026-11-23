@@ -466,7 +466,7 @@ One screen:
     Assistant's history is cleared too. Facts and changes are not touched.
 - **Chat panel** on the right, always visible on wide screens, a toggle on narrow
   ones. Messages stream in. Tool steps show as small status lines. A conflict the
-  agent raised shows inline as the same choice card as on the Conflicts tab. Fact
+  agent raised shows inline as the same choice card as on the Conflicts page. Fact
   links open the fact. Starter prompts when the history is empty. "Clear chat".
 
 After a `changed` event or any write, the frontend reloads facts, conflicts,
@@ -491,7 +491,7 @@ API client's SSE parsing and for turning `[f_...]` tokens into links.
 
 1. `uv sync --extra web`, `npm --prefix web install`, `npm --prefix web run build`,
    then `fact-extractor web --runs runs` opens the app and lists the runs.
-2. Editing a fact in the Facts tab shows it as changed, lists it under Changes, and
+2. Editing a fact on the Facts page shows it as changed, lists it under Changes, and
    Undo brings the extracted text back.
 3. Choosing an option on a source conflict marks it resolved and clears the conflict
    status of its linked facts.
@@ -501,12 +501,9 @@ API client's SSE parsing and for turning `[f_...]` tokens into links.
    Changes with source chat.
 6. All Python tests pass with and without the `web` extra.
 
-## 11. Features carried over from the Streamlit review app
+## 11. Review routes and screens
 
-Added 2026-11-20. The Streamlit app was removed; the web app must do everything it
-did. The old screens are the reference for behaviour and wording:
-`git show HEAD:src/fact_extractor/ui/app.py` and `git show HEAD:src/fact_extractor/ui/style.py`.
-Its helpers now live unchanged in `web/runs.py` and are reused, not rewritten.
+Added 2026-11-20. The helpers behind these routes live in `web/runs.py`.
 Everything below works on the **effective** facts (corrections applied, deleted
 facts left out), so a correction shows up here too.
 
@@ -521,8 +518,6 @@ facts left out), so a correction shows up here too.
 | `GET /runs/table` | | `runs.runs_table(all runs)` |
 | `GET /compare?a=&b=` | | `{"agreement": stability.compare_runs(a, b), "code_differences": runs.code_differences(a, b)}`; 400 when the two runs have different `doc_id` |
 | `GET /pdfs` | | `[{"path", "name"}]` from `runs.pdfs_in(".")` |
-| `PUT /pdf?run=` | `{"path": "..."}` (must be one of `GET /pdfs`), or a raw `application/pdf` body with `?name=` | `{"has_pdf": true, "name"}`. For a run with no `source.pdf`. A picked path is stored in `workspace/pdf.json`; an upload is saved as `workspace/source.pdf`. `/page` and the agent's `search_source` then use it |
-| `DELETE /pdf?run=` | | `{"has_pdf": false}` (forgets the attached PDF; never deletes a run's own `source.pdf`) |
 | `POST /uploads?name=` | raw `application/pdf` body, at most 100 MB | `{"upload_id", "name", "pages"}`; kept in a temporary folder for the life of the server |
 | `POST /extract/plan` | `{"path" or "upload_id", "doc_id", "votes": 1 \| 3 \| 5}` | `{"calls": runs.plan_rows(...), "total_calls", "units", "stored": null \| {"run", "facts", "created"}}`. No model call |
 | `POST /extract` | `{"path" or "upload_id", "deal_id", "doc_id", "model"?, "votes", "confirm": true}` | `{"job_id"}`. 400 unless `confirm` is true, the key is set, and deal ID and doc ID are given. Runs `runs.run_extraction(..., refresh=True)` in the background; one extraction at a time (409 otherwise) |
@@ -530,34 +525,32 @@ facts left out), so a correction shows up here too.
 
 `GET /facts` and `/facts/list` add three computed booleans to each fact:
 `post_award`, `affects_bid` and `split` (`runs.is_post_award`, `affects_bid`,
-`is_split`). `GET /runs` adds `pdf_name`.
+`is_split`).
 
-Starting an extraction is the one new place a model is called; it needs the same
-explicit confirmation the old app asked for.
+Starting an extraction is the one new place a model is called; it needs explicit
+confirmation.
 
 ### 11.2 Screens
 
-- **Summary tab**: an "At a glance" block above the written sections, matching the
-  old Summary screen: the five counts, buyer card, calendar of dates, submission
+- **Overview page**: an "At a glance" block above the written sections: the five counts, buyer card, calendar of dates, submission
   instructions, go/no-go gates and what gets a proposal rejected, scoring criteria,
   clarifications (contradictions and unclear points), each with the facts it was
-  built from folded underneath, and the All / Bid / After award switch with the old
+  built from folded underneath, and the All / Bid / After award switch with its
   help text and the note shown when a run marks nothing as post-award.
-- **Facts tab**: add the view switch, status and flags filters, page range, "Split
-  votes only", facts per page (15, 30, 60), search over fact text and cited text
+- **Facts page**: the view switch, status and flags filters, page range, "Split
+  votes only", facts per page (60, 120, 240; 60 by default), search over fact text and cited text
   (server-side, `/facts/list`), category chips with the count under the other
   filters, grouping (a point stated in several places shown once; sibling facts as
   one expandable card), `problems` and `unresolved_ids` in the fact detail, and
   "Download CSV" for the filtered rows.
-- **Run report tab**: totals (total time and per stage, output tokens, cache hit,
+- **Report page**: totals (total time, output tokens, cache hit,
   calls by status, failed and incomplete calls), the table of calls, the selected
   call's log and raw output as preformatted text, and the table of all runs. A
   message when the run has no report.
-- **Compare tab**: two run pickers (run B limited to the same `doc_id`), the three
-  agreement figures, the per-category table, code differences, the table of source
-  IDs filed under different codes, and the old note about runs made before
-  2026-11-18.
-- **New run tab**: pick a PDF from the working directory or upload one; deal ID, doc
+- **Compare page**: two run pickers (run B limited to the same `doc_id`), the three
+  agreement figures, the per-category table, code differences, and the table of source
+  IDs filed under different codes.
+- **New run page**: pick a PDF from the working directory or upload one; deal ID, doc
   ID (default: file name without extension), model, votes per unit; the planned
   calls; the notice and "Open the stored result" when the PDF already has a stored
   result; the "I understand this spends API tokens" checkbox; "Start extraction" /

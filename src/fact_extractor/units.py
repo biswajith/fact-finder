@@ -81,9 +81,7 @@ CATEGORIES
 When a point fits more than one code, use the first that fits in this order: {", ".join(PRECEDENCE)}.
 
 FLAGS
-- post-award: only the winner is bound by it. Test: would a bidder who does not win ever have to do, hold, or respect this? If not, it is post-award. Whatever the proposal must contain, answer, or price, and whatever the bidder must be or have by the deadline, is not post-award, even when it is about work the winner will do later.
-- risk: the term shifts cost, liability, or control onto the bidder in a way the bid team must price or decide to accept.
-- unclear: the bid team cannot act on it without asking the buyer, because the RFP is vague, incomplete, or out of date on the point.
+{chr(10).join("- " + prompts.FLAG_TESTS[f] for f in MODEL_FLAGS)}
 
 Judge every unit by the same standard, whatever the units around it got."""
 
@@ -156,7 +154,7 @@ A line belongs to at most one group. Do not group lines only because they share 
 After the last group write: END|number of groups. If there is none, write only: END|0"""
 
 
-# --- section summaries for the Summary screen ---------------------------------------------
+# --- section summaries for the Overview page ----------------------------------------------
 #
 # One short summary per section, written by the model from that section's facts and from
 # nothing else. Every summary has fixed rows, always the same and in the same order, so
@@ -209,7 +207,6 @@ SECTIONS = (
     ), unclear_too=True),
 )
 SECTION = {sec.key: sec for sec in SECTIONS}
-BRIEF_ROWS = tuple(name for name, _ in SECTION["buyer"].rows)
 
 
 def brief_system(sec: Section) -> str:
@@ -230,9 +227,6 @@ When the facts say nothing for a row, write: Row|not stated|
 After the last row write: END|{len(sec.rows)}"""
 
 
-BRIEF_SYSTEM = brief_system(SECTION["buyer"])
-
-
 def section_facts(sec: Section, records: list[dict]) -> list[dict]:
     return [
         r for r in records
@@ -245,7 +239,7 @@ def brief_task(facts: list[dict]) -> str:
     return f"TASK BRIEF\n\n{lines}"
 
 
-def parse_brief(text: str, facts: list[dict], rows: tuple[str, ...] = BRIEF_ROWS) -> list[dict]:
+def parse_brief(text: str, facts: list[dict], rows: tuple[str, ...]) -> list[dict]:
     """The section's rows, always. A row is `checked` when it cites facts and every number in
     it is in those facts; the screen shows the cited facts themselves for a row that is
     not, so a figure the model made up is never shown as the RFP's."""
@@ -270,21 +264,6 @@ def parse_brief(text: str, facts: list[dict], rows: tuple[str, ...] = BRIEF_ROWS
             "checked": stated and bool(cited) and not missing_values(body, sources),
         }
     return [got.get(r, {"row": r, "text": "", "fact_ids": [], "checked": False}) for r in rows]
-
-
-async def summaries(client: LLMClient, records: list[dict], cap: int = 2500) -> dict[str, list[dict]]:
-    """Every section's summary for a set of facts, one small call each, all at once.
-    Used on a stored result that has none."""
-    async def one(sec: Section) -> list[dict]:
-        facts = section_facts(sec, records)
-        names = tuple(n for n, _ in sec.rows)
-        if not facts:
-            return parse_brief("", facts, names)
-        resp = await client.complete(Request(brief_system(sec), "", brief_task(facts), "low", cap), lambda _: None)
-        return parse_brief(resp.text, facts, names)
-
-    done = await asyncio.gather(*(one(sec) for sec in SECTIONS))
-    return {sec.key: rows for sec, rows in zip(SECTIONS, done)}
 
 
 def group_task(code: str, facts: list[dict]) -> str:
@@ -376,7 +355,7 @@ class Config:
     check: bool = True
     xref: bool = True  # the cross-reference call; its facts are checked in code
     xref_max_output_tokens: int = 12000  # reasoning counts against it; 8000 was cut once on a long document
-    brief: bool = True  # second round: the section summaries for the Summary screen
+    brief: bool = True  # second round: the section summaries for the Overview page
     brief_max_output_tokens: int = 2500
     grouping: bool = True  # second round: group repeated points and list items
     group_max_output_tokens: int = 4000
@@ -698,7 +677,7 @@ async def extract(
     async def check() -> list[dict]:
         if not cfg.check:
             return []
-        spec = CallSpec("CHECK", ("Q",), CHECK_TASK, effort="medium", kind="check")
+        spec = CallSpec("CHECK", ("Q",), CHECK_TASK, effort="medium")
         text = await run.call("CHECK", "check", CHECK_TASK, cfg.check_max_output_tokens, effort="medium")
         out = check_output([ln.strip() for ln in text.splitlines() if ln.strip()], spec, doc)
         return [
@@ -756,7 +735,8 @@ async def extract(
         return parse_brief(text, facts, names)
 
     # Q facts exist only now; the summaries are written from every fact, Q included.
-    with_q = records + _q_records(q_lines, xres, doc, deal_id, run_id)
+    q_records = _q_records(q_lines, xres, doc, deal_id, run_id)
+    with_q = records + q_records
     brief_jobs = [asyncio.create_task(brief(sec, section_facts(sec, with_q))) for sec in SECTIONS] if cfg.brief else []
     found: list[tuple[str, str, list[dict]]] = []
     if cfg.grouping:
@@ -772,7 +752,7 @@ async def extract(
     briefs = {sec.key: await job for sec, job in zip(SECTIONS, brief_jobs)}
     seconds = time.monotonic() - t0
 
-    records += _q_records(q_lines, xres, doc, deal_id, run_id)
+    records += q_records
     _mark_conflicts(records)
 
     labels = [
@@ -788,7 +768,6 @@ async def extract(
     report["xref"] = xres.report()
     report["xref_conflicts"] = len(xres.problems)
     report["summaries"] = briefs
-    report["buyer_brief"] = briefs.get("buyer", [])
     report["groups"] = dict(Counter(k for k, _, _ in found))
     report["facts_in_groups"] = sum(bool(r.get("group_id")) for r in records)
     return RunResult(run_id, records, report, labels)
@@ -845,7 +824,9 @@ def _mark_conflicts(records: list[dict]) -> None:
 
 
 def _report(run: _Run, doc, deal_id, run_id, records, voted, groups, statements, seconds, cfg) -> dict:
-    later = [c for c in run.calls[1:] if c.usage.input_tokens]
+    # Only the calls that send the document share its cache key; GROUP and BRIEF send no document.
+    doc_calls = [c for c in run.calls if c.kind not in ("group", "brief")]
+    later = [c for c in doc_calls[1:] if c.usage.input_tokens]
     cache_in = sum(c.usage.input_tokens for c in later)
     facts = [r for r in records if r["category"] != "Q"]
     return {

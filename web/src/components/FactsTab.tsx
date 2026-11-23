@@ -24,9 +24,8 @@ function FactRow({ f, stated = 1, pages }: { f: Fact; stated?: number; pages?: s
       onClick={() => openFact(f.fact_id)}
     >
       <CatPill code={f.category} />
-      <span className="fx-text">{f.text}</span>
+      <span className="fx-text"><span className="fx-t">{f.text}</span><span className="fx-meta"><FactTags f={f} stated={stated} /></span></span>
       <span className="fx-pg">{label ? `p. ${label}` : ''}</span>
-      <span className="fx-meta"><FactTags f={f} stated={stated} /></span>
     </button>
   );
 }
@@ -110,7 +109,7 @@ function FiltersMenu({ f, set, pages, count }: { f: FactsListFilters; set: (p: P
 }
 
 export function FactsTab() {
-  const { run, facts, reloadAll, factsPreset, clearFactsPreset } = useRun();
+  const { run, facts, factById, reloadAll, factsPreset, clearFactsPreset } = useRun();
   const [filters, setFilters] = useState<FactsListFilters>(emptyFilters);
   const [query, setQuery] = useState('');
   const [size, setSize] = useState<number>(PAGE_SIZES[0]);
@@ -141,7 +140,7 @@ export function FactsTab() {
     clearFactsPreset();
   }, [factsPreset, clearFactsPreset]);
 
-  const entries = useMemo(() => (list.data ? listEntries(list.data.items, list.data.facts) : []), [list.data]);
+  const entries = useMemo(() => (list.data ? listEntries(list.data.items, factById) : []), [list.data, factById]);
   const pg = paginate(entries, size, page);
   const allFacts = facts.data?.facts ?? [];
   const liveCount = allFacts.filter((f) => !f.deleted).length;
@@ -151,7 +150,7 @@ export function FactsTab() {
   const header = (
     <PageHeader
       title="Facts"
-      subtitle={facts.data ? `${list.data ? list.data.total : liveCount} of ${liveCount} facts` : undefined}
+      subtitle={facts.data ? (list.data && list.data.total !== liveCount ? `${list.data.total} of ${liveCount} facts` : `${liveCount} facts`) : undefined}
       actions={
         <>
           <Button variant="secondary" elementType="a" href={api.factsCsvUrl(run, effective)} aria-label="Download CSV of the filtered facts">Download CSV</Button>
@@ -174,7 +173,6 @@ export function FactsTab() {
   const byCat = list.data?.by_category ?? {};
   const codes = [...CATEGORY_CODES.filter((c) => byCat[c] || filters.categories.includes(c)), ...Object.keys(byCat).filter((c) => !CATEGORY_CODES.includes(c as never) && byCat[c]).sort()];
   const nFacts = pg.slice.reduce((n, e) => n + e.facts.length, 0);
-  const grouped = list.data ? list.data.total - entries.length : 0;
   const first = (pg.page - 1) * size + 1;
 
   // Active filters, as removable chips. Search and view have their own controls.
@@ -228,9 +226,6 @@ export function FactsTab() {
         </div>
       ) : list.data ? (
         <>
-          <div className="fx-count" aria-live="polite">
-            {list.data.total} {list.data.total === 1 ? 'fact' : 'facts'}{grouped > 0 ? `, shown as ${entries.length} items` : ''}
-          </div>
           <div className="fx-list" role="list" aria-label="Facts" aria-busy={list.loading} style={list.loading ? { opacity: 0.6 } : undefined}>
             {pg.slice.map((e) => (
               <div role="listitem" key={e.first.fact_id}>

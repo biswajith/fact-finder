@@ -16,6 +16,7 @@ export function ConflictCard({ conflict }: { conflict: Conflict }) {
   const { run, act } = useRun();
   const [choice, setChoice] = useState<string>('');
   const [custom, setCustom] = useState('');
+  const [own, setOwn] = useState(false);
   const [busy, setBusy] = useState(false);
   const resolved = conflict.status === 'resolved';
   const canSubmit = !busy && (custom.trim() !== '' || choice !== '');
@@ -39,10 +40,10 @@ export function ConflictCard({ conflict }: { conflict: Conflict }) {
         <h3 className="cf-title">{conflict.title}</h3>
         <span className={`pg-pill ${resolved ? 'ok' : 'warn'}`}>{resolved ? 'Resolved' : 'Needs your choice'}</span>
       </div>
-      {conflict.description && <div className="cf-desc">{conflict.description}</div>}
+      {conflict.kind !== 'source' && conflict.description && <div className="cf-desc">{conflict.description}</div>}
       {conflict.fact_ids.length > 0 && (
         <div className="cf-facts">
-          Facts: {conflict.fact_ids.map((id) => <FactLink key={id} id={id} label={id} />)}
+          Facts: {conflict.fact_ids.map((id) => <FactLink key={id} id={id} />)}
         </div>
       )}
       {resolved ? (
@@ -76,12 +77,13 @@ export function ConflictCard({ conflict }: { conflict: Conflict }) {
                   onChange={() => {
                     setChoice(String(i));
                     setCustom('');
+                    setOwn(false);
                   }}
                 />
                 <span className="cf-opt-body">
                   <span className="cf-opt-top">
                     <span className="cf-opt-label">{o.label}</span>
-                    {o.citation && <span className="cf-page">page {o.citation.page_label || o.citation.page}</span>}
+                    {conflict.kind === 'raised' && o.citation && <span className="cf-page">page {o.citation.page_label || o.citation.page}</span>}
                   </span>
                   {o.text && <blockquote className="cf-quote">{o.text}</blockquote>}
                   {o.changes.length > 0 && (
@@ -93,18 +95,26 @@ export function ConflictCard({ conflict }: { conflict: Conflict }) {
               </label>
             ))}
           </fieldset>
-          <label className="cf-own">
-            Or write your own answer
-            <input
-              type="text"
-              value={custom}
-              onChange={(e) => {
-                setCustom(e.target.value);
-                if (e.target.value) setChoice('');
-              }}
-            />
-          </label>
+          {own && (
+            <label className="cf-own">
+              Your own answer
+              <input
+                type="text"
+                autoFocus
+                value={custom}
+                onChange={(e) => {
+                  setCustom(e.target.value);
+                  if (e.target.value) setChoice('');
+                }}
+              />
+            </label>
+          )}
           <div className="cf-foot">
+            {!own && (
+              <button type="button" className="linkbtn cf-own-toggle" onClick={() => setOwn(true)}>
+                Write your own answer
+              </button>
+            )}
             <Button variant="accent" isDisabled={!canSubmit} onPress={submit}>
               Use this choice
             </Button>

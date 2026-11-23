@@ -33,18 +33,6 @@ def pdf_hash(pdf: str | Path | bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-_TEXT_FROM_OLD = {"statement": "model", "source": "rfp"}
-
-
-def upgrade_facts(facts: list[dict]) -> list[dict]:
-    """Read results stored with the old `text_from` values ("statement", "source") as
-    "model" and "rfp". Every loader of stored facts goes through here."""
-    for r in facts:
-        if isinstance(r, dict) and r.get("text_from") in _TEXT_FROM_OLD:
-            r["text_from"] = _TEXT_FROM_OLD[r["text_from"]]
-    return facts
-
-
 @dataclass
 class Stored:
     folder: Path
@@ -55,7 +43,7 @@ class Stored:
         return self.folder / "facts.json"
 
     def facts(self) -> list[dict]:
-        return upgrade_facts(json.loads(self.facts_path.read_text(encoding="utf-8")))
+        return json.loads(self.facts_path.read_text(encoding="utf-8"))
 
     def report(self) -> dict:
         return json.loads((self.folder / "report.json").read_text(encoding="utf-8"))

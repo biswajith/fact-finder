@@ -1,4 +1,4 @@
-"""The routes that carry over the old review app (WEB_UI_SPEC.md 11.1). Offline: extraction is a fake."""
+"""The review routes (WEB_UI_SPEC.md 11.1). Offline: extraction is a fake."""
 
 import asyncio
 import csv
@@ -20,12 +20,12 @@ from test_web_workspace import cite, fact, make_run
 from fact_extractor.web.server import create_app
 
 RUN = "doc/run1"
-REPORT = {"run_id": "run1", "pages": 5, "seconds": {"total": 3.5, "extract": 2.0, "sweep": 1.0},
+REPORT = {"run_id": "run1", "pages": 5, "seconds": {"total": 3.5},
           "output_tokens": 120, "cache_hit_calls_2_to_n": 0.5, "failed_calls": [], "calls": [
               {"name": "LABEL1", "kind": "label", "status": "ok", "seconds": 1.2, "lines": 4, "usage": {"output_tokens": 10},
                "retries": 0, "log": ["a"], "output": "out"}]}
-FAKE_REPORT = {"facts": 1, "by_status": {"valid": 1}, "seconds": {"total": 1.5}, "cache_hit_calls_2_to_n": 0.0,
-               "failed_calls": 0}
+FAKE_REPORT = {"facts": 1, "ids": 4, "seconds": {"total": 1.5}, "votes": 1, "facts_votes_agreed": 1,
+               "facts_votes_split": 0, "failed_calls": []}
 
 
 @pytest.fixture
@@ -116,30 +116,28 @@ async def test_overview_uses_corrections_and_stored_summaries(c, root):
     assert "buyer" not in o and "summary" not in o
     s = (await c.get("/api/summaries", params={"run": "doc/sum"})).json()["sections"][0]
     assert s["key"] == "buyer" and s["source"] == "extraction" and s["rows"][0]["text"] == "The County"
-    rep = {"buyer_brief": rep["summaries"]["buyer"]}  # older runs stored the buyer brief only
-    other = make_run(root, "doc/old", facts=MORE)
-    (other / "report.json").write_text(json.dumps(rep))
-    s = (await c.get("/api/summaries", params={"run": "doc/old"})).json()["sections"][0]
-    assert s["source"] == "extraction" and s["rows"][0]["text"] == "The County"
+
+
+def ids(listing: dict) -> list[str]:
+    """The fact IDs of a /facts/list answer, in order."""
+    return [i for it in listing["items"] for i in it["fact_ids"]]
 
 
 async def test_facts_list_filters_and_by_category(c):
     r = (await c.get("/api/facts/list", params={"run": RUN})).json()
-    assert r["total"] == 8 == len(r["facts"]) and set(r["by_category"]) == {"B", "D", "Q", "R", "S", "O"}
-    assert r["items"][0] == {"kind": "fact", "fact_ids": [r["facts"][0]["fact_id"]]}
-    assert {"post_award", "affects_bid", "split"} <= set(r["facts"][0])
-    by = {f["fact_id"]: f for f in r["facts"]}
-    assert by["f_p1"]["post_award"] and by["f_p1"]["affects_bid"] and not by["f_d1"]["split"]
+    assert set(r) == {"total", "by_category", "items"}  # ids only: the facts themselves come from /api/facts
+    assert r["total"] == 8 == len(ids(r)) and set(r["by_category"]) == {"B", "D", "Q", "R", "S", "O"}
+    assert r["items"][0] == {"kind": "fact", "fact_ids": [ids(r)[0]]}
     d = (await c.get("/api/facts/list", params={"run": RUN, "categories": "D"})).json()
     assert d["total"] == 3 == len(d["items"]) and d["by_category"] == r["by_category"]  # chips ignore the category filter
     d = (await c.get("/api/facts/list", params={"run": RUN, "categories": "D,S", "statuses": "conflict"})).json()
-    assert [f["fact_id"] for f in d["facts"]] == ["f_d1"] and d["by_category"] == {"D": 1}
+    assert ids(d) == ["f_d1"] and d["by_category"] == {"D": 1}
     q = (await c.get("/api/facts/list", params={"run": RUN, "q": "email"})).json()
-    assert [f["fact_id"] for f in q["facts"]] == ["f_s1"]
+    assert ids(q) == ["f_s1"]
     cited = (await c.get("/api/facts/list", params={"run": RUN, "q": "SHALL GIVE support"})).json()
-    assert [f["fact_id"] for f in cited["facts"]] == ["f_r1"]  # search reaches the cited text
+    assert ids(cited) == ["f_r1"]  # search reaches the cited text
     pg = (await c.get("/api/facts/list", params={"run": RUN, "page_from": 4, "page_to": 5})).json()
-    assert {f["fact_id"] for f in pg["facts"]} == {"f_d2", "f_q1", "f_s1", "f_p1"}
+    assert set(ids(pg)) == {"f_d2", "f_q1", "f_s1", "f_p1"}
     assert (await c.get("/api/facts/list", params={"run": RUN, "flags": "mandatory,risk"})).json()["total"] == 2
     assert (await c.get("/api/facts/list", params={"run": RUN, "view": "After award"})).json()["total"] == 1
     bid = (await c.get("/api/facts/list", params={"run": RUN, "view": "Bid"})).json()
@@ -154,7 +152,7 @@ async def test_facts_list_edited_deleted_and_groups(c, root):
     assert (await c.get("/api/facts/list", params={"run": RUN})).json()["total"] == 7
     assert (await c.get("/api/facts/list", params={"run": RUN, "include_deleted": 1})).json()["total"] == 8
     e = (await c.get("/api/facts/list", params={"run": RUN, "edited": 1})).json()
-    assert [f["fact_id"] for f in e["facts"]] == ["f_b1"] and e["facts"][0]["text"] == "County buys"
+    assert ids(e) == ["f_b1"]
     grouped = [fact("f_g1", "R", "Item one", [cite("p1.1", 1, "a")]), fact("f_g2", "R", "Item two", [cite("p1.2", 1, "b")])]
     for g in grouped:
         g.update(group_id="g1", group_kind="list", group_title="Items")
@@ -166,8 +164,10 @@ async def test_facts_list_edited_deleted_and_groups(c, root):
 
 
 async def test_facts_route_has_computed_booleans(c):
-    f = (await c.get("/api/facts", params={"run": RUN})).json()["facts"][0]
-    assert {"post_award", "affects_bid", "split"} <= set(f)
+    facts = (await c.get("/api/facts", params={"run": RUN})).json()["facts"]
+    assert all({"post_award", "affects_bid", "split"} <= set(f) for f in facts)
+    by = {f["fact_id"]: f for f in facts}
+    assert by["f_p1"]["post_award"] and by["f_p1"]["affects_bid"] and not by["f_d1"]["split"]
 
 
 async def test_csv_bom_headers_filters_and_effective_facts(c):
@@ -202,8 +202,8 @@ async def test_runs_table(c, root):
     rows = (await c.get("/api/runs/table")).json()
     assert {r["run"] for r in rows} == {RUN, "doc/run2"}
     row = next(r for r in rows if r["run"] == RUN)
-    assert row["document"] == "doc" and row["facts"] == 8 and row["total s"] == 3.5 and row["extract s"] == 2.0
-    assert row["sweep and check s"] == 1.0 and row["output tokens"] == 120 and len(row["finished"]) == 16
+    assert row["document"] == "doc" and row["facts"] == 8 and row["total s"] == 3.5
+    assert row["output tokens"] == 120 and len(row["finished"]) == 16
 
 
 async def test_compare_agreement_and_doc_mismatch(c, root):
@@ -241,81 +241,14 @@ async def test_pdfs_listing(c, made):
     assert (await c.get("/api/pdfs")).json() == [{"path": "rfp.pdf", "name": "rfp.pdf"}]
 
 
-async def test_attach_pdf_by_path_then_page_and_detach(c, root, made):
-    assert (await c.get("/api/page", params={"run": RUN, "page": 1})).status_code == 404
-    runs = (await c.get("/api/runs")).json()
-    assert runs[0]["has_pdf"] is False and runs[0]["pdf_name"] is None
-    r = await c.put("/api/pdf", params={"run": RUN}, json={"path": "rfp.pdf"})
-    assert r.status_code == 200 and r.json() == {"has_pdf": True, "name": "rfp.pdf"}
-    assert (root / RUN / "workspace" / "pdf.json").is_file()
-    png = await c.get("/api/page", params={"run": RUN, "page": 2, "fact_id": "f_d1"})
-    assert png.status_code == 200 and png.content.startswith(b"\x89PNG")
-    runs = (await c.get("/api/runs")).json()
-    assert runs[0]["has_pdf"] is True and runs[0]["pdf_name"] == "rfp.pdf"
-    assert not (root / RUN / "source.pdf").exists()
-    assert (await c.delete("/api/pdf", params={"run": RUN})).json() == {"has_pdf": False}
-    assert (await c.get("/api/page", params={"run": RUN, "page": 1})).status_code == 404
-    assert made.is_file()  # the picked file itself is never removed
-
-
-async def test_attach_path_must_be_listed(c, tmp_path, made):
-    (tmp_path / "sub").mkdir()
-    make_pdf(tmp_path / "sub" / "deep.pdf")
-    for bad in ("sub/deep.pdf", "/etc/passwd", "../rfp.pdf", "nope.pdf", str(tmp_path / "sub" / "deep.pdf"), ""):
-        r = await c.put("/api/pdf", params={"run": RUN}, json={"path": bad})
-        assert r.status_code == 400, bad
-    assert (await c.put("/api/pdf", params={"run": RUN}, json={})).status_code == 400
-    assert (await c.put("/api/pdf", params={"run": RUN}, json={"path": str(made.resolve())})).status_code == 200
-
-
-async def test_attach_pdf_by_upload(c, root, tmp_path):
-    src = tmp_path / "x.pdf"
-    make_pdf(src)
-    data = src.read_bytes()
-    r = await c.put("/api/pdf", params={"run": RUN, "name": "../my rfp.pdf"}, content=data,
-                    headers={"content-type": "application/pdf"})
-    assert r.status_code == 200 and r.json() == {"has_pdf": True, "name": "my_rfp.pdf"}
-    assert (root / RUN / "workspace" / "source.pdf").read_bytes() == data
-    assert (await c.get("/api/page", params={"run": RUN, "page": 3})).status_code == 200
-    assert (await c.get("/api/page", params={"run": RUN, "page": 9})).status_code == 404
-    assert (await c.get("/api/runs")).json()[0]["pdf_name"] == "my_rfp.pdf"
-    from fact_extractor.web.workspace import Workspace
-
-    # The PDF viewer reads the tagged document.
-    doc = Workspace(root / RUN / "facts.json").document()
-    assert doc is not None and doc.page_count == 3
-    await c.delete("/api/pdf", params={"run": RUN})
-    assert not (root / RUN / "workspace" / "source.pdf").exists()
-    assert Workspace(root / RUN / "facts.json").document() is None
-
-
-async def test_upload_must_be_a_pdf_and_is_capped(c, root, monkeypatch):
-    bad = await c.put("/api/pdf", params={"run": RUN}, content=b"hello", headers={"content-type": "application/pdf"})
+async def test_upload_must_be_a_pdf_and_is_capped(c, monkeypatch):
+    bad = await c.post("/api/uploads", content=b"hello")
     assert bad.status_code == 400 and "PDF" in bad.json()["detail"]
-    broken = await c.put("/api/pdf", params={"run": RUN}, content=b"%PDF-1.4 nonsense", headers={"content-type": "application/pdf"})
-    assert broken.status_code == 400
+    assert (await c.post("/api/uploads", content=b"%PDF-1.4 nonsense")).status_code == 400
     from fact_extractor.web import server
 
     monkeypatch.setattr(server, "MAX_PDF", 10)
-    big = await c.put("/api/pdf", params={"run": RUN}, content=b"%PDF" + b"0" * 20, headers={"content-type": "application/pdf"})
-    assert big.status_code == 413
     assert (await c.post("/api/uploads", content=b"%PDF" + b"0" * 20)).status_code == 413
-    assert not (root / RUN / "workspace" / "source.pdf").exists()
-
-
-async def test_own_source_pdf_is_never_touched(c, root, made):
-    make_pdf(root / "doc" / "source.pdf")  # shared by the document's runs
-    before = (root / "doc" / "source.pdf").read_bytes()
-    assert (await c.put("/api/pdf", params={"run": RUN}, json={"path": "rfp.pdf"})).status_code == 400
-    assert (await c.put("/api/pdf", params={"run": RUN}, content=made.read_bytes(), headers={"content-type": "application/pdf"})).status_code == 400
-    assert (await c.delete("/api/pdf", params={"run": RUN})).json() == {"has_pdf": True}
-    assert (root / "doc" / "source.pdf").read_bytes() == before
-    assert (await c.get("/api/runs")).json()[0]["pdf_name"] == "source.pdf"
-
-
-async def test_attach_to_unknown_run(c, made):
-    assert (await c.put("/api/pdf", params={"run": "nope"}, json={"path": "rfp.pdf"})).status_code == 404
-    assert (await c.delete("/api/pdf", params={"run": "../.."})).status_code == 404
 
 
 # --- uploads and the plan --------------------------------------------------------------------------
@@ -330,7 +263,7 @@ async def test_upload_and_plan(c, root, made, tmp_path):
     assert (await c.post("/api/uploads", content=b"not a pdf")).status_code == 400
     plan = (await c.post("/api/extract/plan", json={"upload_id": up["upload_id"], "doc_id": "d1", "votes": 3})).json()
     assert set(plan) == {"calls", "total_calls", "units", "stored"} and plan["stored"] is None
-    assert plan["calls"][-1] == {"call": "CHECK", "times": 1, "units": plan["units"], "pages": "1-3"}
+    assert plan["calls"][-2:] == [{"call": c, "times": 1, "units": plan["units"], "pages": "1-3"} for c in ("CHECK", "XREF")]
     assert plan["total_calls"] == sum(x["times"] for x in plan["calls"])
     by_path = (await c.post("/api/extract/plan", json={"path": "rfp.pdf", "doc_id": "d1", "votes": 1})).json()
     assert by_path["units"] == plan["units"]
@@ -368,7 +301,7 @@ async def test_extract_done(c, root, made, fake):
     assert r.status_code == 200
     j = await wait_job(c, r.json()["job_id"])
     assert j["status"] == "done" and j["error"] is None and j["run"] == "docX/run_new"
-    assert j["result"] == "1 facts, {'valid': 1}, 1.5 s, cache hit 0.0, failed calls 0" and j["seconds"] >= 0
+    assert j["result"] == "1 facts from 4 units in 1.5 s: 1 with all 1 votes agreed, 0 split; failed calls []" and j["seconds"] >= 0
     assert fake.calls == [{"deal_id": "deal", "doc_id": "docX", "model": None, "votes": 1, "refresh": True}]
     assert (await c.get("/api/facts", params={"run": j["run"]})).status_code == 200  # the frontend can open it
 

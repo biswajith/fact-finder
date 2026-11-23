@@ -1,4 +1,4 @@
-"""Command line: tag a PDF, show the call plan, or run the extraction."""
+"""Command line: tag a PDF, extract and store its facts, score a run, build a reference list, open the web workspace."""
 
 from __future__ import annotations
 
@@ -128,7 +128,6 @@ def main(argv: list[str] | None = None) -> int:
     else:
         _extract(args, doc)
     return 0
-
 
 
 def _write_out(args, facts: list[dict], report: dict) -> None:

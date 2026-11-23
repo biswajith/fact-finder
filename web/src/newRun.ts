@@ -10,7 +10,7 @@ export const VOTES = [1, 3, 5] as const;
 /** Doc ID suggested for a file: its name without the extension. */
 export const stemOf = (name: string) => name.replace(/\.[^./\\]+$/, '');
 
-/** Which of the things an extraction needs are still missing, in the old app's words. */
+/** Which of the things an extraction needs are still missing. */
 export function missingFor(hasPdf: boolean, dealId: string, docId: string): string[] {
   return [['a PDF', hasPdf], ['a deal ID', !!dealId.trim()], ['a doc ID', !!docId.trim()]].filter(([, ok]) => !ok).map(([w]) => w as string);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChangesTab } from '../ChangesTab';
 import { ChatLogTab } from '../ChatLogTab';
 import { ChatPanel } from '../ChatPanel';
@@ -8,7 +8,7 @@ import { FactDetail } from '../FactDetail';
 import { FactsTab } from '../FactsTab';
 import { NewRunTab } from '../NewRunTab';
 import { ReportTab } from '../ReportTab';
-import { SummaryTab } from '../SummaryTab';
+import { OverviewTab } from '../OverviewTab';
 import { useNewRun } from '../../newRun';
 import { useRun } from '../../store';
 import { Sidebar } from './Sidebar';
@@ -31,6 +31,11 @@ export function Workspace() {
   useEffect(() => {
     if (chatDraft) setChatOpen(true);
   }, [chatDraft]);
+  // A new page starts at its top, not where the last page was scrolled to.
+  const scroller = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = 0;
+  }, [page]);
   // Escape closes the mobile menu.
   useEffect(() => {
     if (!menuOpen) return;
@@ -50,16 +55,16 @@ export function Workspace() {
           <span className="spacer" />
           <button type="button" className="shell-btn" aria-expanded={chatOpen} aria-controls="app-chat" onClick={() => setChatOpen(!chatOpen)}>Assistant</button>
         </div>
-        <main className="main-scroll">
+        <main className="main-scroll" ref={scroller}>
           <div className="page">
-            {page === 'overview' && <SummaryTab />}
+            {page === 'overview' && <OverviewTab />}
             {page === 'facts' && <FactsTab />}
             {page === 'conflicts' && <ConflictsTab />}
             {page === 'changes' && <ChangesTab />}
             {page === 'report' && <ReportTab />}
             {page === 'compare' && <CompareTab />}
             {page === 'chatlog' && <ChatLogTab />}
-            {page === 'new' && <NewRunTab n={newRun} />}
+            {page === 'new' && <NewRunTab n={newRun} status={status} />}
           </div>
         </main>
       </div>

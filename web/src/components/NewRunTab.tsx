@@ -3,14 +3,13 @@ import {
 } from '@adobe/react-spectrum';
 import * as api from '../api';
 import { VOTES, type NewRun } from '../newRun';
+import type { Status } from '../types';
 import { useAsync } from '../hooks';
-import { useRun } from '../store';
 import { Empty, ErrorBox } from './common';
 import { PageHeader } from './shell/PageHeader';
 import './pages.css';
 
-export function NewRunTab({ n }: { n: NewRun }) {
-  const { status } = useRun();
+export function NewRunTab({ n, status }: { n: NewRun; status: Status | null }) {
   const pdfs = useAsync((signal) => api.getPdfs(signal), [], n.mode === 'pick');
   const plan = n.planOf;
   const stored = plan?.stored ?? null;
@@ -135,7 +134,7 @@ export function NewRunTab({ n }: { n: NewRun }) {
         {n.running && (
           <span className="pg-progress" role="status" aria-live="polite">
             <ProgressCircle aria-label="Extracting" isIndeterminate size="S" />
-            Extracting... this takes about half a minute on a 50-page RFP.{n.job ? ` ${Math.round(n.job.seconds)} s so far.` : ''}
+            Extracting... this takes a minute or two.{n.job ? ` ${Math.round(n.job.seconds)} s so far.` : ''}
           </span>
         )}
       </div>

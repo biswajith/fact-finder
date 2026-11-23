@@ -122,7 +122,7 @@ def split_long(text: str, start: int, end: int) -> list[tuple[int, int]]:
 
 
 def _escape(text: str) -> str:
-    # Source text must never look like an ID tag (REVIEW.md item 5).
+    # Source text must never look like an ID tag (REVIEW.md, "Spec departures" item 2).
     return " ".join(text.replace("[", "(").replace("]", ")").split())
 
 

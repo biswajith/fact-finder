@@ -57,12 +57,6 @@ class Checked:
 class CallOutput:
     checked: list[Checked]
     end_count: int | None  # None = no END line: output was cut
-    none_ids: list[str]  # sweep: IDs answered with NONE
-    body_lines: int = 0  # every line before END
-
-    @property
-    def failed(self) -> list[Checked]:
-        return [c for c in self.checked if not c.ok]
 
 
 def check_line(line: OutputLine, call: CallSpec, doc: TaggedDocument) -> Checked:
@@ -90,10 +84,6 @@ def check_line(line: OutputLine, call: CallSpec, doc: TaggedDocument) -> Checked
         if missing:
             shown = ", ".join(sorted(m.removeprefix("date:").removeprefix("time:") for m in missing))
             c.reasons.append(f"numbers not in the cited text: {shown}")
-    if call.page_range and known and line.code == "R":
-        start, end = call.page_range
-        if not start <= known[0].page <= end:
-            c.log.append(f"main ID {known[0].id} is outside pages {start}-{end}")
     if len(line.fact.split()) >= 30:
         c.log.append("fact has 30 words or more")
     return c
@@ -101,9 +91,7 @@ def check_line(line: OutputLine, call: CallSpec, doc: TaggedDocument) -> Checked
 
 def check_output(lines: list[str], call: CallSpec, doc: TaggedDocument) -> CallOutput:
     checked: list[Checked] = []
-    none_ids: list[str] = []
     end_count: int | None = None
-    body = 0
     for raw in lines:
         if raw.startswith("```"):
             continue
@@ -114,9 +102,5 @@ def check_output(lines: list[str], call: CallSpec, doc: TaggedDocument) -> CallO
             except ValueError:
                 end_count = -1
             break
-        body += 1
-        if line.code == "NONE" and call.kind == "sweep":
-            none_ids.extend(i for i in line.ids if i in doc.anchors)
-            continue
         checked.append(check_line(line, call, doc))
-    return CallOutput(checked, end_count, none_ids, body)
+    return CallOutput(checked, end_count)

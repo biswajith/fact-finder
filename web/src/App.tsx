@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Content, defaultTheme, Heading, InlineAlert, Provider, ToastContainer } from '@adobe/react-spectrum';
+import { Button, defaultTheme, Provider, ToastContainer } from '@adobe/react-spectrum';
 import * as api from './api';
-import { Empty, ErrorBox, Loading } from './components/common';
+import { ErrorBox, Loading } from './components/common';
+import { NewRunTab } from './components/NewRunTab';
 import { Workspace } from './components/shell/Workspace';
+import { useNewRun } from './newRun';
 import { errorText, RunProvider } from './store';
 import { ThemeProvider, useTheme } from './theme';
 import type { RunInfo, Status } from './types';
@@ -14,6 +16,22 @@ function writeRunParam(run: string) {
   const u = new URL(window.location.href);
   u.searchParams.set('run', run);
   window.history.replaceState(null, '', u);
+}
+
+/** With no runs yet, the app is the New run page. A finished run becomes the open run. */
+function NoRuns({ status, refreshRuns, selectRun, recheck }: {
+  status: Status | null; refreshRuns: () => Promise<RunInfo[]>; selectRun: (run: string) => void; recheck: () => void;
+}) {
+  const n = useNewRun(status, refreshRuns, (r) => { window.location.hash = '#/overview'; selectRun(r); });
+  return (
+    <main className="page">
+      <div className="pg-note">
+        No runs yet{status ? ` in ${status.runs_folder}` : ''}. Extract one below, or start the server with --runs
+        pointing at a folder of runs. <Button variant="secondary" onPress={recheck}>Check again</Button>
+      </div>
+      <NewRunTab n={n} status={status} />
+    </main>
+  );
 }
 
 function Shell() {
@@ -53,20 +71,7 @@ function Shell() {
     );
   }
   if (!runs) return <Loading label="Loading runs" />;
-  if (!run) {
-    return (
-      <div style={{ padding: 24, maxWidth: 640 }}>
-        <InlineAlert variant="info">
-          <Heading>No runs found</Heading>
-          <Content>
-            <Empty>Nothing to show yet. Extract an RFP first, or start the server with --runs pointing at a folder of runs
-              {status ? ` (now: ${status.runs_folder})` : ''}.</Empty>
-            <Button variant="secondary" onPress={() => void load()}>Check again</Button>
-          </Content>
-        </InlineAlert>
-      </div>
-    );
-  }
+  if (!run) return <NoRuns status={status} refreshRuns={refreshRuns} selectRun={setRunState} recheck={() => void load()} />;
   return (
     <RunProvider run={run} runs={runs} refreshRuns={refreshRuns} selectRun={setRunState} status={status}>
       <Workspace />

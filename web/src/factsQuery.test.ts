@@ -4,6 +4,7 @@ import type { Fact } from './types';
 
 const fact = (id: string, over: Partial<Fact> = {}) =>
   ({ fact_id: id, text: `text ${id}`, citations: [{ page_label: '3' }], ...over }) as unknown as Fact;
+const byId = (fs: Fact[]) => new Map(fs.map((f) => [f.fact_id, f]));
 
 describe('factsListQuery', () => {
   it('sends only the run for the default filters', () => {
@@ -28,13 +29,13 @@ describe('factsListQuery', () => {
 describe('listEntries and paginate', () => {
   const facts = [fact('a'), fact('b', { group_title: 'Insurance' }), fact('c', { citations: [{ page_label: '4' } as never] })];
   it('shows a point stated in several places once, with its count', () => {
-    const e = listEntries([{ kind: 'same', fact_ids: ['a', 'c'] }], facts);
+    const e = listEntries([{ kind: 'same', fact_ids: ['a', 'c'] }], byId(facts));
     expect(e).toHaveLength(1);
     expect(e[0].stated).toBe(2);
     expect(e[0].pages).toBe('3; 4');
   });
   it('titles a list by its group title and skips missing facts', () => {
-    const e = listEntries([{ kind: 'list', fact_ids: ['b', 'zz'] }, { kind: 'fact', fact_ids: ['zz'] }], facts);
+    const e = listEntries([{ kind: 'list', fact_ids: ['b', 'zz'] }, { kind: 'fact', fact_ids: ['zz'] }], byId(facts));
     expect(e).toHaveLength(1);
     expect(e[0].title).toBe('Insurance');
     expect(e[0].facts).toHaveLength(1);

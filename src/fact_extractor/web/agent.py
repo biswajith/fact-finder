@@ -7,7 +7,6 @@ answers without a tool call or after MAX_ROUNDS rounds of tools. No FastAPI impo
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import inspect
 import json

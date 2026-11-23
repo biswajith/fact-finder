@@ -46,7 +46,8 @@
 .cf-own input { font: inherit; font-size: 14px; font-weight: 400; color: var(--text); background: var(--surface); border: 1px solid var(--border-strong);
   border-radius: 6px; padding: 7px 10px; width: 100%; box-sizing: border-box; }
 .cf-own input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
-.cf-foot { display: flex; justify-content: flex-end; }
+.cf-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px 12px; }
+.cf-own-toggle { margin-right: auto; font-size: 13px; color: var(--text-muted); text-decoration: underline; white-space: nowrap; }
 .cf-resolution { background: var(--ok-soft); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
 .cf-resolution .k { font-size: 12px; font-weight: 600; color: var(--ok); }
 .cf-resolution .muted { color: var(--text-muted); }
@@ -100,16 +101,13 @@
 .pg-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pg-fold[open] > summary { margin-bottom: 8px; }
 .pg-fold .pg-code + .pg-code { margin-top: 8px; }
-.pg-sub { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 8px 0 4px; }
 
 /* ---- form cards (compare, new run) ---- */
 .pg-form { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.pg-form-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+.pg-form-row { display: flex; flex-direction: row; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
 .pg-form-row > * { flex: 1 1 240px; min-width: 0; }
 .pg-narrow { max-width: 640px; width: 100%; margin: 0 auto 0 0; }
 .pg-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-.pg-log { margin: 0; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
-  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
 .pg-progress { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border-radius: var(--radius);
   background: var(--accent-soft); color: var(--accent); font-weight: 500; }
 .pg-confirm { border: 1px solid var(--warn); background: var(--warn-soft); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }

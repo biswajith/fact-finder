@@ -46,11 +46,7 @@ export function AwardObligations({ facts, hasPostAward }: { facts: Fact[]; hasPo
     return (
       <div className="ov-empty-state" role="status">
         <strong>{hasPostAward ? 'No after-award obligations in the current facts' : 'This run marks nothing as after award'}</strong>
-        <span>
-          {hasPostAward
-            ? 'Every after-award fact has been deleted.'
-            : 'Runs made before facts were tagged post-award have none. Extract the RFP again to get this view.'}
-        </span>
+        {hasPostAward && <span>Every after-award fact has been deleted.</span>}
       </div>
     );
   }

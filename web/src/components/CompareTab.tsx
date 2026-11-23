@@ -76,7 +76,6 @@ function Result({ data }: { data: CompareResponse }) {
       </div>
       <div className="pg-note">
         Exact figures: ID agreement {String(r.id_agreement)}, code agreement {String(r.code_agreement)}, fact ID agreement {String(r.fact_id_agreement)}.
-        Runs made before 2026-11-18 hashed the wording into fact_id, so their fact ID agreement is near zero whatever the runs contain.
       </div>
       <h2 className="pg-h2">Per category</h2>
       {Object.keys(r.by_category).length === 0 ? <Empty>None.</Empty> : (

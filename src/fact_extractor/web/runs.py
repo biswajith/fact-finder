@@ -1,8 +1,7 @@
 """Everything the workspace does with runs that is not layout: find and load runs, filter,
 summarise, export CSV, render a PDF page with highlights, compare runs, start a run.
 
-Moved from the removed Streamlit review app. No Streamlit or FastAPI import here, so all of
-it is tested with plain pytest.
+No FastAPI import here, so all of it is tested with plain pytest.
 """
 
 from __future__ import annotations
@@ -14,35 +13,29 @@ import json
 import re
 import shutil
 import uuid
-from collections import Counter, defaultdict
+from collections import defaultdict
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from ..models import CATEGORIES
-from ..results import upgrade_facts
+from ..results import safe_name
 
-STATUSES = ("valid", "needs_review", "conflict")
 CSV_COLUMNS = (
     "category", "category_name", "text", "flags", "status", "page_labels", "sections",
     "citation_ids", "source_text", "note", "problems", "fact_id",
 )
-_FACTS_NAME = re.compile(r"^facts(?:_[^.]+)?\.json$")  # facts.json, facts_run1.json; not facts.judge.json
-_UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
 
 
 @dataclass(frozen=True)
 class RunRef:
-    path: Path
+    path: Path  # <runs folder>/<doc>/<run>/facts.json
     label: str  # path relative to the runs folder
     facts: int
     mtime: float
     doc_id: str
     run_id: str
-    seconds: dict = field(default_factory=dict)  # per stage and "total", from the report; empty without one
-    output_tokens: int | None = None
-    stored: bool = False  # a result the unit-label pipeline stored (it has a meta.json)
 
 
 @dataclass
@@ -56,23 +49,7 @@ class Run:
     pages: int
 
 
-def safe_name(name: str) -> str:
-    """A doc or run ID as a folder name: anything outside A-Z a-z 0-9 . _ - becomes _."""
-    out = _UNSAFE.sub("_", name)
-    return out if out.strip(".") else "_"
-
-
 # --- finding and loading runs ---------------------------------------------------------
-
-
-def _is_facts(data: object, name: str) -> bool:
-    if not isinstance(data, list):
-        return False
-    if not data:
-        # An empty run is still a run, but only under a facts file name proper.
-        return bool(_FACTS_NAME.match(name))
-    first = data[0]
-    return isinstance(first, dict) and all(k in first for k in ("category", "text", "citations"))
 
 
 def _read_facts(path: Path) -> list | None:
@@ -81,79 +58,59 @@ def _read_facts(path: Path) -> list | None:
             data = json.load(f)
     except (OSError, ValueError):
         return None
-    return data if _is_facts(data, path.name) else None
+    return data if isinstance(data, list) else None
+
+
+def _read_report(path: Path) -> dict | None:
+    """The report.json beside a facts file, or None when it is missing or unreadable."""
+    try:
+        with open(path.parent / "report.json", encoding="utf-8") as f:
+            rep = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return rep if isinstance(rep, dict) else None
 
 
 def find_runs(folder: str | Path) -> list[RunRef]:
-    """Every facts file under `folder`, recursively, newest first. Non-fact JSON is skipped."""
+    """Every run under `folder` (a `<doc>/<run>/facts.json`), newest first. A facts file that is
+    not a JSON list is skipped."""
     root = Path(folder)
     if not root.is_dir():
         return []
     out = []
-    for p in root.rglob("facts*.json"):
+    for p in root.glob("*/*/facts.json"):
         data = _read_facts(p)
         if data is None:
             continue
-        first = data[0] if data else {}
-        seconds, tokens = _timing(report_path(p))
+        first = data[0] if data and isinstance(data[0], dict) else {}
         out.append(RunRef(
             path=p, label=str(p.relative_to(root)), facts=len(data), mtime=p.stat().st_mtime,
             doc_id=str(first.get("doc_id", "")), run_id=str(first.get("run_id", "")),
-            seconds=seconds, output_tokens=tokens, stored=(p.parent / "meta.json").is_file(),
         ))
     out.sort(key=lambda r: (-r.mtime, r.label))
     return out
 
 
-def _timing(report: Path) -> tuple[dict, int | None]:
-    """Stage seconds and output tokens of a run, from its report; ({}, None) without one."""
-    try:
-        with open(report, encoding="utf-8") as f:
-            rep = json.load(f)
-    except (OSError, ValueError):
-        return {}, None
-    if not isinstance(rep, dict):
-        return {}, None
-    secs = rep.get("seconds") if isinstance(rep.get("seconds"), dict) else {}
-    secs = {k: v for k, v in secs.items() if isinstance(v, (int, float))}
-    tokens = rep.get("output_tokens")
-    return secs, tokens if isinstance(tokens, int) else None
-
-
-def took(seconds: dict) -> str:
-    """"37 s", or "1 min 12 s"; empty when the run has no report."""
-    total = seconds.get("total")
-    if total is None:
-        return ""
-    return f"{total:.0f} s" if total < 90 else f"{int(total // 60)} min {int(total % 60)} s"
-
-
 def runs_table(runs: list[RunRef]) -> list[dict]:
-    """One row per run with how long it took, newest first (the order of `find_runs`)."""
+    """One row per run with how long it took, newest first (the order of `find_runs`).
+    Stage seconds and output tokens come from each run's report; empty without one."""
     rows = []
     for r in runs:
-        s = r.seconds
-        other = {k: v for k, v in s.items() if k not in ("total", "extract")}
+        rep = _read_report(r.path) or {}
+        secs = rep.get("seconds") if isinstance(rep.get("seconds"), dict) else {}
+        tokens = rep.get("output_tokens")
         rows.append({
             "run": r.label.removesuffix("/facts.json"), "document": r.doc_id, "facts": r.facts,
-            "total s": s.get("total"), "extract s": s.get("extract"),
-            "sweep and check s": round(sum(other.values()), 2) if other else None,
-            "output tokens": r.output_tokens,
+            "total s": secs.get("total") if isinstance(secs.get("total"), (int, float)) else None,
+            "output tokens": tokens if isinstance(tokens, int) else None,
             "finished": datetime.fromtimestamp(r.mtime).strftime("%Y-%m-%d %H:%M"),
         })
     return rows
 
 
-def report_path(facts_path: Path) -> Path:
-    """facts.json -> report.json; facts_<name>.json -> report_<name>.json."""
-    name = facts_path.name
-    if name.startswith("facts"):
-        name = "report" + name[len("facts"):]
-    return facts_path.with_name(name)
-
-
 def normalize(records: list[dict]) -> list[dict]:
-    """Fill fields older runs lack, so the rest of the app can index them directly."""
+    """Give every record every field the app reads, with an empty value where it has none
+    (user-added facts, `also` = null, test fixtures), so the rest of the app can index them directly."""
     out = []
     for i, r in enumerate(records):
         cites = []
@@ -198,17 +155,8 @@ def normalize(records: list[dict]) -> list[dict]:
 def load_run(path: str | Path) -> Run:
     path = Path(path)
     with open(path, encoding="utf-8") as f:
-        records = normalize(upgrade_facts(json.load(f)))
-    report = None
-    rp = report_path(path)
-    if rp != path and rp.is_file():
-        try:
-            with open(rp, encoding="utf-8") as f:
-                report = json.load(f)
-        except (OSError, ValueError):
-            report = None
-        if not isinstance(report, dict):
-            report = None
+        records = normalize(json.load(f))
+    report = _read_report(path)
     # The PDF sits beside the run, or one level up when a document's runs share it.
     pdf = next((p for p in (path.parent / "source.pdf", path.parent.parent / "source.pdf") if p.is_file()), None)
     first = records[0] if records else {}
@@ -220,10 +168,7 @@ def load_run(path: str | Path) -> Run:
     return Run(path, records, report, pdf, doc_id, run_id, int(pages))
 
 
-# --- filtering and ordering -----------------------------------------------------------
-
-
-# --- before the bid, after award -----------------------------------------------------
+# --- filtering and ordering: before the bid, after award ------------------------------
 
 POST_AWARD = "post-award"
 VIEWS = ("All", "Bid", "After award")
@@ -316,19 +261,8 @@ def document_order(records: list[dict]) -> list[dict]:
     return sorted(records, key=key)
 
 
-def page_label(r: dict) -> str:
-    return r["citations"][0]["page_label"] if r["citations"] else ""
-
-
 def page_labels(r: dict) -> str:
     return "; ".join(dict.fromkeys(c["page_label"] for c in r["citations"] if c["page_label"]))
-
-
-def category_label(code: str) -> str:
-    return f"{code} - {CATEGORIES.get(code, 'unknown')}"
-
-
-# --- summary --------------------------------------------------------------------------
 
 
 # --- groups ---------------------------------------------------------------------------
@@ -371,20 +305,7 @@ def items(records: list[dict]) -> list[Item]:
     return out
 
 
-def merged(item: Item) -> dict:
-    """One record standing for a "same" group: the first fact, citing every place."""
-    first = item.first
-    cites, seen = [], set()
-    for f in item.facts:
-        for c in f["citations"]:
-            if c["id"] not in seen:
-                seen.add(c["id"])
-                cites.append(c)
-    flags = list(dict.fromkeys(x for f in item.facts for x in f["flags"]))
-    return {**first, "citations": cites, "flags": flags}
-
-
-# --- Summary screen: buyer, gates, clarifications, scoring, calendar ------------------
+# --- Overview screen: buyer, gates, clarifications, scoring, calendar -----------------
 
 
 def _entries(records: list[dict]) -> list[dict]:
@@ -468,57 +389,6 @@ def overview(records: list[dict]) -> dict:
         # The lists of criteria first, then the single statements about how scoring works.
         "scoring": sorted(_entries(of("E")), key=lambda e: not e["children"]),
         "calendar": calendar(records),
-    }
-
-
-def _obligation(r: dict) -> dict:
-    return {
-        "category": r["category"], "text": r["text"],
-        "flags": ", ".join(f for f in r["flags"] if f != POST_AWARD), "page": page_labels(r),
-    }
-
-
-def summary(records: list[dict]) -> dict:
-    """Counts and lists for the Summary tab in document order."""
-    ordered = document_order(records)
-
-    def rows(pick) -> list[dict]:
-        """One line per item: a repeated point once, a list as its title and size."""
-        out = []
-        for it in items([r for r in ordered if pick(r)]):
-            text = it.title + (f" ({len(it.facts)} items)" if it.kind == "list" else "")
-            out.append({"text": text if it.kind == "list" else it.first["text"], "page": it.pages()})
-        return out
-
-    by_cat = Counter(r["category"] for r in records)
-    return {
-        "facts": len(records),
-        "counts": {
-            "needs review": sum(r["status"] == "needs_review" for r in records),
-            "conflicts": sum(r["status"] == "conflict" for r in records),
-            "risk flags": sum("risk" in r["flags"] for r in records),
-            "mandatory": sum("mandatory" in r["flags"] for r in records),
-            "unclear": sum("unclear" in r["flags"] for r in records),
-            "after award": sum(is_post_award(r) for r in records),
-            "split votes": sum(is_split(r) for r in records),
-        },
-        # After-award obligations that still matter for the bid: a risk, or an amount to price.
-        "price_or_risk": [_obligation(r) for r in ordered if affects_bid(r)],
-        "obligations": [_obligation(r) for r in ordered if is_post_award(r)],
-        "dates": rows(lambda r: r["category"] == "D"),
-        "gates": rows(lambda r: r["category"] == "G"),
-        "disqualifiers": rows(lambda r: r["category"] == "X"),
-        "contract_risks": rows(lambda r: r["category"] == "C" and "risk" in r["flags"]),
-        "contradictions": [
-            {
-                "text": r["text"],
-                "pages": " vs ".join(c["page_label"] or "?" for c in r["citations"]),
-            }
-            for r in ordered if r["category"] == "Q"
-        ],
-        "by_category": {
-            category_label(c): by_cat[c] for c in CATEGORIES if by_cat[c]
-        } | {category_label(c): n for c, n in by_cat.items() if c not in CATEGORIES},
     }
 
 
@@ -617,20 +487,15 @@ def code_differences(a: list[dict], b: list[dict]) -> list[dict]:
 def result_line(report: dict) -> str:
     """The one-line result `fact-extractor extract` prints."""
     r = report
-    if "facts_votes_agreed" in r:  # unit-label pipeline
-        return (
-            f"{r['facts']} facts from {r['ids']} units in {r['seconds']['total']} s: "
-            f"{r['facts_votes_agreed']} with all {r['votes']} votes agreed, {r['facts_votes_split']} split; "
-            f"failed calls {r['failed_calls']}"
-        )
     return (
-        f"{r['facts']} facts, {r['by_status']}, {r['seconds']['total']} s, "
-        f"cache hit {r['cache_hit_calls_2_to_n']}, failed calls {r['failed_calls']}"
+        f"{r['facts']} facts from {r['ids']} units in {r['seconds']['total']} s: "
+        f"{r['facts_votes_agreed']} with all {r['votes']} votes agreed, {r['facts_votes_split']} split; "
+        f"failed calls {r['failed_calls']}"
     )
 
 
 def new_run_id() -> str:
-    """Same shape as pipeline.extract's default run ID."""
+    """Same shape as units.extract's default run ID."""
     return f"run_{datetime.now(timezone.utc):%Y_%m_%d}_{uuid.uuid4().hex[:6]}"
 
 
@@ -664,8 +529,9 @@ def tag_pdf(pdf_bytes: bytes, doc_id: str, runs_root: str | Path = "runs"):
 
 
 def plan_rows(doc, votes: int = 3) -> list[dict]:
-    """The calls of one extraction: every unit labelled `votes` times, stated once,
-    and one contradiction check. All are sent together."""
+    """The calls of the first round of one extraction: every unit labelled `votes` times and
+    stated once, one contradiction check and one cross-reference call. All are sent together.
+    The group and summary calls that follow depend on the facts found and are not listed."""
     from .. import units
 
     cfg = units.Config()
@@ -682,7 +548,8 @@ def plan_rows(doc, votes: int = 3) -> list[dict]:
         {"call": f"STATE{k}", "times": 1, "units": len(ids), "pages": pages(ids)}
         for k, ids in enumerate(units.chunks(doc, cfg.units_per_state_call), start=1)
     ]
-    return rows + [{"call": "CHECK", "times": 1, "units": len(doc.anchors), "pages": f"1-{doc.page_count}"}]
+    whole = {"times": 1, "units": len(doc.anchors), "pages": f"1-{doc.page_count}"}
+    return rows + [{"call": "CHECK", **whole}, {"call": "XREF", **whole}]
 
 
 def stored_result(pdf_bytes: bytes, doc_id: str, runs_root: str | Path = "runs"):

@@ -29,7 +29,7 @@ async def run(
         raise ValueError("no (prompt, source) pairs: check the folders and each prompt's applies_to")
     store = RunStore(out_dir)
     store.write_json("input.json", {
-        "sources_dir": str(sources_dir), "prompts": str(prompts_path), "config": cfg,
+        "sources_dir": str(sources_dir), "prompts_path": str(prompts_path), "config": cfg,
         "sources": [{"id": s.id, "kind": s.kind, "glossary": s.glossary_id} for s in sources.values()],
         "prompts": [p.id for p in prompts.values()],
     })

@@ -53,8 +53,8 @@ same every time. `--refresh` extracts again and says what changed.
   the round.
 
 An earlier pipeline, where the model wrote the facts and code deduped them, was
-removed on 2026-11-21. Much of [REVIEW.md](REVIEW.md) describes it, and the
-results in `poc/` came from it. See REVIEW.md, "A fact is a labelled source
+removed on 2026-11-21. Parts of [REVIEW.md](REVIEW.md) describe it, and the
+hand labels in `poc/ablation/labels/` are of its output. See REVIEW.md, "A fact is a labelled source
 unit", for why it was replaced.
 
 ## Setup
@@ -141,7 +141,7 @@ IDs both runs cite, the codes they file each ID under, and the fact IDs they
 share. Read a difference in recall between two configurations against the
 difference between two runs of one configuration first. When scoring several
 runs with `--judge`, give them one `--judge-cache` file so a pair of texts gets
-the same verdict in every run (`poc/ablation/score.sh` does).
+the same verdict in every run.
 
 `compare` measures recall only. `precision` reports near-duplicate pairs, scores
 a labelled sample (`supported` y/p/n, `useful` u/x), and with `--grade` asks the
@@ -251,10 +251,10 @@ npm --prefix web run build
 uv run fact-extractor web --runs runs      # http://127.0.0.1:8765
 ```
 
-It has seven tabs: Summary (an at-a-glance block and one row summary per section), Facts
-(filters, grouping, CSV download, the cited PDF page), Conflicts, Changes, Run
-report, Compare and New run. New run starts an extraction and asks for
-confirmation first, because it spends API tokens.
+It has eight pages: Overview (counts, key dates and one row summary per section), Facts
+(filters, grouping, CSV download, the cited PDF page), Conflicts, Changes, Report,
+Compare, Chat log (what each chat message cost and did) and New run. New run starts
+an extraction and asks for confirmation first, because it spends API tokens.
 
 - Corrections never change `facts.json`. They are appended to
   `<run>/workspace/corrections.jsonl`, and every one can be undone on the Changes tab.
@@ -266,8 +266,7 @@ confirmation first, because it spends API tokens.
   the section out of date and rebuilds it in the background. Contract and requirements
   are written only when you ask (Generate or chat).
 - Chat and summaries need `OPENAI_API_KEY`. Everything else works without it.
-- For frontend work: `npm --prefix web run dev` (port 5173, proxies `/api` to 8765),
-  or `npm --prefix web run dev:mock` to run against the mock API in `web/mock/`.
+- For frontend work: `npm --prefix web run dev` (port 5173, proxies `/api` to 8765).
 
 ## Reference lists from goldset
 
@@ -319,9 +318,11 @@ source's docstrings and in the original repo's README.
    It tags the PDF, writes the tagged text as a goldset source (a page marker
    and block breaks so chunks cut only at page and section boundaries), and
    writes one prompt per category. The case input is one unit ID; the expected
-   output is that unit's `CODE|fact|IDs|flags` line, or NONE. The prompts reuse
-   the extractor's category definitions, fact rules and flag tests
-   (`prompts.py`) and change none of them. `mandatory` and `desirable` are set
+   output is that unit's `CODE|fact|IDs|flags` line, or NONE. The prompts share
+   the extractor's category definitions and flag tests (`prompts.DEFINITIONS`,
+   `prompts.FLAG_TESTS`, which `units.SYSTEM` is built from); the reader, fact
+   and writing rules come from `prompts.SYSTEM`, the old pipeline's prompt,
+   which only the golden builder reads. `mandatory` and `desirable` are set
    by code from the unit's wording, as in the extractor. Every accepted line is
    parsed and checked again; one unit accepted under two categories becomes one
    line with alternates (`C/R`).
@@ -423,11 +424,6 @@ in the working directory (git-ignored).
 name it does not list would be sent `temperature=0`, which reasoning models
 reject; give such a model a `DeepEvalBaseLLM` of its own.
 
-**Measured.** On the Ulster reference list (`poc/gold/gold_c.txt`, 88 facts)
-against the stored `stable` run, `deepeval test run` passed 80 and
-`fact-extractor score` reports 80 under the same code (83 found). That is one
-run on one list, and only the metric that makes no model call.
-
 **Not checked.** The three judged metrics have not been run against the live API.
 Their thresholds are untested defaults. Compare them with the hand labels in
 `poc/ablation/labels/*.csv` before anyone trusts them, as with `precision --grade`.
@@ -437,14 +433,14 @@ Their thresholds are untested defaults. Compare them with the hand labels in
 | Module | Spec section |
 | --- | --- |
 | `pdf.py`, `tagging.py` | 4. Parse and tag |
-| `prompts.py` | 10. Prompts (system prompt and tasks) |
+| `prompts.py` | 10. Prompts: category definitions and tie order (used by `units.py`), and the system prompt `golden.py` reads its fact rules and flag tests from |
 | `llm.py` | 5.2, 6.2: request shape, streaming, OpenAI client |
 | `validate.py`, `normalize.py` | 6.1, 7. Output format and checks |
 | `xref.py` | 8.3 Contradictions: the XREF call finds cross-references, code verifies them |
 | `compare.py` | 13. Acceptance: score facts against a reference list |
 | `precision.py` | Precision: labelled samples, model grades, near-duplicates |
 | `stability.py` | Agreement between two runs on cited IDs, codes and fact IDs |
-| `units.py` | The unit-label pipeline: label votes, statements, contradiction check, facts |
+| `units.py` | The unit-label pipeline and its prompts: label votes, statements, contradiction check, facts |
 | `results.py` | Stored results on disk, found by PDF content; what a re-extraction changed |
 | `score.py` | Recall against a reference list by source ID |
 | `golden.py` | Builds a reference list for an RFP with goldset (needs the `evals` extra) |
@@ -454,9 +450,9 @@ Their thresholds are untested defaults. Compare them with the hand labels in
 `evals/` holds the DeepEval tests, `examples/goldset/` goldset's examples,
 `goldset.yaml` its settings and `tests/goldset_builder/` its tests.
 
-`poc/` holds output from proof-of-concept runs of the earlier pipeline on the Ulster County RFP
-(`facts_run*.json`, `report_run*.json`) and the reference list in `poc/gold/`
-(`CODE|fact|IDs|flags` per line) used by `compare`. A code may list alternates
+`poc/` holds the hand-written reference lists, `poc/gold/` for the Ulster County RFP and
+`poc/durham/gold/gold_draft.txt` for Durham (`CODE|fact|IDs|flags` per line), used by
+`score` and `compare`, and the hand labels in `poc/ablation/labels/`. A code may list alternates
 (`G/C/R`): the fact is scored under the first, and found under any of them
 counts as the same code.
 
@@ -509,13 +505,13 @@ counts as the same code.
   (the model finds cross-references; `xref.py` verifies them in code: blank,
   missing, retitled, wrong direction, inconsistent attachment names; source
   `XREF`).
-- The model is told the audience is a bid manager. Prompts in `prompts.py` are
-  tuned on one RFP (Ulster County). Run `compare` on a second document before
-  assuming recall holds elsewhere.
+- The model is told the audience is a bid manager. The unit-label prompts (in
+  `units.py`) have been run on one RFP only (Durham). Run `score` or `compare` on a
+  second document before assuming recall holds elsewhere.
 
 **Development**
 
-- `uv run pytest` makes no network calls. It runs 397 tests, all offline;
+- `uv run pytest` makes no network calls. It runs 395 tests, all offline;
   goldset's pass on Python 3.11, 3.12 and 3.13.
 - `.env` holds a real key. `.gitignore` excludes it; confirm `git status` never
   lists `.env`.

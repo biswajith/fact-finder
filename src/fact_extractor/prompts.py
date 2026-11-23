@@ -1,10 +1,10 @@
 """Category definitions, their precedence, and the extraction system prompt.
 
-DEFINITIONS and PRECEDENCE are shared by the unit-label pipeline (units.py) and the
-golden-dataset builder (golden.py). SYSTEM, the system prompt of the earlier pipeline
-(removed 2026-11-21), is kept because golden.py builds its reference prompts from it
-so that goldset reads the categories the same way as the extractor. Its bytes are
-pinned in tests/test_golden.py.
+DEFINITIONS, PRECEDENCE and FLAG_TESTS are shared by the unit-label pipeline (units.py)
+and the golden-dataset builder (golden.py), so goldset reads the categories and the flags
+the same way as the extractor. SYSTEM, the system prompt of the earlier pipeline (removed
+2026-11-21), is read only by golden.py, for its reader, fact and writing rules; its own
+FLAGS section is no longer used. Its bytes are pinned in tests/test_golden.py.
 """
 
 from __future__ import annotations
@@ -50,9 +50,22 @@ DEFINITIONS = {
     "Q": "Q = contradiction: two parts of the RFP disagree.",
 }
 
-# When a statement fits more than one code, the first of these wins. The same order is
-# used when dedupe merges one statement filed under two codes (merge.py).
+# When a statement fits more than one code, the first of these wins. golden.py uses the
+# same order when one unit is accepted under two codes.
 PRECEDENCE = ("X", "G", "D", "S", "E", "C", "R", "B")
+
+# The tests for the flags the model decides. units.SYSTEM and the golden-dataset prompts
+# (golden.py) are both built from these, so the reference reads the flags as the extractor does.
+FLAG_TESTS = {
+    "post-award": "post-award: only the winner is bound by it. Test: would a bidder who does not win ever have "
+    "to do, hold, or respect this? If not, it is post-award. Whatever the proposal must contain, answer, or "
+    "price, and whatever the bidder must be or have by the deadline, is not post-award, even when it is about "
+    "work the winner will do later.",
+    "risk": "risk: the term shifts cost, liability, or control onto the bidder in a way the bid team must price "
+    "or decide to accept.",
+    "unclear": "unclear: the bid team cannot act on it without asking the buyer, because the RFP is vague, "
+    "incomplete, or out of date on the point.",
+}
 
 _CATEGORIES = "\n".join(DEFINITIONS[c] for c in ("B", "C", "G", "X", "D", "S", "E", "R", "Q"))
 

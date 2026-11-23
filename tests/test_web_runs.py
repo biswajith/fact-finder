@@ -75,22 +75,6 @@ def test_document_order():
     assert D.id_position("p12.4") < D.id_position("p12.10") < D.id_position("p12.h10") < D.id_position("p12.t10r1")
 
 
-def test_summary_counts_and_lists():
-    s = D.summary(RECORDS)
-    assert s["facts"] == 8
-    assert s["counts"] == {"needs review": 1, "conflicts": 1, "risk flags": 1, "mandatory": 1, "unclear": 1, "after award": 0, "split votes": 0}
-    assert texts(s["dates"]) == ["Proposals due 2027-03-03", "Due 2027-03-05"]
-    assert texts(s["gates"]) == ["Must be licensed in NY"] and texts(s["disqualifiers"]) == ["Late proposals rejected"]
-    assert texts(s["contract_risks"]) == ["Unlimited liability"]
-    assert s["contradictions"] == [{"text": "Due date 2027-03-03 vs 2027-03-05", "pages": "1 vs 5"}]
-    assert s["by_category"]["R - requirement"] == 2
-
-
-def test_summary_of_no_facts():
-    s = D.summary([])
-    assert s["facts"] == 0 and s["dates"] == [] and s["by_category"] == {}
-
-
 def test_csv_columns_and_encoding():
     raw = D.to_csv(RECORDS[:1] + [D.normalize([fact("B", "Café — Zürich", [("p1.1", 1, "a"), ("p2.1", 2, "b")])])[0]])
     assert raw.startswith(b"\xef\xbb\xbf")
@@ -110,21 +94,21 @@ def write(path, data):
 
 
 def test_find_runs_skips_non_fact_json(tmp_path):
-    write(tmp_path / "a" / "facts.json", [fact("B", "x", [("p1.1", 1, "x")])])
-    write(tmp_path / "a" / "report.json", {"run_id": "run_x", "pages": 7})
-    write(tmp_path / "facts_run1.json", [fact("B", "y"), fact("R", "z")])
-    write(tmp_path / "facts_run1.judge.json", {"pairs": []})
-    write(tmp_path / "a" / "facts.judge.json", [{"gold": "x", "found": "y"}])
-    write(tmp_path / "b" / "facts.json", [])  # an empty run still opens
-    (tmp_path / "facts_bad.json").write_text("{not json")
+    write(tmp_path / "doc" / "a" / "facts.json", [fact("B", "x", [("p1.1", 1, "x")])])
+    write(tmp_path / "doc" / "a" / "report.json", {"run_id": "run_x", "pages": 7})
+    write(tmp_path / "doc" / "a" / "facts.judge.json", [{"gold": "x", "found": "y"}])
+    write(tmp_path / "doc" / "b" / "facts.json", [])  # an empty run still opens
+    write(tmp_path / "doc" / "c" / "facts.json", {"pairs": []})  # not a list of facts
+    (tmp_path / "doc" / "d").mkdir()
+    (tmp_path / "doc" / "d" / "facts.json").write_text("{not json")
+    write(tmp_path / "facts_run1.json", [fact("B", "y")])  # not in a run folder
     runs = D.find_runs(tmp_path)
-    assert sorted(r.label for r in runs) == ["a/facts.json", "b/facts.json", "facts_run1.json"]
-    assert {r.label: r.facts for r in runs}["facts_run1.json"] == 2
+    assert sorted(r.label for r in runs) == ["doc/a/facts.json", "doc/b/facts.json"]
+    assert {r.label: r.facts for r in runs}["doc/a/facts.json"] == 1
     assert D.find_runs(tmp_path / "missing") == []
-    run = D.load_run(tmp_path / "a" / "facts.json")
+    run = D.load_run(tmp_path / "doc" / "a" / "facts.json")
     assert run.report == {"run_id": "run_x", "pages": 7} and run.pages == 7 and run.pdf is None
-    assert D.report_path(tmp_path / "facts_run1.json").name == "report_run1.json"
-    empty = D.load_run(tmp_path / "b" / "facts.json")
+    empty = D.load_run(tmp_path / "doc" / "b" / "facts.json")
     assert empty.records == [] and empty.pages == 1
 
 
@@ -225,28 +209,23 @@ def test_bid_and_after_award_views():
     assert D.filter_facts(recs, view="Bid") == [gate, limit, indemnity]  # amounts and risks stay in the bid view
     assert D.filter_facts(recs, view="After award") == [cert, limit, indemnity]
     assert D.filter_facts(recs, view="All") == recs
-    s = D.summary(recs)
-    assert s["counts"]["after award"] == 3
-    assert [o["text"] for o in s["price_or_risk"]] == [limit["text"], indemnity["text"]]
-    assert s["price_or_risk"][1]["flags"] == "risk"
+    assert [r["text"] for r in recs if D.affects_bid(r)] == [limit["text"], indemnity["text"]]
     # A run made before the flag existed: the bid view hides nothing.
     assert D.filter_facts(RECORDS, view="Bid") == RECORDS and D.filter_facts(RECORDS, view="After award") == []
 
 
 def test_run_list_carries_timings(tmp_path):
-    run = tmp_path / "a"
-    run.mkdir()
+    run = tmp_path / "doc" / "a"
+    run.mkdir(parents=True)
     (run / "facts.json").write_text(json.dumps([fact("D", "Due 2027-03-05", [("p1.1", 1, "Due March 5, 2027.")])]))
     (run / "report.json").write_text(json.dumps(
-        {"seconds": {"extract": 20.5, "sweep_and_check": 16.25, "total": 36.98}, "output_tokens": 25418}))
-    (tmp_path / "facts_old.json").write_text(json.dumps([fact("D", "x", [("p1.1", 1, "x")])]))  # no report
-    refs = {r.label: r for r in D.find_runs(tmp_path)}
-    assert D.took(refs["a/facts.json"].seconds) == "37 s" and D.took(refs["facts_old.json"].seconds) == ""
-    assert D.took({"total": 125.4}) == "2 min 5 s"
-    row = next(r for r in D.runs_table(list(refs.values())) if r["run"] == "a")
-    assert (row["total s"], row["extract s"], row["sweep and check s"], row["output tokens"]) == (36.98, 20.5, 16.25, 25418)
-    assert next(r for r in D.runs_table(list(refs.values())) if r["run"] == "facts_old.json")["total s"] is None
-
+        {"seconds": {"label_state_check": 30.5, "group_and_summaries": 6.48, "total": 36.98}, "output_tokens": 25418}))
+    old = tmp_path / "doc" / "old"
+    old.mkdir()
+    (old / "facts.json").write_text(json.dumps([fact("D", "x", [("p1.1", 1, "x")])]))  # no report
+    rows = {r["run"]: r for r in D.runs_table(D.find_runs(tmp_path))}
+    assert (rows["doc/a"]["total s"], rows["doc/a"]["output tokens"]) == (36.98, 25418)
+    assert (rows["doc/old"]["total s"], rows["doc/old"]["output tokens"]) == (None, None)
 
 def test_items_collapse_groups_in_place():
     def rec(text, page, gid="", kind="", title=""):
@@ -262,15 +241,8 @@ def test_items_collapse_groups_in_place():
     assert [(i.kind, i.title, len(i.facts)) for i in got] == [
         ("fact", "Provide a bond", 1), ("list", "Modules in scope", 2), ("same", "Questions due 2027-03-01", 2)]
     assert got[1].pages() == "2; 4"
-    # A point stated in two places opens with both places cited.
-    assert [c["id"] for c in D.merged(got[2])["citations"]] == ["p3.1", "p5.1"]
     # With the other members filtered out, a grouped fact is shown as the plain fact it is.
     assert [(i.kind, len(i.facts)) for i in D.items([a, b, c])] == [("fact", 1), ("fact", 1), ("fact", 1)]
-    # The Summary lists a list once, by its title and size, and a repeated point once.
-    s = D.summary([a, b, c, d, e])
-    assert s["facts"] == 5
-    rows = [r["text"] for r in D.summary([{**x, "category": "D"} for x in (a, b, c, d, e)])["dates"]]
-    assert rows == ["Provide a bond", "Modules in scope (2 items)", "Questions due 2027-03-01"]
 
 
 def test_overview_sections():

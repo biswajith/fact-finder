@@ -80,9 +80,6 @@ class CallSpec:
     codes: tuple[str, ...]  # allowed codes, Q included
     task: str  # the per-call task message
     effort: str = "low"
-    page_range: tuple[int, int] | None = None  # R calls only
-    kind: Literal["extract", "sweep", "check"] = "extract"
-    sweep_ids: tuple[str, ...] = ()
 
 
 @dataclass
@@ -99,16 +96,13 @@ class CallRecord:
     name: str
     kind: str
     # incomplete: the model answered, but not for every unit it was given (units.py)
-    status: Literal["ok", "partial", "failed", "split", "incomplete"] = "ok"
+    status: Literal["ok", "partial", "failed", "incomplete"] = "ok"
     seconds: float = 0.0  # wall time for the call, queueing and retries included
     queue_seconds: float = 0.0  # waiting for a free slot under the concurrency limit
     ttft_seconds: float | None = None  # last attempt: request sent to first text
     model_seconds: float = 0.0  # last attempt: request sent to last text
-    tokens_per_second: float | None = None  # output tokens (reasoning included) / model_seconds
     usage: Usage = field(default_factory=Usage)
     lines: int = 0
-    end_count: int | None = None
-    failed_lines: int = 0
     retries: int = 0
     log: list[str] = field(default_factory=list)
     output: str = ""  # raw model text, for debugging

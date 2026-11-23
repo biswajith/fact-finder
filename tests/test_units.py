@@ -75,6 +75,11 @@ async def test_facts_are_units(doc):
 
     r = res.report
     assert r["pipeline"] == units.VERSION and r["facts_votes_split"] == 0 and r["units_continuing"] == 1
+    # The cache hit rate counts only the calls that send the document, after the first one.
+    doc_calls = [c for c in r["calls"] if c["kind"] not in ("group", "brief")][1:]
+    assert {c["kind"] for c in r["calls"]} > {c["kind"] for c in doc_calls}  # GROUP or BRIEF calls ran too
+    hit = sum(c["usage"]["cached_tokens"] for c in doc_calls) / sum(c["usage"]["input_tokens"] for c in doc_calls)
+    assert r["cache_hit_calls_2_to_n"] == round(hit, 3)
     assert len(res.labels) == len(doc.anchors)
     # One round on one cached prefix: three label votes, one statement pass, one check.
     first = [q for q in client.requests if task_name(q) not in ("GROUP", "BRIEF")]
@@ -86,8 +91,8 @@ async def test_facts_are_units(doc):
     assert all(f["group_id"] == "" for f in res.facts)  # the model found no group
     # The buyer brief: always the seven rows. A row whose numbers are not in the facts it
     # cites is not "checked", and an empty row has no text.
-    rows = {b["row"]: b for b in r["buyer_brief"]}
-    assert list(rows) == list(units.BRIEF_ROWS)
+    rows = {b["row"]: b for b in r["summaries"]["buyer"]}
+    assert list(rows) == [name for name, _ in units.SECTION["buyer"].rows]
     assert rows["Buyer"]["text"] == "The City of Springfield" and rows["Buyer"]["checked"]
     assert rows["Buyer"]["fact_ids"] == [by_unit["p1.1"]["fact_id"]]
     assert rows["Scale"]["text"] == "900 users" and not rows["Scale"]["checked"]
@@ -330,11 +335,3 @@ async def test_all_units_answered_without_end_is_accepted_and_logged(doc):
     assert units.has_end("x\n end|3 \n") and not units.has_end("p1.1|R\nTHE END")
 
 
-def test_stored_facts_with_old_text_from_values_read_as_new(tmp_path):
-    old = [{"fact_id": "a", "text_from": "statement"}, {"fact_id": "b", "text_from": "source"},
-           {"fact_id": "c", "text_from": "model"}, {"fact_id": "d"}]
-    folder = tmp_path / "doc" / "run"
-    folder.mkdir(parents=True)
-    (folder / "facts.json").write_text(json.dumps(old), encoding="utf-8")
-    got = results.Stored(folder, {}).facts()
-    assert [r.get("text_from") for r in got] == ["model", "rfp", "model", None]

@@ -22,10 +22,11 @@ type Ctx = { isOpen: (id: string) => boolean; setOpen: (id: string, open: boolea
 const Fallback: Ctx = { isOpen: () => true, setOpen: () => undefined, setAll: () => undefined };
 const CollapseCtx = createContext<Ctx>(Fallback);
 
-/** Holds each overview section's open/closed state (default open), remembered in localStorage. */
-export function CollapseProvider({ children }: { children: ReactNode }) {
+/** Holds each overview section's open/closed state, remembered in localStorage; until the reader
+ * picks, a section is open when it is in `defaultOpen` (all open when that is not given). */
+export function CollapseProvider({ defaultOpen, children }: { defaultOpen?: string[]; children: ReactNode }) {
   const [state, setState] = useState<Record<string, boolean>>({});
-  const isOpen = useCallback((id: string) => state[id] ?? readStored(id) ?? true, [state]);
+  const isOpen = useCallback((id: string) => state[id] ?? readStored(id) ?? (defaultOpen ? defaultOpen.includes(id) : true), [state, defaultOpen]);
   const setOpen = useCallback((id: string, open: boolean) => {
     writeStored(id, open);
     setState((s) => ({ ...s, [id]: open }));

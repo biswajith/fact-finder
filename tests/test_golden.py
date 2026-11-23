@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from fact_extractor import cli, compare, golden, prompts
+from fact_extractor import cli, compare, golden, prompts, units
 from fact_extractor.tagging import Heading, Page, Paragraph, tag_pages
 
 
@@ -93,6 +93,7 @@ def test_existing_prompt_strings_are_unchanged():
     assert h(prompts.SYSTEM) == "4bf2be7b7b70bded"
     assert h(json.dumps(prompts.DEFINITIONS, sort_keys=True)) == "240386a79ef19196"
     assert h(repr(prompts.PRECEDENCE)) == "64b933d6ff116e76"
+    assert h(units.SYSTEM) == "34750be4a2db7c5d"
 
 
 def test_prompt_front_matter_and_definition(tmp_path):
@@ -114,8 +115,10 @@ def test_prompt_front_matter_and_definition(tmp_path):
 def test_prompt_shares_the_extractors_flag_tests_and_leaves_modal_flags_to_code():
     text = golden.prompt_text("C", 5)
     for flag in golden.MODEL_FLAGS:
-        line = next(ln for ln in prompts.SYSTEM.splitlines() if ln.startswith(f"- {flag}:"))
+        line = next(ln for ln in units.SYSTEM.splitlines() if ln.startswith(f"- {flag}:"))
         assert line in text
+    assert "Examples: unlimited liability" not in text  # the old prompt's risk examples are not the extractor's
+    assert "A unit that is unclear still gets its line" in text
     assert "- mandatory:" not in text and "- desirable:" not in text and "- replaced:" not in text
     assert "Never write mandatory or desirable" in text
     assert "Q line" not in text

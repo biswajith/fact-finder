@@ -67,7 +67,7 @@ async def test_runs_listing(c, root):
     assert [r["run"] for r in rows] == [RUN, "doc/other"]
     first = rows[0]
     assert first == {"run": RUN, "doc_id": "doc", "run_id": "run1", "facts": len(MORE), "modified": first["modified"],
-                     "has_pdf": True, "corrections": 1, "pdf_name": "source.pdf"}
+                     "has_pdf": True, "corrections": 1}
     assert first["modified"].endswith("Z") and rows[1]["has_pdf"] is True and rows[1]["corrections"] == 0
 
 
