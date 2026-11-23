@@ -101,3 +101,20 @@ export function stepsByDocument(steps: JobStep[], docs: Pick<BidDocument, 'no' |
 export function extractCount(plan: Pick<BidPlan, 'documents'> | null | undefined): number {
   return (plan?.documents ?? []).filter((d) => d.missing.length === 0).length;
 }
+
+/** "512 KB", "1.4 MB": a file size for a list of chosen files. */
+export function fileSizeLabel(bytes: number): string {
+  const kb = Math.max(bytes > 0 ? 1 : 0, Math.round(bytes / 1024));
+  if (kb < 1024) return `${kb} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Whether "Our team" matters: only a call transcript has speakers to place on a side. */
+export function showTeam(bid: Pick<Bid, 'documents'>): boolean {
+  return bid.documents.some((d) => d.playbook === 'call-transcript');
+}
+
+/** Whether "Order of precedence" matters: two or more buyer (level 1) documents that could disagree. */
+export function showPrecedence(bid: Pick<Bid, 'documents' | 'playbooks'>): boolean {
+  return bid.documents.filter((d) => bid.playbooks.find((p) => p.name === d.playbook)?.level === '1').length >= 2;
+}

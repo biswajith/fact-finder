@@ -231,3 +231,8 @@ button, select { font-family: inherit; }
 .data-table td.num, .data-table th.num { text-align: right; }
 .data-table tr.sel td { background: var(--accent-soft); }
 .form-col { display: flex; flex-direction: column; gap: 12px; max-width: 640px; }
+
+.new-bid-btn { display: block; width: 100%; margin-top: -6px; padding: 8px 10px; font: inherit; font-weight: 600; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border-strong); border-radius: var(--radius); cursor: pointer; text-align: center; }
+.new-bid-btn:hover { background: var(--surface-2); }
+.new-bid-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

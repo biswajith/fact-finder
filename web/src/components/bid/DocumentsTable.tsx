@@ -178,8 +178,7 @@ export function DocumentsTable({ bid, uploads, onDismiss, onPatch, onRemove }: {
   const onSpeakers = (no: number, speakers: { id: string; name: string; side: SpeakerSide }[]) =>
     onPatch(no, { speakers, speakers_confirmed: true });
   return (
-    <section className="pg-stack" aria-labelledby="docs-title">
-      <h2 className="pg-h2" id="docs-title">Documents of this bid</h2>
+    <div className="pg-stack">
       {rows.length === 0 && uploads.length === 0 ? (
         <div className="pg-empty"><strong>No documents yet</strong>Add the RFP and anything that goes with it above.</div>
       ) : (
@@ -221,6 +220,6 @@ export function DocumentsTable({ bid, uploads, onDismiss, onPatch, onRemove }: {
         </div>
       )}
       <div className="muted">Issue order decides which document wins, not upload order.</div>
-    </section>
+    </div>
   );
 }

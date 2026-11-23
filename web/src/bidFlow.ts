@@ -20,6 +20,7 @@ function writeBidParam(bid: string) {
 /** A file on its way up, or one the server refused. */
 export interface UploadItem {
   key: number;
+  bidId: string;
   name: string;
   status: 'pending' | 'error';
   error: string;
@@ -34,6 +35,7 @@ export function useBidFlow(status: Status | null, run: string | null, refreshRun
   const [bids, setBids] = useState<BidSummary[] | null>(null);
   const [bidsError, setBidsError] = useState<string | null>(null);
   const [bidParam, setBidParam] = useState<string | null>(readBidParam);
+  const [newRequested, setNewRequested] = useState(false);
   const [bid, setBid] = useState<Bid | null>(null);
   const [bidError, setBidError] = useState<string | null>(null);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
@@ -66,7 +68,13 @@ export function useBidFlow(status: Status | null, run: string | null, refreshRun
   useEffect(() => {
     if (bidId) writeBidParam(bidId);
   }, [bidId]);
-  const selectBid = useCallback((id: string) => setBidParam(id), []);
+  const selectBid = useCallback((id: string) => {
+    setNewRequested(false);
+    setBidParam(id);
+  }, []);
+  const startNew = useCallback(() => setNewRequested(true), []);
+  const cancelNew = useCallback(() => setNewRequested(false), []);
+  const creating = newRequested || (bids !== null && bids.length === 0);
 
   // Load the selected bid; an answer for a bid that is no longer selected is dropped.
   const current = useRef<string | null>(null);
@@ -88,7 +96,8 @@ export function useBidFlow(status: Status | null, run: string | null, refreshRun
   useEffect(() => {
     setBid(null);
     setBidError(null);
-    setUploads([]);
+    // uploads still going up into the bid just opened stay; those of another bid go
+    setUploads((u) => u.filter((x) => x.bidId === bidId));
     if (bidId) void loadBid();
   }, [bidId, loadBid]);
 
@@ -97,20 +106,12 @@ export function useBidFlow(status: Status | null, run: string | null, refreshRun
     await Promise.all([loadBid(), refreshBids()]);
   }, [loadBid, refreshBids]);
 
-  const createBid = useCallback(async (name: string) => {
-    const b = await api.createBid(name.trim());
-    await refreshBids();
-    setBidParam(b.bid_id);
-    return b;
-  }, [refreshBids]);
-
   // ---- uploads, one at a time in the order chosen ----
   const nextKey = useRef(1);
   const chain = useRef<Promise<void>>(Promise.resolve());
-  const addFiles = useCallback((files: File[]) => {
-    const id = current.current;
-    if (!id || !files.length) return;
-    const items = files.map((f) => ({ file: f, item: { key: nextKey.current++, name: f.name, status: 'pending', error: '' } as UploadItem }));
+  const uploadInto = useCallback((id: string, files: File[]) => {
+    if (!files.length) return;
+    const items = files.map((f) => ({ file: f, item: { key: nextKey.current++, bidId: id, name: f.name, status: 'pending', error: '' } as UploadItem }));
     setUploads((u) => [...u, ...items.map((x) => x.item)]);
     for (const { file, item } of items) {
       chain.current = chain.current.then(async () => {
@@ -124,6 +125,20 @@ export function useBidFlow(status: Status | null, run: string | null, refreshRun
       });
     }
   }, [reload]);
+  const addFiles = useCallback((files: File[]) => {
+    const id = current.current;
+    if (id) uploadInto(id, files);
+  }, [uploadInto]);
+
+  /** Make the bid and open it; `files` go up into this new bid (by its own id, not the one selected before). */
+  const createBid = useCallback(async (name: string, files?: File[]) => {
+    const b = await api.createBid(name.trim());
+    await refreshBids();
+    setNewRequested(false);
+    setBidParam(b.bid_id);
+    if (files?.length) uploadInto(b.bid_id, files);
+    return b;
+  }, [refreshBids, uploadInto]);
   const dismissUpload = useCallback((key: number) => setUploads((u) => u.filter((x) => x.key !== key)), []);
 
   // ---- edits: each shows its own failure and returns whether it worked ----
@@ -218,7 +233,7 @@ export function useBidFlow(status: Status | null, run: string | null, refreshRun
   };
 
   return {
-    status, bids, bidsError, refreshBids, bidId, selectBid, createBid, bid, bidError, reload, uploads, addFiles, dismissUpload,
+    status, bids, bidsError, refreshBids, bidId, selectBid, creating, startNew, cancelNew, createBid, bid, bidError, reload, uploads, addFiles, dismissUpload,
     patchDocument, removeDocument, saveTeam, setPrecedence, plan, planLoading: planned.loading, planError: planned.error, replan: planned.reload,
     confirmed, setConfirmed, job: jobBid === bidId ? job : null, running, start, startError,
   };

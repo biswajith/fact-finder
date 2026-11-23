@@ -49,8 +49,7 @@ export function PlanAndStart({ flow, bid, status }: { flow: BidFlow; bid: Bid; s
   const label = rebuild ? 'Rebuild the fact list' : `Extract ${n} ${n === 1 ? 'document' : 'documents'}`;
 
   return (
-    <section className="pg-stack" aria-labelledby="plan-title">
-      <h2 className="pg-h2" id="plan-title">Read the documents</h2>
+    <div className="pg-stack">
       {done && (
         <div className="pg-banner ok" role="status">
           <strong>Extraction finished</strong>
@@ -132,6 +131,6 @@ export function PlanAndStart({ flow, bid, status }: { flow: BidFlow; bid: Bid; s
         )}
       </div>
       {job?.steps && job.steps.length > 0 && <Steps steps={job.steps} bid={bid} />}
-    </section>
+    </div>
   );
 }

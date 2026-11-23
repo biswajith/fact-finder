@@ -182,3 +182,20 @@
 .pg-docs .data-table td:last-child { width: 1%; white-space: nowrap; }
 .pg-docs .data-table td:nth-child(2) { min-width: 110px; }
 .pg-help { max-width: 240px; line-height: 1.35; }
+
+/* Documents page: numbered steps and the create-a-bid screen */
+.pg-step { display: flex; align-items: center; gap: 10px; margin: 12px 0 0; }
+.pg-step .pg-h2 { margin: 0; font-size: 17px; }
+.pg-step-n { flex: 0 0 24px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--accent-text);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+.pg-steps-page { display: flex; flex-direction: column; gap: 12px; }
+.pg-newbid { max-width: 640px; width: 100%; margin: 32px auto 0; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); padding: 32px; display: flex; flex-direction: column; gap: 20px; }
+.pg-newbid .page-header { margin-bottom: 0; }
+.pg-newbid .pg-form { border: 0; padding: 0; background: transparent; }
+.pg-newbid-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; }
+.pg-newbid-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pg-newbid-files li { display: flex; align-items: center; gap: 12px; }
+.pg-newbid-files .grow { min-width: 0; }
+.pg-newbid-foot { max-width: 640px; margin: 12px auto 0; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+@media (max-width: 640px) { .pg-newbid { padding: 20px; margin-top: 12px; } }

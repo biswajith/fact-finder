@@ -85,3 +85,35 @@ describe('extractCount', () => {
     expect(extractCount(null)).toBe(0);
   });
 });
+
+import { fileSizeLabel, showPrecedence, showTeam } from './bid';
+import type { Bid } from './types';
+
+describe('fileSizeLabel', () => {
+  it('gives KB below a megabyte and MB with one decimal above', () => {
+    expect(fileSizeLabel(512 * 1024)).toBe('512 KB');
+    expect(fileSizeLabel(Math.round(1.4 * 1024 * 1024))).toBe('1.4 MB');
+    expect(fileSizeLabel(10)).toBe('1 KB');
+    expect(fileSizeLabel(0)).toBe('0 KB');
+  });
+});
+
+const bidWith = (playbooks: string[]) =>
+  ({
+    documents: playbooks.map((p, i) => doc(i + 1, { playbook: p })),
+    playbooks: [
+      { name: 'rfp', level: '1' }, { name: 'change-addendum', level: '1' },
+      { name: 'call-transcript', level: 'by speaker' }, { name: 'deal-notes', level: '4' },
+    ],
+  }) as unknown as Bid;
+
+describe('showTeam and showPrecedence', () => {
+  it('shows the team only with a call transcript', () => {
+    expect(showTeam(bidWith(['rfp', 'deal-notes']))).toBe(false);
+    expect(showTeam(bidWith(['rfp', 'call-transcript']))).toBe(true);
+  });
+  it('shows precedence only with two or more level 1 documents', () => {
+    expect(showPrecedence(bidWith(['rfp', 'call-transcript']))).toBe(false);
+    expect(showPrecedence(bidWith(['rfp', 'change-addendum', 'deal-notes']))).toBe(true);
+  });
+});

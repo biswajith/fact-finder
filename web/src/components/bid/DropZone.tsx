@@ -5,7 +5,10 @@ export const ACCEPTED = ['.pdf', '.json', '.txt', '.md', '.csv', '.xlsx'];
 const accepted = (name: string) => ACCEPTED.some((ext) => name.toLowerCase().endsWith(ext));
 
 /** Drag files here or choose them; the files go up one at a time in the order given. */
-export function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
+const HINT = 'RFPs, addenda and templates (PDF, spreadsheet), call transcripts (Gong export or text) and deal notes.';
+
+/** `title` is the section heading (null: none, the page gives one); `hint` the line under the zone. */
+export function DropZone({ onFiles, title = 'Add documents', hint = HINT }: { onFiles: (files: File[]) => void; title?: string | null; hint?: string }) {
   const [over, setOver] = useState(false);
   const [refused, setRefused] = useState<string[]>([]);
   const input = useRef<HTMLInputElement>(null);
@@ -29,8 +32,8 @@ export function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
   };
 
   return (
-    <section className="pg-form" aria-labelledby="drop-title">
-      <h2 className="pg-h2" id="drop-title">Add documents</h2>
+    <section className="pg-form" aria-labelledby={title ? 'drop-title' : undefined} aria-label={title ? undefined : 'Add documents'}>
+      {title && <h2 className="pg-h2" id="drop-title">{title}</h2>}
       <div
         className={`pg-drop${over ? ' over' : ''}`}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }}
@@ -51,7 +54,7 @@ export function DropZone({ onFiles }: { onFiles: (files: File[]) => void }) {
           <Button variant="secondary">Choose files</Button>
         </FileTrigger>
       </div>
-      <div className="muted">RFPs, addenda and templates (PDF, spreadsheet), call transcripts (Gong export or text) and deal notes.</div>
+      <div className="muted">{hint}</div>
       {refused.length > 0 && (
         <div role="alert" className="pg-note wrap-text">Not added, this file type is not supported: {refused.join(', ')}</div>
       )}

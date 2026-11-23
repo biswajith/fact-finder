@@ -99,6 +99,17 @@ export function Sidebar({ open, onNavigate, flow }: { open: boolean; onNavigate:
     <aside className={`sidebar${open ? ' open' : ''}`} id="app-sidebar" aria-label="Sidebar">
       <div className="brand">RFP facts</div>
       <RunSelect flow={flow} />
+      <button
+        type="button"
+        className="new-bid-btn"
+        onClick={() => {
+          flow.startNew();
+          window.location.hash = hashForPage('documents');
+          onNavigate();
+        }}
+      >
+        + New bid
+      </button>
       <nav aria-label="Pages">
         <div className="nav" role="group" aria-label="Review">
           <div className="nav-group">Review</div>
