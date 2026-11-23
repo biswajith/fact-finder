@@ -168,6 +168,11 @@ h3 .who { vertical-align: 3px; }
 .types td.diff { background: var(--warn-soft); box-shadow: inset 3px 0 0 var(--warn); }
 .types tfoot td { background: var(--surface-2); color: var(--muted); font-size: 0.84rem; }
 .legend .lf { background: var(--warn-soft); border-color: var(--warn); }
+.flow .tb rect { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1; }
+.flow .tb text { fill: var(--warn); font: 600 9.5px var(--font-mono); }
+.tb-c { display: inline-block; font: 600 0.7rem var(--font-mono); color: var(--warn); background: var(--warn-soft); border: 1px solid var(--warn); border-radius: 999px; padding: 0 6px; margin-right: 2px; vertical-align: 1px; }
+ul.differs { list-style: none; padding: 0; margin: 8px 0 12px; font-size: 0.92rem; }
+ul.differs li { margin: 4px 0; max-width: none; }
 .calls td:first-child { font: 600 0.82rem var(--font-mono); white-space: nowrap; }
 </style>
 </head>
@@ -211,13 +216,14 @@ h3 .who { vertical-align: 3px; }
 </details>
 
 <h2 id="dataflow">Dataflow</h2>
-<p>The whole proposed system in three pictures, read in order. Each starts with a dashed box naming what the previous one handed over. The pictures are the same for every kind of document; the <a href="#types">table after them</a> shows where each kind departs from the path an RFP takes.</p>
+<p>The whole proposed system in three pictures, read in order. Each starts with a dashed box naming what the previous one handed over. The pictures are the same for every kind of document: a badge on a box marks where a kind of document does something different there, and the list under each picture says what. The <a href="#types">table after them</a> gathers the same differences in one place.</p>
 <div class="legend"><span><i class="lc"></i>Code</span><span><i class="lm"></i>Model answers, code checks</span><span><i class="lx"></i>User</span><span><i class="ld"></i>Data kept or shown</span><span><i class="ls"></i>Hand-over between pictures</span></div>
+<p class="legend" style="margin-top:4px"><span class="tb-c" title="change addendum">AD</span>change addendum <span class="tb-c" title="Q&amp;A addendum">QA</span>Q&amp;A addendum <span class="tb-c" title="reissued RFP">RE</span>reissued RFP <span class="tb-c" title="attachment">AT</span>attachment <span class="tb-c" title="call transcript">TR</span>call transcript <span class="tb-c" title="deal notes">DN</span>deal notes. A badge on a box means that kind of document does something different there; a box with no badge works the same for every kind, as for an RFP.</p>
 
 <h3>1. A document becomes units</h3>
 <div class="scroll" style="padding:12px">
 <svg class="flow data d1" style="min-width:600px" viewBox="0 0 800 470" role="img" aria-labelledby="d1-t">
-  <title id="d1-t">Picture 1, a document becomes units. Documents go to CLASSIFY (model), which proposes a playbook, issue number and date from the first pages; the user confirms. The cutter for the document's form (code) cuts it into units. For a transcript, code matches speaker names to the team list and B facts, and the user confirms the sides and names unknown speakers. The result, handed to picture 2, is units with ID, text, page or turn, heading and speaker side.</title>
+  <title id="d1-t">Picture 1, a document becomes units. Documents go to CLASSIFY (model), which proposes a playbook, issue number and date from the first pages; the user confirms. The cutter for the document's form (code) cuts it into units. For a transcript, code matches speaker names to the team list and B facts, and the user confirms the sides and names unknown speakers. The result, handed to picture 2, is units with ID, text, page or turn, heading and speaker side. Badges mark the boxes where some kinds of document differ; the list after the picture says how.</title>
   <defs><marker id="da1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>
   <g class="b"><rect x="16" y="40" width="176" height="96" rx="10"/>
     <text class="n" x="30" y="62">INPUT</text><text class="t" x="30" y="84">Documents</text>
@@ -255,14 +261,17 @@ h3 .who { vertical-align: 3px; }
   <g class="b st"><rect x="16" y="360" width="176" height="96" rx="10"/>
     <text class="n" x="30" y="382">TO PICTURE 2</text><text class="t" x="30" y="404">Units</text>
     <text class="s" x="30" y="424">ID, text, page or turn,</text><text class="s" x="30" y="440">heading, speaker side.</text></g>
+  <g class="tb"><rect x="725" y="48" width="24" height="15" rx="7"/><text x="737" y="59" text-anchor="middle">AD</text></g><g class="tb"><rect x="752" y="48" width="24" height="15" rx="7"/><text x="764" y="59" text-anchor="middle">QA</text></g>
+  <g class="tb"><rect x="106" y="208" width="24" height="15" rx="7"/><text x="118" y="219" text-anchor="middle">AT</text></g><g class="tb"><rect x="133" y="208" width="24" height="15" rx="7"/><text x="145" y="219" text-anchor="middle">TR</text></g><g class="tb"><rect x="160" y="208" width="24" height="15" rx="7"/><text x="172" y="219" text-anchor="middle">DN</text></g>
 </svg>
 </div>
 <p>CLASSIFY proposes a type and the user confirms it; the cutter for that form cuts the units. A transcript also gets a speaker map that the user confirms. Other forms go straight from the cutter to the units.</p>
+<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <span class="tb-c" title="Q&amp;A addendum">QA</span> <b>Confirm:</b> addenda are also put in issue order (number, then date), and the user confirms any order of precedence the buyer states.</li><li><span class="tb-c" title="attachment">AT</span> <b>Cut into units:</b> spreadsheet or PDF cutter for a pricing workbook, forms or sample contract.</li><li><span class="tb-c" title="call transcript">TR</span> <b>Cut into units:</b> sentences inside speaker turns, with the speaker stored on each unit; then the speaker map and its confirmation, which only transcripts have.</li><li><span class="tb-c" title="deal notes">DN</span> <b>Cut into units:</b> notes cutter: entries and their lines.</li></ul>
 
 <h3>2. Units become facts and links</h3>
 <div class="scroll" style="padding:12px">
 <svg class="flow data d2" style="min-width:600px" viewBox="0 0 800 470" role="img" aria-labelledby="d2-t">
-  <title id="d2-t">Picture 2, units become facts and links. The label round (model: LABEL three times, STATE, CHECK, XREF) answers about every unit; code builds the facts and sets each fact's level, and stores votes and facts. RELATE (model) gives each unit of a change or context document a kind and target units from code's candidates; code applies the relations with the ladder, marks replaced facts, stores the relations, and lists facts that still state an old value. GROUP over the bid (model) gives same-point and list groups; code checks them, shows same values as one point and lists pairs with different values. The pairs go to picture 3.</title>
+  <title id="d2-t">Picture 2, units become facts and links. The label round (model: LABEL three times, STATE, CHECK, XREF) answers about every unit; code builds the facts and sets each fact's level, and stores votes and facts. RELATE (model) gives each unit of a change or context document a kind and target units from code's candidates; code applies the relations with the ladder, marks replaced facts, stores the relations, and lists facts that still state an old value. GROUP over the bid (model) gives same-point and list groups; code checks them, shows same values as one point and lists pairs with different values. The pairs go to picture 3. Badges mark the boxes where some kinds of document differ; the list after the picture says how.</title>
   <defs><marker id="da2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>
   <g class="b st"><rect x="16" y="40" width="176" height="96" rx="10"/>
     <text class="n" x="30" y="62">FROM PICTURE 1</text><text class="t" x="30" y="84">Units</text>
@@ -315,14 +324,19 @@ h3 .who { vertical-align: 3px; }
   <path class="ar" d="M488 408 H604"/>
   <text class="n" x="548" y="388" text-anchor="middle">pairs with</text>
   <text class="n" x="548" y="400" text-anchor="middle">different values</text>
+  <g class="tb"><rect x="402" y="48" width="24" height="15" rx="7"/><text x="414" y="59" text-anchor="middle">AD</text></g><g class="tb"><rect x="429" y="48" width="24" height="15" rx="7"/><text x="441" y="59" text-anchor="middle">TR</text></g><g class="tb"><rect x="456" y="48" width="24" height="15" rx="7"/><text x="468" y="59" text-anchor="middle">DN</text></g>
+  <g class="tb"><rect x="725" y="48" width="24" height="15" rx="7"/><text x="737" y="59" text-anchor="middle">TR</text></g><g class="tb"><rect x="752" y="48" width="24" height="15" rx="7"/><text x="764" y="59" text-anchor="middle">DN</text></g>
+  <g class="tb"><rect x="79" y="208" width="24" height="15" rx="7"/><text x="91" y="219" text-anchor="middle">AD</text></g><g class="tb"><rect x="106" y="208" width="24" height="15" rx="7"/><text x="118" y="219" text-anchor="middle">QA</text></g><g class="tb"><rect x="133" y="208" width="24" height="15" rx="7"/><text x="145" y="219" text-anchor="middle">TR</text></g><g class="tb"><rect x="160" y="208" width="24" height="15" rx="7"/><text x="172" y="219" text-anchor="middle">DN</text></g>
+  <g class="tb"><rect x="456" y="208" width="24" height="15" rx="7"/><text x="468" y="219" text-anchor="middle">RE</text></g>
 </svg>
 </div>
 <p>The label round answers about every unit, and code builds the facts and sets their levels. RELATE links the units of a change or context document to earlier units, and code applies those links with the ladder. GROUP finds repeated points across the bid; code keeps same values as one point and hands on every pair whose values differ, with the facts that still state an old value.</p>
+<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <b>Label round:</b> as for an RFP, but a section reference is held back until RELATE answers.</li><li><span class="tb-c" title="call transcript">TR</span> <b>Label round:</b> the transcript playbook: its own categories, a tentative flag, the question-and-answer rule.</li><li><span class="tb-c" title="deal notes">DN</span> <b>Label round:</b> the notes playbook.</li><li><span class="tb-c" title="call transcript">TR</span> <span class="tb-c" title="deal notes">DN</span> <b>Build facts:</b> level 2 for buyer units and 3 for ours, from the speakers of a fact's units; deal notes are level 4. Buyer documents are level 1.</li><li><span class="tb-c" title="change addendum">AD</span> <span class="tb-c" title="Q&amp;A addendum">QA</span> <b>RELATE:</b> every unit, against earlier buyer units and headings: replaces, removes, adds; a Q&amp;A answer mostly clarifies or adds.</li><li><span class="tb-c" title="call transcript">TR</span> <span class="tb-c" title="deal notes">DN</span> <b>RELATE:</b> against buyer documents: confirms, clarifies, disagrees, adds. An RFP and an attachment skip RELATE: they are the base.</li><li><span class="tb-c" title="reissued RFP">RE</span> <b>Apply relations:</b> a reissue has no RELATE: it is aligned with the previous version by text, and corrections move to the new fact IDs.</li></ul>
 
 <h3>3. Disagreements are settled, and the outputs made</h3>
 <div class="scroll" style="padding:12px">
 <svg class="flow data d3" style="min-width:600px" viewBox="0 0 800 470" role="img" aria-labelledby="d3-t">
-  <title id="d3-t">Picture 3, disagreements are settled and the outputs made. The pair check (model) says for each pair whether the facts give different values for the same thing; code applies the ladder, checks coverage and raises conflicts; the user decides, and the choices go into the correction log. The stored facts and relations of every document, applied in issue order with the log replayed over them, give the bid's fact list, which feeds the summaries (model, checked by code) and the exports filtered by each citation's visibility (code).</title>
+  <title id="d3-t">Picture 3, disagreements are settled and the outputs made. The pair check (model) says for each pair whether the facts give different values for the same thing; code applies the ladder, checks coverage and raises conflicts; the user decides, and the choices go into the correction log. The stored facts and relations of every document, applied in issue order with the log replayed over them, give the bid's fact list, which feeds the summaries (model, checked by code) and the exports filtered by each citation's visibility (code). Badges mark the boxes where some kinds of document differ; the list after the picture says how.</title>
   <defs><marker id="da3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>
   <g class="b st"><rect x="16" y="40" width="176" height="96" rx="10"/>
     <text class="n" x="30" y="62">FROM PICTURE 2</text><text class="t" x="30" y="84">Pairs to settle</text>
@@ -368,11 +382,14 @@ h3 .who { vertical-align: 3px; }
   <g class="b st"><rect x="608" y="360" width="176" height="96" rx="10"/>
     <text class="n" x="622" y="382">FROM STORED RESULTS</text><text class="t" x="622" y="404">Facts and relations</text>
     <text class="s" x="622" y="424">Every document’s, in</text><text class="s" x="622" y="440">issue order.</text></g>
+  <g class="tb"><rect x="725" y="48" width="24" height="15" rx="7"/><text x="737" y="59" text-anchor="middle">AD</text></g><g class="tb"><rect x="752" y="48" width="24" height="15" rx="7"/><text x="764" y="59" text-anchor="middle">AT</text></g>
+  <g class="tb"><rect x="429" y="368" width="24" height="15" rx="7"/><text x="441" y="379" text-anchor="middle">TR</text></g><g class="tb"><rect x="456" y="368" width="24" height="15" rx="7"/><text x="468" y="379" text-anchor="middle">DN</text></g>
 </svg>
 </div>
 <p>The pair check, the ladder and the user's decisions settle what disagrees; the decisions go into the correction log. The stored facts and relations, applied in issue order with the log replayed over them, give the bid's fact list, its summaries and the exports.</p>
+<ul class="differs"><li><span class="tb-c" title="change addendum">AD</span> <b>Apply the ladder:</b> between buyer documents the later issue wins, unless a stated order of precedence says otherwise.</li><li><span class="tb-c" title="attachment">AT</span> <b>Apply the ladder:</b> an attachment issued with the RFP has no order against it, so a disagreement is a Q fact, not a replacement.</li><li><span class="tb-c" title="call transcript">TR</span> <span class="tb-c" title="deal notes">DN</span> <b>Exports:</b> internal by default, so their citations are left out of anything sent outside the team.</li></ul>
 <h3 id="types">4. Where the document types differ</h3>
-<p>Every document goes through the three pictures. Its playbook changes only the steps below; a highlighted cell is where a type departs from the RFP.</p>
+<p>The badges from the three pictures, gathered by document type. Every document goes through the three pictures; its playbook changes only the steps below, and a highlighted cell is where a type departs from the RFP.</p>
 <div class="legend"><span><i class="lf"></i>Differs from the RFP</span><span><i class="ld"></i>Same as the RFP</span></div>
 <div class="scroll"><table class="types">
 <thead><tr>
