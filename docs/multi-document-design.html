@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Many Documents, One Bid</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Same palette as the other docs pages: cool paper, ink, teal for "code decides", amber for "look here". */
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef1f5; --fg: #17202a; --muted: #5b6776; --line: #d9dee6;
+  --accent: #14667f; --accent-soft: #dcecf1; --warn: #9a5b00; --warn-soft: #fbeccd; --ok: #1d6b3f; --ok-soft: #dcf0e3;
+  --bad: #a3322a; --bad-soft: #f7dedb; --user: #6b3fa0; --user-soft: #ece3f7;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11161c; --surface: #1a212a; --surface-2: #232c37; --fg: #e8edf3; --muted: #9aa7b6; --line: #2f3a47;
+  --accent: #6cc3dc; --accent-soft: #1c3640; --warn: #f0b861; --warn-soft: #3b2f17; --ok: #7fd3a2; --ok-soft: #1b3326;
+  --bad: #f19a90; --bad-soft: #3d201d; --user: #c3a3ec; --user-soft: #2e2340; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11161c; --surface: #1a212a; --surface-2: #232c37; --fg: #e8edf3; --muted: #9aa7b6; --line: #2f3a47;
+  --accent: #6cc3dc; --accent-soft: #1c3640; --warn: #f0b861; --warn-soft: #3b2f17; --ok: #7fd3a2; --ok-soft: #1b3326;
+  --bad: #f19a90; --bad-soft: #3d201d; --user: #c3a3ec; --user-soft: #2e2340; color-scheme: dark; }
+
+html { color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 16px/1.65 var(--font-body); padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 64px; }
+.wrap { max-width: 880px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--font-head); font-weight: 600; line-height: 1.2; text-wrap: balance; margin: 0; }
+h1 { font-size: 2rem; }
+h2 { font-size: 1.45rem; margin-top: 56px; padding-top: 8px; }
+h3 { font-size: 1.05rem; margin-top: 24px; }
+p, li { max-width: 68ch; }
+p { margin: 12px 0; }
+ul, ol { padding-left: 1.2rem; } li { margin: 6px 0; }
+code { font-family: var(--font-mono); font-size: 0.86em; background: var(--surface-2); padding: 1px 6px; border-radius: 4px; }
+.lede { font-size: 1.12rem; color: var(--muted); max-width: 62ch; }
+.status { display: inline-block; font: 500 0.78rem var(--font-mono); padding: 2px 10px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); margin-bottom: 12px; }
+nav { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 20px 0 0; font-size: 0.9rem; }
+nav a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; }
+nav a:hover, nav a:focus-visible { border-bottom-color: var(--accent); outline: none; }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 16px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.box b { font-family: var(--font-head); display: block; margin-bottom: 4px; }
+.box p { margin: 4px 0; font-size: 0.93rem; color: var(--muted); }
+.box.code { border-color: var(--accent); background: var(--accent-soft); }
+.tag { display: inline-block; font: 500 0.75rem var(--font-mono); padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.tag.bad { background: var(--bad-soft); color: var(--bad); }
+pre.ex { font: 400 0.82rem/1.55 var(--font-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 10px 0; overflow-x: auto; white-space: pre; color: var(--fg); }
+.note { border-left: 4px solid var(--warn); background: var(--surface); border-radius: 0 8px 8px 0; padding: 10px 14px; margin: 16px 0; }
+.note p { margin: 4px 0; }
+
+/* priority ladder */
+.ladder { display: grid; gap: 8px; margin: 16px 0; }
+.rung { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.rung .n { font: 600 1.3rem var(--font-head); color: var(--accent); text-align: center; }
+.rung b { font-family: var(--font-head); }
+.rung span { display: block; font-size: 0.9rem; color: var(--muted); }
+.rung:nth-child(1) { border-left: 6px solid var(--accent); }
+.rung:nth-child(2) { border-left: 6px solid color-mix(in srgb, var(--accent) 70%, var(--line)); }
+.rung:nth-child(3) { border-left: 6px solid color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.rung:nth-child(4) { border-left: 6px solid var(--line); }
+
+/* picker */
+.bench { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
+.pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.pick label { display: block; font: 600 0.78rem var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { font: 500 0.88rem var(--font-body); color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #08222b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #08222b; } }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.result { margin-top: 16px; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 12px 14px; background: var(--bg); }
+.result.warn { border-left-color: var(--warn); }
+.result.bad { border-left-color: var(--bad); }
+.result .head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-weight: 600; }
+.result p { margin: 6px 0 0; font-size: 0.95rem; }
+.result ul { margin: 6px 0 0; font-size: 0.93rem; }
+
+/* addendum flow diagram */
+.flow { display: block; width: 100%; min-width: 820px; height: auto; }
+.flow .b rect { fill: var(--surface); stroke: var(--line); stroke-width: 1; }
+.flow .c rect { fill: var(--accent-soft); stroke: var(--accent); }
+.flow .m rect { fill: var(--warn-soft); stroke: var(--warn); }
+.flow .x rect { fill: var(--user-soft); stroke: var(--user); }
+.flow .n { fill: var(--muted); font: 500 11px var(--font-mono); }
+.flow .t { fill: var(--fg); font: 600 14px var(--font-body); }
+.flow .s { fill: var(--muted); font: 400 12px var(--font-body); }
+.flow .ar { fill: none; stroke: var(--muted); stroke-width: 1.5; marker-end: url(#fa); }
+.flow .ar.d { stroke-dasharray: 4 3; }
+.flow #fa path, .flow #da path { fill: var(--muted); }
+.flow.data .ar { marker-end: url(#da); }
+.flow.d1 .ar { marker-end: url(#da1); } .flow.d2 .ar { marker-end: url(#da2); } .flow.d3 .ar { marker-end: url(#da3); }
+.flow #da1 path, .flow #da2 path, .flow #da3 path { fill: var(--muted); }
+.flow .st rect { fill: none; stroke: var(--muted); stroke-dasharray: 5 4; }
+.legend .ls { background: transparent; border-color: var(--muted); border-style: dashed; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 0.85rem; color: var(--muted); margin: 8px 0 0; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; border: 1px solid; }
+.legend .lc { background: var(--accent-soft); border-color: var(--accent); }
+.legend .lm { background: var(--warn-soft); border-color: var(--warn); }
+.legend .lx { background: var(--user-soft); border-color: var(--user); }
+.legend .ld { background: var(--surface); border-color: var(--line); }
+
+/* change pictures */
+.change { display: grid; grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1.6fr); gap: 10px; align-items: center; margin: 16px 0; }
+@media (max-width: 680px) { .change { grid-template-columns: minmax(0, 1fr); } .change .arrow { transform: rotate(90deg); } }
+.change .arrow { text-align: center; font-size: 1.4rem; color: var(--muted); }
+.src { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 12px 14px; font-size: 0.93rem; }
+.src .k { font: 600 0.72rem var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 4px; }
+.flist { display: grid; gap: 8px; }
+.fc { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 0.9rem; }
+.fc .code { font: 600 0.8rem var(--font-mono); color: var(--accent); background: var(--accent-soft); border-radius: 5px; text-align: center; padding: 2px 0; }
+.fc del { color: var(--bad); text-decoration-thickness: 1.5px; }
+.fc ins { color: var(--ok); text-decoration: none; font-weight: 600; }
+.fc.gone { opacity: .6; }
+.fc.gone .txt { text-decoration: line-through; }
+.fc.review { border-color: var(--warn); }
+@media (max-width: 520px) { .fc { grid-template-columns: 30px minmax(0, 1fr); } .fc .tag { grid-column: 2; justify-self: start; } }
+
+/* who does it: model, code, user */
+.who { display: inline-block; font: 600 0.68rem var(--font-body); letter-spacing: 0.07em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid; vertical-align: 2px; margin-right: 4px; white-space: nowrap; }
+.who.m { color: var(--warn); background: var(--warn-soft); border-color: var(--warn); }
+.who.c { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
+.who.u { color: var(--user); background: var(--user-soft); border-color: var(--user); }
+h3 .who, li .who, td .who { margin-left: 0; }
+h3 .who { vertical-align: 3px; }
+.lanes { display: grid; grid-template-columns: 28px repeat(3, minmax(0, 1fr)); gap: 6px 8px; margin: 16px 0; }
+.lanes .lh { font: 600 0.75rem var(--font-body); letter-spacing: 0.07em; text-transform: uppercase; text-align: center; padding: 6px 0; border-radius: 8px; }
+.lanes .lh.u { color: var(--user); background: var(--user-soft); }
+.lanes .lh.m { color: var(--warn); background: var(--warn-soft); }
+.lanes .lh.c { color: var(--accent); background: var(--accent-soft); }
+.lanes .num { grid-column: 1; font: 600 0.85rem var(--font-mono); color: var(--muted); text-align: right; padding-top: 10px; }
+.lanes .card { border: 1px solid var(--line); border-left: 4px solid; border-radius: 8px; padding: 8px 10px; background: var(--surface); font-size: 0.86rem; line-height: 1.45; min-width: 0; }
+.lanes .card b { display: block; font-family: var(--font-head); font-size: 0.92rem; margin-bottom: 2px; }
+.lanes .card span { color: var(--muted); }
+.lanes .card.u { border-left-color: var(--user); grid-column: 2; }
+.lanes .card.m { border-left-color: var(--warn); grid-column: 3; }
+.lanes .card.c { border-left-color: var(--accent); grid-column: 4; }
+.lanes .card code { font-size: 0.8em; }
+@media (max-width: 600px) {
+  .lanes { grid-template-columns: 24px minmax(0, 1fr); }
+  .lanes .lh { display: none; }
+  .lanes .card.u, .lanes .card.m, .lanes .card.c { grid-column: 2; }
+  .lanes .card::before { display: block; font: 600 0.66rem var(--font-body); letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 2px; }
+  .lanes .card.u::before { content: "User"; color: var(--user); }
+  .lanes .card.m::before { content: "Model"; color: var(--warn); }
+  .lanes .card.c::before { content: "Code"; color: var(--accent); }
+}
+.calls { min-width: 780px; }
+.calls td:first-child { font: 600 0.82rem var(--font-mono); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<span class="status">Proposal · rewritten and checked against the code 2026-11-21 · not built</span>
+<h1>Many documents, one bid</h1>
+<p class="lede">The extractor reads one RFP. A real bid also has addenda, call transcripts and the team's own deal notes. This page proposes how each kind of document is read, and how the facts from all of them agree on which one to believe. Every step is marked by who does it: the model, code, or the user.</p>
+
+<nav aria-label="On this page">
+  <a href="#dataflow">Dataflow</a>
+  <a href="#today">Today: one document</a>
+  <a href="#properties">Three properties</a>
+  <a href="#playbooks">Playbooks</a>
+  <a href="#ladder">Priority ladder</a>
+  <a href="#disagree">When sources disagree</a>
+  <a href="#flow">Who does what</a>
+  <a href="#calls">Model calls</a>
+  <a href="#merge">Duplicates across documents</a>
+  <a href="#addenda">Addenda</a>
+  <a href="#speakers">Who is speaking</a>
+  <a href="#log">Correction log</a>
+  <a href="#risks">Risks</a>
+  <a href="#order">Build order</a>
+</nav>
+
+<details>
+<summary>Terms used on this page</summary>
+<ul>
+  <li><b>Unit:</b> one sentence, list item, table row or heading, cut by code and given an ID such as <code>p3.12</code>. The model sees units; it never makes them.</li>
+  <li><b>Label:</b> the model's closed answer for a unit: a category code, <code>=</code> (continues the point of a unit just before) or <code>-</code> (states no point).</li>
+  <li><b>Fact:</b> a coded unit plus the continuation units after it. Its ID is a hash of the document ID and the coded unit's ID (<code>units.fact_id</code>), so it does not change with the code, the wording or the run.</li>
+  <li><b>Group:</b> GROUP's answer that some facts state the <em>same</em> point or are items of one <em>list</em>. Today groups change how facts are shown, never which facts exist.</li>
+  <li><b>Level:</b> where a source sits on the <a href="#ladder">priority ladder</a>, 1 (buyer documents) to 4 (deal notes). "Authority" is the property that sets it.</li>
+  <li><b>Relation:</b> a link from a unit in a later document to units in an earlier one, of a fixed kind: replaces, removes, adds, clarifies, confirms, disagrees or none. Relations never rewrite a fact's text.</li>
+  <li><b>Subject test:</b> whether two facts that give different values are about the same thing (the same event, item or term). Defined in <a href="#subject">Duplicates across documents</a>.</li>
+  <li><b>Q fact:</b> a contradiction inside the buyer's own material, kept in the fact list. Today it is always inside one document (CHECK and XREF).</li>
+  <li><b>Conflict:</b> a decision card in the workspace that asks the user to choose between options. Today a Q fact shows as one, and the chat or the fact check can raise one (<code>Workspace.raise_conflict</code>).</li>
+</ul>
+</details>
+
+<h2 id="dataflow">Dataflow</h2>
+<p>The whole proposed system in three pictures, read in order. Each starts with a dashed box naming what the previous one handed over.</p>
+<div class="legend"><span><i class="lc"></i>Code</span><span><i class="lm"></i>Model answers, code checks</span><span><i class="lx"></i>User</span><span><i class="ld"></i>Data kept or shown</span><span><i class="ls"></i>Hand-over between pictures</span></div>
+
+<h3>1. A document becomes units</h3>
+<div class="scroll" style="padding:12px">
+<svg class="flow data d1" style="min-width:600px" viewBox="0 0 800 470" role="img" aria-labelledby="d1-t">
+  <title id="d1-t">Picture 1, a document becomes units. Documents go to CLASSIFY (model), which proposes a playbook, issue number and date from the first pages; the user confirms. The cutter for the document's form (code) cuts it into units. For a transcript, code matches speaker names to the team list and B facts, and the user confirms the sides and names unknown speakers. The result, handed to picture 2, is units with ID, text, page or turn, heading and speaker side.</title>
+  <defs><marker id="da1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>
+  <g class="b"><rect x="16" y="40" width="176" height="96" rx="10"/>
+    <text class="n" x="30" y="62">INPUT</text><text class="t" x="30" y="84">Documents</text>
+    <text class="s" x="30" y="104">RFP, addenda, reissues,</text><text class="s" x="30" y="120">attachments, calls, notes</text></g>
+  <g class="b m"><rect x="312" y="40" width="176" height="96" rx="10"/>
+    <text class="n" x="326" y="62">MODEL</text><text class="t" x="326" y="84">CLASSIFY</text>
+    <text class="s" x="326" y="104">Playbook, issue number</text><text class="s" x="326" y="120">and date, from first pages</text></g>
+  <g class="b x"><rect x="608" y="40" width="176" height="96" rx="10"/>
+    <text class="n" x="622" y="62">USER</text><text class="t" x="622" y="84">Confirm</text>
+    <text class="s" x="622" y="104">Type, issue number, date.</text></g>
+  <path class="ar" d="M192 88 H308"/>
+  <text class="n" x="252" y="80" text-anchor="middle">first pages</text>
+  <path class="ar" d="M488 88 H604"/>
+  <text class="n" x="548" y="68" text-anchor="middle">playbook,</text>
+  <text class="n" x="548" y="80" text-anchor="middle">number, date</text>
+  <path class="ar" d="M696 136 V164 H104 V196"/>
+  <text class="n" x="400" y="158" text-anchor="middle">document, confirmed type</text>
+  <g class="b c"><rect x="16" y="200" width="176" height="96" rx="10"/>
+    <text class="n" x="30" y="222">CODE</text><text class="t" x="30" y="244">Cut into units</text>
+    <text class="s" x="30" y="264">Cutter per form: PDF</text><text class="s" x="30" y="280">tagging, transcript, notes</text></g>
+  <g class="b c"><rect x="312" y="200" width="176" height="96" rx="10"/>
+    <text class="n" x="326" y="222">CODE · TRANSCRIPTS</text><text class="t" x="326" y="244">Speaker map</text>
+    <text class="s" x="326" y="264">Names matched to the team</text><text class="s" x="326" y="280">list and B facts.</text></g>
+  <g class="b x"><rect x="608" y="200" width="176" height="96" rx="10"/>
+    <text class="n" x="622" y="222">USER · TRANSCRIPTS</text><text class="t" x="622" y="244">Confirm speakers</text>
+    <text class="s" x="622" y="264">Sides confirmed;</text><text class="s" x="622" y="280">unknown speakers named.</text></g>
+  <path class="ar" d="M192 248 H308"/>
+  <text class="n" x="252" y="240" text-anchor="middle">speaker names</text>
+  <path class="ar" d="M488 248 H604"/>
+  <text class="n" x="548" y="240" text-anchor="middle">proposed sides</text>
+  <path class="ar d" d="M64 296 V356"/>
+  <text class="n" x="70" y="346" text-anchor="start">other forms</text>
+  <path class="ar" d="M696 296 V320 H154 V356"/>
+  <text class="n" x="440" y="314" text-anchor="middle">units with speaker sides</text>
+  <g class="b st"><rect x="16" y="360" width="176" height="96" rx="10"/>
+    <text class="n" x="30" y="382">TO PICTURE 2</text><text class="t" x="30" y="404">Units</text>
+    <text class="s" x="30" y="424">ID, text, page or turn,</text><text class="s" x="30" y="440">heading, speaker side.</text></g>
+</svg>
+</div>
+<p>CLASSIFY proposes a type and the user confirms it; the cutter for that form cuts the units. A transcript also gets a speaker map that the user confirms. Other forms go straight from the cutter to the units.</p>
+
+<h3>2. Units become facts and links</h3>
+<div class="scroll" style="padding:12px">
+<svg class="flow data d2" style="min-width:600px" viewBox="0 0 800 470" role="img" aria-labelledby="d2-t">
+  <title id="d2-t">Picture 2, units become facts and links. The label round (model: LABEL three times, STATE, CHECK, XREF) answers about every unit; code builds the facts and sets each fact's level, and stores votes and facts. RELATE (model) gives each unit of a change or context document a kind and target units from code's candidates; code applies the relations with the ladder, marks replaced facts, stores the relations, and lists facts that still state an old value. GROUP over the bid (model) gives same-point and list groups; code checks them, shows same values as one point and lists pairs with different values. The pairs go to picture 3.</title>
+  <defs><marker id="da2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>
+  <g class="b st"><rect x="16" y="40" width="176" height="96" rx="10"/>
+    <text class="n" x="30" y="62">FROM PICTURE 1</text><text class="t" x="30" y="84">Units</text>
+    <text class="s" x="30" y="104">Of one document, with</text><text class="s" x="30" y="120">speaker sides.</text></g>
+  <g class="b m"><rect x="312" y="40" width="176" height="96" rx="10"/>
+    <text class="n" x="326" y="62">MODEL</text><text class="t" x="326" y="84">Label round</text>
+    <text class="s" x="326" y="104">LABEL ×3, STATE, CHECK,</text><text class="s" x="326" y="120">XREF on a cached prefix.</text></g>
+  <g class="b c"><rect x="608" y="40" width="176" height="96" rx="10"/>
+    <text class="n" x="622" y="62">CODE</text><text class="t" x="622" y="84">Build facts</text>
+    <text class="s" x="622" y="104">Votes, continuations,</text><text class="s" x="622" y="120">number check; set level.</text></g>
+  <path class="ar" d="M192 88 H308"/>
+  <text class="n" x="252" y="80" text-anchor="middle">units</text>
+  <path class="ar" d="M488 88 H604"/>
+  <text class="n" x="548" y="56" text-anchor="middle">labels,</text>
+  <text class="n" x="548" y="68" text-anchor="middle">statements,</text>
+  <text class="n" x="548" y="80" text-anchor="middle">Q lines, refs</text>
+  <path class="ar" d="M656 136 V164 H104 V196"/>
+  <text class="n" x="380" y="158" text-anchor="middle">facts + levels</text>
+  <path class="ar" d="M746 136 V196"/>
+  <text class="n" x="754" y="172" text-anchor="start">facts</text>
+  <g class="b m"><rect x="16" y="200" width="176" height="96" rx="10"/>
+    <text class="n" x="30" y="222">MODEL</text><text class="t" x="30" y="244">RELATE</text>
+    <text class="s" x="30" y="264">Kind and targets per unit</text><text class="s" x="30" y="280">from code’s candidates.</text></g>
+  <g class="b c"><rect x="312" y="200" width="176" height="96" rx="10"/>
+    <text class="n" x="326" y="222">CODE</text><text class="t" x="326" y="244">Apply relations</text>
+    <text class="s" x="326" y="264">Ladder applied; replaced</text><text class="s" x="326" y="280">facts marked.</text></g>
+  <g class="b"><rect x="608" y="200" width="176" height="96" rx="10"/>
+    <text class="n" x="622" y="222">DATA</text><text class="t" x="622" y="244">Stored results</text>
+    <text class="s" x="622" y="264">Per document: labels,</text><text class="s" x="622" y="280">facts, relations.</text></g>
+  <path class="ar" d="M192 248 H308"/>
+  <text class="n" x="252" y="240" text-anchor="middle">relations</text>
+  <path class="ar" d="M488 248 H604"/>
+  <text class="n" x="548" y="228" text-anchor="middle">votes, facts,</text>
+  <text class="n" x="548" y="240" text-anchor="middle">relations</text>
+  <path class="ar" d="M360 296 V324 H104 V356"/>
+  <text class="n" x="124" y="318" text-anchor="middle">facts, replaced marked</text>
+  <path class="ar" d="M440 296 V344 H696 V356"/>
+  <text class="n" x="666" y="338" text-anchor="middle">old-value pairs</text>
+  <g class="b m"><rect x="16" y="360" width="176" height="96" rx="10"/>
+    <text class="n" x="30" y="382">MODEL</text><text class="t" x="30" y="404">GROUP over the bid</text>
+    <text class="s" x="30" y="424">Same-point and list</text><text class="s" x="30" y="440">groups per category.</text></g>
+  <g class="b c"><rect x="312" y="360" width="176" height="96" rx="10"/>
+    <text class="n" x="326" y="382">CODE</text><text class="t" x="326" y="404">Check groups</text>
+    <text class="s" x="326" y="424">Same values: one point.</text><text class="s" x="326" y="440">Different: list the pair.</text></g>
+  <g class="b st"><rect x="608" y="360" width="176" height="96" rx="10"/>
+    <text class="n" x="622" y="382">TO PICTURE 3</text><text class="t" x="622" y="404">Pairs to settle</text>
+    <text class="s" x="622" y="424">Different values, and</text><text class="s" x="622" y="440">facts with an old value.</text></g>
+  <path class="ar" d="M192 408 H308"/>
+  <text class="n" x="252" y="400" text-anchor="middle">groups</text>
+  <path class="ar" d="M488 408 H604"/>
+  <text class="n" x="548" y="388" text-anchor="middle">pairs with</text>
+  <text class="n" x="548" y="400" text-anchor="middle">different values</text>
+</svg>
+</div>
+<p>The label round answers about every unit, and code builds the facts and sets their levels. RELATE links the units of a change or context document to earlier units, and code applies those links with the ladder. GROUP finds repeated points across the bid; code keeps same values as one point and hands on every pair whose values differ, with the facts that still state an old value.</p>
+
+<h3>3. Disagreements are settled, and the outputs made</h3>
+<div class="scroll" style="padding:12px">
+<svg class="flow data d3" style="min-width:600px" viewBox="0 0 800 470" role="img" aria-labelledby="d3-t">
+  <title id="d3-t">Picture 3, disagreements are settled and the outputs made. The pair check (model) says for each pair whether the facts give different values for the same thing; code applies the ladder, checks coverage and raises conflicts; the user decides, and the choices go into the correction log. The stored facts and relations of every document, applied in issue order with the log replayed over them, give the bid's fact list, which feeds the summaries (model, checked by code) and the exports filtered by each citation's visibility (code).</title>
+  <defs><marker id="da3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>
+  <g class="b st"><rect x="16" y="40" width="176" height="96" rx="10"/>
+    <text class="n" x="30" y="62">FROM PICTURE 2</text><text class="t" x="30" y="84">Pairs to settle</text>
+    <text class="s" x="30" y="104">Different values, and</text><text class="s" x="30" y="120">facts with an old value.</text></g>
+  <g class="b m"><rect x="312" y="40" width="176" height="96" rx="10"/>
+    <text class="n" x="326" y="62">MODEL</text><text class="t" x="326" y="84">Pair check</text>
+    <text class="s" x="326" y="104">Different values for the</text><text class="s" x="326" y="120">same thing? (fact check)</text></g>
+  <g class="b c"><rect x="608" y="40" width="176" height="96" rx="10"/>
+    <text class="n" x="622" y="62">CODE</text><text class="t" x="622" y="84">Apply the ladder</text>
+    <text class="s" x="622" y="104">Ladder outcome per pair;</text><text class="s" x="622" y="120">coverage; conflicts.</text></g>
+  <path class="ar" d="M192 88 H308"/>
+  <text class="n" x="252" y="80" text-anchor="middle">pairs</text>
+  <path class="ar" d="M488 88 H604"/>
+  <text class="n" x="548" y="80" text-anchor="middle">probabilities</text>
+  <path class="ar" d="M696 136 V164 H104 V196"/>
+  <text class="n" x="400" y="158" text-anchor="middle">conflicts</text>
+  <g class="b x"><rect x="16" y="200" width="176" height="96" rx="10"/>
+    <text class="n" x="30" y="222">USER</text><text class="t" x="30" y="244">Decide</text>
+    <text class="s" x="30" y="264">Resolve conflicts, reject</text><text class="s" x="30" y="280">relations, ungroup.</text></g>
+  <g class="b"><rect x="312" y="200" width="176" height="96" rx="10"/>
+    <text class="n" x="326" y="222">DATA</text><text class="t" x="326" y="244">Correction log</text>
+    <text class="s" x="326" y="264">The user’s choices,</text><text class="s" x="326" y="280">replayed over the facts.</text></g>
+  <g class="b"><rect x="608" y="200" width="176" height="96" rx="10"/>
+    <text class="n" x="622" y="222">OUTPUT</text><text class="t" x="622" y="244">Bid fact list</text>
+    <text class="s" x="622" y="264">Every document’s facts,</text><text class="s" x="622" y="280">with level and citations.</text></g>
+  <path class="ar" d="M192 248 H308"/>
+  <text class="n" x="252" y="240" text-anchor="middle">choices, edits</text>
+  <path class="ar" d="M488 248 H604"/>
+  <text class="n" x="548" y="240" text-anchor="middle">corrections</text>
+  <path class="ar" d="M656 296 V324 H104 V356"/>
+  <text class="n" x="164" y="318" text-anchor="middle">facts</text>
+  <path class="ar" d="M400 324 V356"/>
+  <text class="n" x="408" y="344" text-anchor="start">facts, visibility</text>
+  <path class="ar" d="M736 360 V300"/>
+  <text class="n" x="728" y="344" text-anchor="end">in issue</text>
+  <text class="n" x="728" y="356" text-anchor="end">order</text>
+  <g class="b m"><rect x="16" y="360" width="176" height="96" rx="10"/>
+    <text class="n" x="30" y="382">MODEL · OUTPUT</text><text class="t" x="30" y="404">Summaries</text>
+    <text class="s" x="30" y="424">BRIEF rows that cite</text><text class="s" x="30" y="440">facts; code checks them.</text></g>
+  <g class="b c"><rect x="312" y="360" width="176" height="96" rx="10"/>
+    <text class="n" x="326" y="382">CODE · OUTPUT</text><text class="t" x="326" y="404">Exports</text>
+    <text class="s" x="326" y="424">Filtered by each</text><text class="s" x="326" y="440">citation’s visibility.</text></g>
+  <g class="b st"><rect x="608" y="360" width="176" height="96" rx="10"/>
+    <text class="n" x="622" y="382">FROM STORED RESULTS</text><text class="t" x="622" y="404">Facts and relations</text>
+    <text class="s" x="622" y="424">Every document’s, in</text><text class="s" x="622" y="440">issue order.</text></g>
+</svg>
+</div>
+<p>The pair check, the ladder and the user's decisions settle what disagrees; the decisions go into the correction log. The stored facts and relations, applied in issue order with the log replayed over them, give the bid's fact list, its summaries and the exports.</p>
+<p>Today only the PDF cutter, the label round, the fact building, GROUP and BRIEF within one document, the fact check, the stored results and the correction log exist; everything else in the pictures is proposed.</p>
+
+<p class="hint">How the rest of the page is ordered: first <a href="#today">today's one-document pipeline</a>; then the ideas a bid needs (<a href="#properties">document properties</a>, <a href="#playbooks">playbooks</a>, the <a href="#ladder">priority ladder</a>); then <a href="#flow">the steps</a> and <a href="#calls">model calls</a> of the pictures above; then the three mechanisms, in build order (<a href="#merge">duplicates</a>, <a href="#addenda">addenda</a>, <a href="#speakers">transcripts</a>); then the <a href="#log">correction-log changes</a> they share, <a href="#risks">risks</a> and the <a href="#order">build order</a>.</p>
+
+<h2 id="today">Today: how one document is read</h2>
+<p>The design builds on the unit-label pipeline (<code>units.py</code>), the only extraction pipeline since the earlier one was removed on 2026-11-21. Its rule: <b>the model never writes a fact list.</b> Code cuts the document into units; the model answers a closed question about each one; code builds the facts.</p>
+<div class="lanes" role="list" aria-label="Steps of one extraction today">
+  <div></div><div class="lh u">User</div><div class="lh m">Model</div><div class="lh c">Code</div>
+  <div class="num">1</div><div class="card c"><b>Cut into units</b><span><code>pdf.py</code>, <code>tagging.py</code>: units with IDs, pages and section headings.</span></div>
+  <div class="num">2</div><div class="card m"><b>LABEL × 3, STATE, CHECK, XREF</b><span>One round, all on the same cached prefix (<code>units.SYSTEM</code> + the tagged document).</span></div>
+  <div class="num">3</div><div class="card c"><b>Build facts</b><span>Majority label wins; a tie goes to the code first in <code>PRECEDENCE</code>. A continuation joins a coded unit at most 3 units back, or a run of continuations that does. <code>mandatory</code> and <code>desirable</code> come from the coded unit's wording. A statement is used only if its numbers are in the fact's units.</span></div>
+  <div class="num">4</div><div class="card c"><b>Verify references</b><span><code>xref.py</code> writes a Q fact only for a problem it can show.</span></div>
+  <div class="num">5</div><div class="card m"><b>GROUP, BRIEF</b><span>Same-point and list groups per category; fixed summary rows per section, each citing facts.</span></div>
+  <div class="num">6</div><div class="card c"><b>Store</b><span>Found again by the PDF's content hash, <code>VERSION</code> and the document ID (<code>results.py</code>); every unit's votes kept in <code>labels.json</code>.</span></div>
+  <div class="num">7</div><div class="card u"><b>Correct and chat</b><span>Edits go into the correction log; a fact that is added, or whose text is edited, is checked against related facts.</span></div>
+</div>
+<p>Every unit is asked about, so coverage is by construction: there is no sweep. An answer that leaves units out is asked for once more; if it is still short, the call is recorded <code>incomplete</code>, and the units it missed have one vote fewer (<code>?</code> in <code>labels.json</code>).</p>
+
+<h3>What assumes one document</h3>
+<div class="scroll"><table>
+<thead><tr><th>Where</th><th>What it assumes</th></tr></thead>
+<tbody>
+<tr><td><code>web/workspace.py</code></td><td>A workspace is one run folder: one <code>facts.json</code>, one PDF, one correction log. <code>Workspace.document()</code> rebuilds the units from that PDF with <code>tag_pages</code>.</td></tr>
+<tr><td><code>tagging.py</code></td><td>Unit IDs (<code>p3.12</code>, <code>p3.h1</code>, <code>p3.t2r4</code>) are unique only inside one document. A unit's <code>section</code> is the text of the last heading before it; headings have no levels.</td></tr>
+<tr><td><code>models.py</code></td><td><code>Anchor.citation()</code> leaves the document out. Code that compares citations compares bare unit IDs: <code>units._mark_conflicts</code>, <code>workspace._resolve_source</code>, <code>runs.merged</code>. <code>runs.document_order</code> sorts by page.</td></tr>
+<tr><td><code>cli.py</code></td><td>The document ID defaults to the file name without its extension, and <code>fact_id</code> hashes it. Two documents with the same file name would share fact IDs.</td></tr>
+<tr><td><code>units.py</code></td><td>The cache key is <code>units.SYSTEM</code> plus one document's text. The system prompt reads "an RFP". CHECK reads one document, XREF points only at units of the same document, and GROUP reads one document's facts; <code>group_id</code> hashes one document ID.</td></tr>
+<tr><td><code>results.py</code></td><td>One global <code>VERSION</code> for every stored result, and the source is kept as <code>source.pdf</code>.</td></tr>
+<tr><td><code>web/workspace.py</code>, <code>web/consistency.py</code></td><td>The <code>replaced</code> flag is set by the user: by resolving a conflict, or by editing a fact's flags (on screen or through the chat). Nothing marks a fact replaced by another document.</td></tr>
+</tbody></table></div>
+
+<h2 id="properties">Three properties of a document</h2>
+<p>"Document type" is really three separate things. Each decides a different part of the design.</p>
+<div class="cols">
+  <div class="box"><b>Authority (level)</b><p>Buyer document, buyer on a call, our side on a call, or deal notes.</p><p><span class="tag">decides</span> precedence and the default visibility</p></div>
+  <div class="box"><b>Form</b><p>Paged PDF, transcript, notes or spreadsheet.</p><p><span class="tag">decides</span> the unit cutter and what a unit's location is</p></div>
+  <div class="box"><b>Role</b><p>Base document, a change to it, or context around it.</p><p><span class="tag">decides</span> whether RELATE runs, and against what</p></div>
+</div>
+<div class="scroll"><table>
+<thead><tr><th>Document</th><th>Authority</th><th>Form</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td>RFP</td><td>Buyer document</td><td>Paged PDF</td><td>Base</td></tr>
+<tr><td>Change addendum ("Section 3.15 is replaced with…")</td><td>Buyer document</td><td>Paged PDF</td><td>Change</td></tr>
+<tr><td>Q&amp;A addendum</td><td>Buyer document</td><td>Paged PDF</td><td>Change</td></tr>
+<tr><td>Reissued full RFP</td><td>Buyer document</td><td>Paged PDF</td><td>Base, aligned with the previous version</td></tr>
+<tr><td>Pricing workbook, forms, sample contract</td><td>Buyer document</td><td>Spreadsheet or PDF</td><td>Base (attachment)</td></tr>
+<tr><td>Call transcript</td><td>Per unit: buyer or our side</td><td>Transcript</td><td>Context</td></tr>
+<tr><td>Internal deal notes</td><td>Deal notes</td><td>Notes</td><td>Context</td></tr>
+</tbody></table></div>
+<p>All documents of one bid sit together in a <b>bid</b>: an ordered list with each document's properties and issue date. Unit IDs stay as they are; a citation is a pair, (document, unit), shown as <code>d2 · p1.4</code>, where <code>d2</code> is the document's number in the bid. Today a citation holds no document (<code>Anchor.citation()</code>), so every place that compares citations by unit ID must compare the pair.</p>
+<p>Unit IDs should not be prefixed with the document. <code>fact_id</code> already hashes the document ID, so IDs are unique across a bid as long as document IDs are; a prefix would change every fact ID and cut existing correction logs, labels and reference lists loose from their facts. What the bid must enforce is unique document IDs, since today they default to the file name. Only inside a RELATE prompt, where units of two documents appear together, does code write the pair as one token (<code>d1:p2.31</code>); it maps the token back before anything is stored.</p>
+
+<h2 id="playbooks">Playbooks</h2>
+<p>Each document type gets a playbook: the standing rules for reading that kind of document, chosen the way a skill is chosen. Today the RFP's playbook exists but is spread across the code: <code>units.SYSTEM</code>, the task texts, <code>prompts.DEFINITIONS</code> and <code>PRECEDENCE</code>, <code>units.CODES</code> and <code>MODEL_FLAGS</code>, <code>modal_flags</code> and <code>SECTIONS</code>. goldset reads a second copy of the fact rules and flag tests from <code>prompts.SYSTEM</code> (<code>golden.py</code>).</p>
+<p>A playbook configures the pipeline; it is not one prompt. Its header is read by <b>code</b>; its body becomes blocks of the system prompt that <b>the model</b> reads.</p>
+<pre class="ex">---
+name: call-transcript
+description: Recording or notes of a live call between buyer and bidder;
+  speaker turns, timestamps, conversational wording.
+cutter: transcript             # sentences inside speaker turns
+codes: [D, C, R, E, PRIORITY, DECIDER, BUDGET, QUESTION]
+flags: [post-award, risk, unclear, tentative]
+calls: [LABEL, STATE, RELATE]
+relations: [CONFIRMS, CLARIFIES, DISAGREES, ADDS, NONE]
+votes: 3
+level: by speaker              # buyer units 2, our units 3
+relate_to: buyer documents
+visibility: internal           # default for citations from this document
+sections: [buyer-priorities, open-questions]
+version: 1
+---
+## A point in a conversation
+- A question states no point by itself. When the answer only agrees or disagrees,
+  label the question with the point and the answer as its continuation. When the
+  answer states the point, label the answer.
+- A hedged statement is still a point; flag it tentative.
+- "That date" or "the other system": label the unit with the point it refers to.</pre>
+<div class="cols">
+  <div class="box code"><b><span class="who c">Code</span> reads the header</b><p>The cutter · allowed codes and flags · which calls run · allowed relation kinds · votes · the level rule · what RELATE compares against · default visibility · summary sections · version</p></div>
+  <div class="box"><b><span class="who m">Model</span> reads the body</b><p>What a point is in this kind of document · what states no point · hedging, shorthand, coreference · the category definitions</p></div>
+</div>
+<ul>
+  <li><span class="who c">Code</span> <b>A unit cutter per form.</b> <code>api.document_from_units</code> already accepts units a caller cut, and treats each run of units with one page number as a page, so a transcript or notes cutter feeds the same pipeline. The workspace does not: it rebuilds units from the PDF, so the cut units must be stored with the result.</li>
+  <li><span class="who c">Code</span> <b>New categories and flags cost more than a line.</b> PRIORITY or DECIDER touch <code>CODES</code>, <code>models.CATEGORIES</code>, <code>DEFINITIONS</code>, <code>PRECEDENCE</code>, <code>_BINDS_BIDDER</code>, <code>SECTIONS</code> and the UI. A flag such as <code>tentative</code> touches <code>MODEL_FLAGS</code> and <code>models.FLAGS</code>, which the workspace validates edits against.</li>
+  <li><span class="who m">Model</span> <span class="who u">User</span> <b>Choosing a playbook:</b> CLASSIFY suggests one; the user confirms.</li>
+  <li><span class="who c">Code</span> <b>Versioned.</b> A playbook change is a prompt change. Today one <code>VERSION</code> covers every stored result; the playbook's name and version join it in the key a result is found by, so changing one playbook does not throw away the results of the other types. A changed playbook is re-checked on that type's reference list before it is trusted.</li>
+  <li><b>General rules only.</b> No examples taken from the test RFPs, or a playbook ends up fitted to the documents it was tested on.</li>
+</ul>
+
+<h2 id="ladder">Priority ladder</h2>
+<p>Buyer material is the most authoritative and deal notes the least. In a transcript, the side that said something decides its level.</p>
+<div class="ladder">
+  <div class="rung"><div class="n">1</div><div><b>Buyer documents</b><span>RFP, addenda, attachments. The order of precedence the buyer states decides when the RFP has one and the user has confirmed it; otherwise the later issue wins. Documents issued together, such as the RFP and its sample contract, have no order: a disagreement between them is a Q fact.</span></div></div>
+  <div class="rung"><div class="n">2</div><div><b>Buyer on a call</b><span>A clarification, answer or hint from the buyer's side. Not binding until a buyer document confirms it.</span></div></div>
+  <div class="rung"><div class="n">3</div><div><b>Our side on a call</b><span>What our team said, assumed or promised.</span></div></div>
+  <div class="rung"><div class="n">4</div><div><b>Deal notes</b><span>Our own view: intelligence, guesses, to-dos.</span></div></div>
+</div>
+<div class="note"><p><span class="who c">Code</span> <b>The rule:</b> a fact from a lower level never changes a fact from a higher level, and below level 1 nothing replaces anything automatically: two disagreeing statements at levels 2 to 4 are both kept and shown to the user.</p><p><span class="who u">User</span> The one exception is the user. When resolving a conflict, the user may choose to rely on a lower source, for example a verbal clarification. That choice is logged as theirs.</p></div>
+<p>When a lower level touches an existing fact, there are three outcomes:</p>
+<ul>
+  <li><b>Confirms it.</b> A relation is recorded. The higher-level fact keeps its text.</li>
+  <li><b>Adds something new.</b> It is a fact at its own level, cited to its source.</li>
+  <li><b>Disagrees.</b> What happens depends on the two levels, below.</li>
+</ul>
+
+<h2 id="disagree">When sources disagree</h2>
+<p>Disagreements are found in three places: CHECK inside one document <span class="who m">Model</span>, <a href="#addenda">RELATE</a> between documents <span class="who m">Model</span>, and the <a href="#merge">group check</a> across the bid, where code lists pairs whose values differ <span class="who c">Code</span> and the pair check says whether they are about the same thing <span class="who m">Model</span>. Code applies the outcome below; a conflict goes to the user <span class="who u">User</span>.</p>
+<p>"New" means later by the document's issue date or call date, not later uploaded: a document uploaded out of order is treated as if it had arrived in date order. Pick the two sides:</p>
+<div class="bench" id="bench">
+  <div class="pick">
+    <div><label id="l-new">New statement from</label><div class="seg" role="group" aria-labelledby="l-new" data-key="incoming"></div></div>
+    <div><label id="l-old">Disagrees with an existing fact from</label><div class="seg" role="group" aria-labelledby="l-old" data-key="existing"></div></div>
+  </div>
+  <div class="result" id="result" aria-live="polite"><noscript>This picker needs JavaScript. The rules are in the priority ladder above.</noscript></div>
+</div>
+<p>Conflicts use <code>Workspace.raise_conflict</code>, which already takes options that each carry their changes (edits and deletes of facts; an option may carry none). Three things are new: a conflict raised for a document, since today only the chat and the screen can raise one; an option that records a question for the buyer; and closing a conflict automatically when a later buyer document settles it. "Marked replaced" on this page always means today's <code>replaced</code> flag, plus a relation that names what replaced the fact.</p>
+
+<h2 id="flow">Who does what</h2>
+<p>The path of any document added to a bid. Steps 6 and 7 are today's pipeline, configured by the document's playbook.</p>
+<div class="lanes" role="list" aria-label="Steps when a document is added to a bid">
+  <div></div><div class="lh u">User</div><div class="lh m">Model</div><div class="lh c">Code</div>
+  <div class="num">1</div><div class="card u"><b>Upload</b><span>The document is added to the bid.</span></div>
+  <div class="num">2</div><div class="card m"><b>CLASSIFY</b><span>Reads the first pages. Picks a playbook from their descriptions; reads the issue number and date.</span></div>
+  <div class="num">3</div><div class="card u"><b>Confirm</b><span>Type, issue number and date.</span></div>
+  <div class="num">4</div><div class="card c"><b>Cut into units</b><span>The playbook's cutter: pages and sentences, or sentences inside speaker turns. Speaker names matched to the team list and to names in B facts. The document ID is made unique in the bid.</span></div>
+  <div class="num">5</div><div class="card u"><b>Confirm speakers</b><span>Transcripts only: the matches are shown and unmatched speakers are named. "Who is Speaker 3, buyer or us?"</span></div>
+  <div class="num">6</div><div class="card m"><b>LABEL, STATE, CHECK, XREF</b><span>Today's round, with the playbook's codes, flags and prompt blocks. A playbook may leave calls out.</span></div>
+  <div class="num">7</div><div class="card c"><b>Build facts, set levels</b><span>As today. Each fact's level comes from its document, or from the speakers of its units.</span></div>
+  <div class="num">8</div><div class="card m"><b>RELATE</b><span>Change and context documents: for each unit, a kind (replaces, removes, adds, clarifies, confirms, disagrees, none) and the earlier units it is about, picked from candidates code showed.</span></div>
+  <div class="num">9</div><div class="card c"><b>Apply relations</b><span>Targets checked and mapped to facts; the ladder decides what each relation may do; replaced facts marked. Facts that may still state an old value are listed as pairs.</span></div>
+  <div class="num">10</div><div class="card m"><b>GROUP across the bid</b><span>Same-point and list groups over every document's facts, per category.</span></div>
+  <div class="num">11</div><div class="card c"><b>Check groups</b><span>Same values: one point with every citation. Different values: not a duplicate; the pair is listed for the pair check.</span></div>
+  <div class="num">12</div><div class="card m"><b>Pair check</b><span>For each listed pair: do the two give different values or rules for the same thing? This is today's fact check.</span></div>
+  <div class="num">13</div><div class="card c"><b>Ladder, coverage, conflicts</b><span>A confirmed pair gets the ladder's outcome; every unit answered; partly replaced sections flagged; conflicts raised.</span></div>
+  <div class="num">14</div><div class="card u"><b>Decide</b><span>Resolve conflicts, review flags, reject wrong relations, ungroup wrong groups. A choice here is logged as the user's.</span></div>
+</div>
+<div class="note"><p><b>The model gives closed answers; code checks and applies them.</b> The answers that change what happens to a fact come from a fixed set: a label, a flag, a kind of relation, a unit ID it was shown, line numbers it was given, a probability. Where the model writes free text, code bounds it: a STATE statement or a CHECK line is trusted only when its numbers are in the units it cites; a summary row that fails the same check shows its cited facts instead; an issue number or date from CLASSIFY is confirmed by the user. Code then decides what happens: a fact's level, which source wins, which facts a relation reaches, and who may see them.</p></div>
+
+<h2 id="calls">Model calls</h2>
+<p>Every model interaction in the design. Six run in today's extraction, two are new, and the workspace has three more.</p>
+<div class="scroll"><table class="calls">
+<thead><tr><th>Call</th><th>Model reads</th><th>Model answers</th><th>Code then</th></tr></thead>
+<tbody>
+<tr><td>LABEL<br><span class="tag">today</span></td><td>The document; a batch of unit IDs</td><td><code>ID|LABEL|flags</code> per unit</td><td>Counts the units answered and asks once more when some are missing; takes the majority of the votes; adds <code>mandatory</code>/<code>desirable</code> from wording; joins continuations</td></tr>
+<tr><td>STATE<br><span class="tag">today</span></td><td>The document; a batch of unit IDs</td><td><code>ID|statement</code></td><td>Uses the coded unit's statement only if every number in it is in the fact's units or their headings; otherwise the source's own words</td></tr>
+<tr><td>CHECK<br><span class="tag">today</span></td><td>The document, no unit list</td><td><code>Q|side 1 vs side 2|ID,ID</code></td><td>Keeps lines whose IDs all exist; a line whose numbers are not in its units is marked for review</td></tr>
+<tr><td>XREF<br><span class="tag">today</span></td><td>The document, no unit list</td><td><code>REF|unit|reference text|target unit or none|kind|name</code></td><td>Drops lines whose unit is unknown or whose reference text is not in that unit; writes a Q fact only for a problem it can show; a missing attachment is not an error</td></tr>
+<tr><td>GROUP<br><span class="tag">today, extended</span></td><td>Facts of one category (four or more), no document</td><td><code>SAME|numbers</code>, <code>LIST|title|numbers</code></td><td>Turns a "same" group whose numbers and dates differ into a list titled "Related statements". Extended: run over the whole bid, each line naming its document</td></tr>
+<tr><td>BRIEF<br><span class="tag">today</span></td><td>A summary section's facts, no document</td><td>Fixed rows: <code>Row|text|fact numbers</code></td><td>Marks a row checked when it cites facts and its numbers are in them; an unchecked row shows the cited facts instead</td></tr>
+<tr><td>CLASSIFY<br><span class="tag warn">new</span></td><td>First pages; each playbook's <code>description</code></td><td>Playbook name, issue number, date</td><td>Checks the playbook exists and that the number and date are in the pages read; the user confirms</td></tr>
+<tr><td>RELATE<br><span class="tag warn">new</span></td><td>A batch of new units, each with the earlier units and headings code picked as candidates</td><td><code>ID|KIND|target unit IDs</code>; KIND from a fixed set</td><td>Requires an answer per unit; targets must be candidates it showed; maps units to facts and applies the ladder</td></tr>
+<tr><td>Fact check<br><span class="tag">today, workspace; extended</span></td><td>An added or edited fact and up to 8 related facts</td><td>Per pair, the probability that the two give different values or rules for the same thing</td><td>At 0.7 or above: raises a conflict, or in the chat hands the pairs back to the agent (<code>web/consistency.py</code>). Extended: the pair check on pairs code lists across documents</td></tr>
+<tr><td>Summary rebuild<br><span class="tag">today, workspace</span></td><td>A section's current facts and the user's decisions</td><td>The same fixed rows as BRIEF</td><td>Same check as BRIEF; rebuilt when a fact in the section changes (<code>web/summaries.py</code>)</td></tr>
+<tr><td>Chat agent<br><span class="tag">today, workspace</span></td><td>The user's message and tool results</td><td>Tool calls: search, edit, add, delete, raise a conflict</td><td>Workspace methods validate every change and log it</td></tr>
+</tbody></table></div>
+<h3>Decided only in code</h3>
+<div class="cols">
+  <div class="box code"><b>Order and precedence</b><p>Issue order and the ladder between levels, once the user has confirmed issue numbers, dates and any precedence order.</p></div>
+  <div class="box code"><b>A fact's level</b><p>From its document, or the speakers of its units. Never from a model answer.</p></div>
+  <div class="box code"><b>What a relation reaches</b><p>Which facts the target units belong to, and which facts are candidates for still stating the old value. Whether a candidate is about the same thing is a model answer.</p></div>
+  <div class="box code"><b>IDs, log and visibility</b><p>Fact IDs, correction-log entries, and what each export may show.</p></div>
+</div>
+
+<h2 id="merge">Duplicates across documents</h2>
+<p>The same fact turns up in several places: the due date in the RFP, in Addendum 1 and on the pre-bid call. Nothing merges facts today. GROUP links facts of one category that state the same point, or are items of one list, and <code>apply_groups</code> turns a "same" group whose numbers and dates differ into a list titled "Related statements". That split is the one this design needs, so <b>GROUP run over the whole bid</b> is the mechanism.</p>
+<div class="scroll"><table>
+<thead><tr><th>Same subject, and…</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>the same values (numbers, dates and times, as <code>normalize.values</code> reads them)</td><td><span class="tag ok">Same group</span> Shown as one point with every citation, each with its document and level. The text shown is the highest level's current fact (today: the first fact in document order).</td></tr>
+<tr><td>different values</td><td><span class="tag warn">Not a duplicate</span> Shown as related. A pair from two documents goes to the pair check; if it confirms they give different values for the same thing, the <a href="#ladder">ladder</a> decides.</td></tr>
+<tr><td>one side adds detail</td><td><span class="tag">Related</span> Both stay as facts of their own.</td></tr>
+</tbody></table></div>
+<ul>
+  <li><span class="who c">Code</span> <b>Facts are never merged in storage.</b> A group links them, so no merge or split is needed; the user can ungroup a wrong group (a new log operation).</li>
+  <li><span class="who c">Code</span> <b>Group IDs hash the bid,</b> not one document, and each line GROUP reads names its document, since page numbers repeat across documents.</li>
+  <li><b>GROUP works per category.</b> A due date stated as a D fact, an X fact and an S fact is not grouped together, and those are not duplicates. What matters is that all three are found when the date changes; the subject test does that.</li>
+  <li><b>Code compares only numbers, dates and times.</b> A "same" group of facts that hold none passes the check on the model's word alone.</li>
+</ul>
+
+<h3 id="subject"><span class="who c">Code</span> <span class="who m">Model</span> The subject test</h3>
+<p>Whether two facts that give different values are about the same thing. Two facts with the same values are GROUP's business; this test is only asked about pairs whose values differ. It is built from what exists:</p>
+<ol>
+  <li><span class="who c">Code</span> <b>List the pairs:</b> two facts of one "same" group from GROUP whose values differ; a new fact and the facts that hold a value it replaced (<code>normalize.values</code>); and a new fact and the top of the search ranking the workspace uses for related facts (<code>agent.related_facts</code>, 8 facts today).</li>
+  <li><span class="who m">Model</span> <b>Judge each pair</b> with the fact check that already exists: "do these give different values or rules for the same thing?" (<code>web/consistency.py</code>, threshold 0.7). It answers no when the two are about different things, when they agree, and when one only adds detail.</li>
+  <li><span class="who c">Code</span> <b>Apply</b> the ladder's outcome at or above the threshold, and send pairs just under it to review. The review band is new and has to be set by measurement.</li>
+</ol>
+<p>Today a fact check that fails, or has no API key, is skipped and the fact stays. For a document that is not good enough: a pair check that did not run is recorded on the document and run again.</p>
+<div class="note"><p><b>Lean towards not grouping.</b> A wrong "same" hides a real change, which is worse than a duplicate line. <code>apply_groups</code> already refuses a "same" group whose values differ; keep that rule at the bid level, and show close pairs as related, not same.</p></div>
+<p><b>Visibility belongs to each citation.</b> A fact can be exported when at least one of its citations may be exported, and the export shows only those citations. A buyer fact that a deal note also mentions stays exportable; the note's citation is hidden.</p>
+
+<h2 id="addenda">Addenda</h2>
+<p><b>An addendum is labelled like any other document.</b> Its units become facts of their own, cited to the addendum. A change is a <b>relation</b> from an addendum unit to the base units it changes; code marks the base facts replaced. RELATE answers for every unit of the addendum, not only for its facts, because the sentence that carries the change ("Section 3.17 is deleted") may itself be labelled <code>-</code>. A base fact's text is never rewritten, because a fact's text must be the source's own words, or a statement whose numbers are in its units.</p>
+
+<div class="scroll" style="padding:12px">
+<svg class="flow" viewBox="0 0 1008 250" role="img" aria-labelledby="flow-t">
+  <title id="flow-t">Addendum steps: put in order (code and user), find candidate targets (model and code), RELATE (model), apply (code and model), check coverage (code). Missing targets become Q facts; user-edited facts become conflicts; other facts with the old value become conflicts that offer the edit.</title>
+  <defs><marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>
+  <g class="b c"><rect x="8" y="20" width="176" height="96" rx="10"/>
+    <text class="n" x="22" y="42">1 · CODE + USER</text><text class="t" x="22" y="64">Put in order</text>
+    <text class="s" x="22" y="84">Issue number, then date.</text><text class="s" x="22" y="100">Stated precedence order.</text></g>
+  <g class="b m"><rect x="212" y="20" width="176" height="96" rx="10"/>
+    <text class="n" x="226" y="42">2 · MODEL + CODE</text><text class="t" x="226" y="64">Find the target</text>
+    <text class="s" x="226" y="84">References and search</text><text class="s" x="226" y="100">give candidate units.</text></g>
+  <g class="b m"><rect x="416" y="20" width="176" height="96" rx="10"/>
+    <text class="n" x="430" y="42">3 · MODEL</text><text class="t" x="430" y="64">RELATE</text>
+    <text class="s" x="430" y="84">One kind per unit, with</text><text class="s" x="430" y="100">targets from candidates.</text></g>
+  <g class="b m"><rect x="620" y="20" width="176" height="96" rx="10"/>
+    <text class="n" x="634" y="42">4 · CODE + MODEL</text><text class="t" x="634" y="64">Apply</text>
+    <text class="s" x="634" y="84">Mark replaced facts;</text><text class="s" x="634" y="100">find old value elsewhere.</text></g>
+  <g class="b c"><rect x="824" y="20" width="176" height="96" rx="10"/>
+    <text class="n" x="838" y="42">5 · CODE</text><text class="t" x="838" y="64">Check coverage</text>
+    <text class="s" x="838" y="84">Every unit answered?</text><text class="s" x="838" y="100">Part-replaced sections.</text></g>
+  <path class="ar" d="M184 68 H208"/>
+  <path class="ar" d="M388 68 H412"/>
+  <path class="ar" d="M592 68 H616"/>
+  <path class="ar" d="M796 68 H820"/>
+  <g class="b x"><rect x="212" y="160" width="176" height="70" rx="10"/>
+    <text class="t" x="226" y="186">Target not found</text><text class="s" x="226" y="206">Not applied. Shown</text><text class="s" x="226" y="222">as a Q fact.</text></g>
+  <path class="ar d" d="M300 116 V156"/>
+  <g class="b x"><rect x="620" y="160" width="176" height="70" rx="10"/>
+    <text class="t" x="634" y="186">User edited it</text><text class="s" x="634" y="206">Not replaced silently.</text><text class="s" x="634" y="222">A conflict is raised.</text></g>
+  <path class="ar d" d="M708 116 V156"/>
+  <g class="b x"><rect x="824" y="160" width="176" height="70" rx="10"/>
+    <text class="t" x="838" y="186">Old value elsewhere</text><text class="s" x="838" y="206">Same subject: a conflict</text><text class="s" x="838" y="222">offering the edit.</text></g>
+  <path class="ar d" d="M770 116 C 780 140, 884 136, 912 156"/>
+</svg>
+</div>
+<div class="legend"><span><i class="lc"></i>Code</span><span><i class="lm"></i>Model answers, code checks</span><span><i class="lx"></i>Shown to the user</span></div>
+
+<h3><span class="who c">Code</span> <span class="who u">User</span> 1. Put the addenda in order</h3>
+<ul>
+  <li>Addenda apply in <b>issue order</b>: addendum number, then date. CLASSIFY reads them; the user confirms on upload. Upload order doesn't count.</li>
+  <li><b>The buyer's order of precedence comes first.</b> A clause such as "in case of conflict, addenda govern, then the RFP, then attachments" is labelled as a fact like any other, but code cannot read a ranking out of a sentence. The buyer-document playbook gives such a unit a voted <code>precedence</code> flag <span class="who m">Model</span>; the user reads the flagged fact and sets the order of the bid's documents <span class="who u">User</span>; code applies it. Until then the later issue wins.</li>
+  <li>Relations are applied in issue order, not in the order the documents were loaded, so Addendum 3 loaded before Addendum 2 still applies after it. See <a href="#log">the correction log</a>.</li>
+</ul>
+
+<h3><span class="who m">Model</span> <span class="who c">Code</span> 2. Find what each unit may point at</h3>
+<p>Code gathers candidates; RELATE picks among them. Code does not resolve a reference by itself: matching "Section 3.15" to a heading by its words was tried for XREF and found one of nine real mistakes on the two test RFPs (<code>xref.py</code>), because most headings and references have no fixed shape.</p>
+<ul>
+  <li>XREF runs on the addendum and finds its references; code keeps a reference only when its text is in the unit, as today. For a unit with a section reference, the candidates are the headings of the earlier documents, which is a short list.</li>
+  <li>Today XREF only points at units of its own document, and reports a section reference with no target as a problem. On a change document that would turn every "Section 3.15 of the RFP" into a false Q fact, so such a reference is held back until RELATE has answered.</li>
+  <li>A unit with no reference ("the due date is extended to…") gets candidates from code: earlier facts that share a number or date with it (<code>normalize.values</code>), and the top of the workspace's search ranking for its text (<code>agent.related_facts</code>).</li>
+  <li>When RELATE finds no target for a reference among the earlier documents' headings, the reference is shown as a Q fact and nothing is applied.</li>
+</ul>
+
+<h3><span class="who m">Model</span> 3. RELATE: what each unit does</h3>
+<p>RELATE reads a batch of addendum units with the candidates for each and gives one closed answer per unit, in the same shape as LABEL:</p>
+<pre class="ex">d2:p1.4|REPLACES|d1:p2.31
+d2:p2.1|REPLACES|d1:p13.h4
+d2:p2.4|ADDS|
+d2:p3.2|CLARIFIES|d1:p8.7
+d2:p2.3|REMOVES|d1:p15.2,d1:p15.3
+d2:p3.1|NONE|</pre>
+<p>The kinds are REPLACES, REMOVES, ADDS, CLARIFIES, CONFIRMS, DISAGREES and NONE; a playbook lists the ones its documents may use. Code checks that every target was among the candidates it showed, and asks once more for units left out, as LABEL does. The answers are stored with the document's result, like <code>labels.json</code>, so they are not asked for again.</p>
+<p>A target may be a unit labelled <code>-</code>, since <code>labels.json</code> keeps every unit, or a heading. A heading stands for the units from it to the next heading, in document order: headings have no levels today, so a section with subsections is named by listing each of its headings, and the playbook says so. Code shows the user the facts a heading reaches before it marks them.</p>
+<div class="scroll"><table>
+<thead><tr><th>Addendum says</th><th>RELATE</th><th>Code does</th></tr></thead>
+<tbody>
+<tr><td>"The due date is changed to June 24"</td><td><span class="tag">REPLACES</span></td><td>The base fact is marked replaced, with a relation to the addendum unit and to the fact that unit belongs to, here the addendum's own D fact. Other facts that may state the old value go to step 4.</td></tr>
+<tr><td>"Section 3.17 is deleted and replaced with:"</td><td><span class="tag">REPLACES</span> a heading</td><td>Every fact in 3.17 is marked replaced. The new text's units are already facts of the addendum.</td></tr>
+<tr><td>"Section 3.17 is deleted"</td><td><span class="tag">REMOVES</span></td><td>Facts in it are marked replaced; nothing takes their place.</td></tr>
+<tr><td>"Add the following requirement to 4.2:"</td><td><span class="tag">ADDS</span></td><td>Nothing to mark; the addendum's fact stands.</td></tr>
+<tr><td>A Q&amp;A answer that clarifies</td><td><span class="tag">CLARIFIES</span></td><td>A relation to the base fact; both stay current.</td></tr>
+<tr><td>A statement that gives another value without saying it changes anything</td><td><span class="tag">DISAGREES</span></td><td>The ladder decides: between buyer documents the later issue wins, as for REPLACES.</td></tr>
+<tr><td>An unchanged rule, restated</td><td><span class="tag">CONFIRMS</span></td><td>A relation; both stay current, and GROUP may show them as one point.</td></tr>
+<tr><td>"No change", "see RFP section 2"</td><td><span class="tag">NONE</span></td><td>Recorded as answered.</td></tr>
+<tr><td>"Acknowledge this addendum on Form A"</td><td><span class="tag">ADDS</span></td><td>LABEL already makes it an S fact: easy to miss, and disqualifying when missed.</td></tr>
+</tbody></table></div>
+
+<h3><span class="who c">Code</span> <span class="who m">Model</span> 4. Apply: one change, several facts</h3>
+<p>The addendum names one place, but the old value may be stated in several. Code lists the other facts that hold a number or date the replaced fact had and the new fact does not; the pair check says which of them are about the same thing (the <a href="#subject">subject test</a>). Code flags those; it does not rewrite them. Each flag is a conflict whose options carry the edit ("update to June 24"), so the change is the user's, made with one click, and goes through the log like any edit.</p>
+<div class="change">
+  <div class="src"><span class="k">Addendum 2 · d2 p1.4</span>"The proposal due date is changed to June 24, 2:00 pm."</div>
+  <div class="arrow" aria-hidden="true">→</div>
+  <div class="flist">
+    <div class="fc gone"><span class="code">D</span><span class="txt">Proposals due: June 10, 2:00 pm</span><span class="tag">replaced</span></div>
+    <div class="fc"><span class="code">D</span><span class="txt">Proposals due: June 24, 2:00 pm</span><span class="tag ok">new · d2</span></div>
+    <div class="fc review"><span class="code">X</span><span class="txt">Proposals received after June 10 will not be opened</span><span class="tag warn">old value</span></div>
+    <div class="fc review"><span class="code">S</span><span class="txt">Deliver one signed original by June 10</span><span class="tag warn">old value</span></div>
+    <div class="fc review"><span class="code">D</span><span class="txt">Questions due 10 days before the proposal due date</span><span class="tag warn">review</span></div>
+    <div class="fc"><span class="code">D</span><span class="txt">Optional site visit: June 10, 10:00 am</span><span class="tag">untouched</span></div>
+  </div>
+</div>
+<p>The site visit shares the date but fails the subject test, so it is left alone; a pair near the threshold goes to review. The relative date states no value, so the route above cannot find it, and today's fact check answers "no" for a fact that only depends on another. It is reached through the search ranking for the replaced fact, with a second question for the pair check: does this fact depend on the value that changed? That question is new and has to be measured. If the addendum itself still shows June 10 somewhere, for example in a restated schedule table, that is a contradiction inside the addendum, and CHECK on the addendum reports it as a Q fact.</p>
+
+<h3><span class="who c">Code</span> Replacing a whole section</h3>
+<div class="change">
+  <div class="src"><span class="k">Addendum 1 · d2 p2.1</span>"Section 3.17 Proposal Format is deleted in its entirety and replaced with the following: …"</div>
+  <div class="arrow" aria-hidden="true">→</div>
+  <div class="flist">
+    <div class="fc gone"><span class="code">S</span><span class="txt">Page limit: 30 pages</span><span class="tag">replaced</span></div>
+    <div class="fc"><span class="code">S</span><span class="txt">Page limit: 40 pages, excluding résumés</span><span class="tag ok">new · d2</span></div>
+    <div class="fc gone"><span class="code">S</span><span class="txt">Font no smaller than 11 point</span><span class="tag">replaced</span></div>
+    <div class="fc"><span class="code">S</span><span class="txt">Font no smaller than 11 point</span><span class="tag ok">d2 · same as RFP</span></div>
+  </div>
+</div>
+<p>The font rule is restated unchanged. Both facts exist, the RFP's is replaced, and GROUP across the bid puts them in one "same" group, shown once with both citations. The addendum's is the governing one. Today <code>runs.merged</code> shows a group under its first fact and with every member's flags, so this group would show the RFP's text and the <code>replaced</code> flag; the group must show its highest current member.</p>
+
+<h3><span class="who c">Code</span> <span class="who u">User</span> 5. Check nothing was missed</h3>
+<ul>
+  <li>Every addendum unit has a RELATE answer; an answer that leaves units out is asked for once more and recorded, as LABEL does.</li>
+  <li>When a relation replaces some units of a section but not its heading, the section's other facts are flagged <b>possibly out of date</b>.</li>
+  <li>A replaced fact the user had edited is not silently replaced: code sees the user's edit in the log and raises a conflict.</li>
+  <li>The user can reject a relation; the rejection is a log entry, so it can be undone.</li>
+</ul>
+
+<h3><span class="who c">Code</span> <span class="who m">Model</span> Reissued full RFPs</h3>
+<p>A reissue has no list of changes. Code first <b>aligns units by text</b> with the previous version, in order, so that repeated text pairs up in sequence. Aligned units keep their votes and labels. A fact is carried over, with the user's corrections, when every one of its units aligns; a stored map from old fact ID to new keeps the log pointing at it. Units that don't align are labelled, together with any continuation whose coded unit changed, and they are reported as changed, new or removed. CHECK and XREF read the whole document, so they run again on the new version. The previous version's facts then leave the current list: a carried fact continues as its counterpart, and the rest are marked replaced.</p>
+<p>Comparing two extracted fact lists instead would report false changes, because labels differ on about one unit in ten between runs. If the buyer issues both a change list and a reissue, a difference between them is a Q fact.</p>
+<p>The Durham test file named "Addendum 1" is a reissued full RFP, not a change list. A real change or Q&amp;A addendum is needed to test RELATE.</p>
+
+<h2 id="speakers">Who is speaking</h2>
+<p>The ladder only works if every transcript unit is on the right side. A wrong side turns our own guess into a conflict against the RFP.</p>
+<ol>
+  <li><span class="who c">Code</span> <b>Units are sentences inside a turn.</b> The turn plays the part of a page; the speaker is stored on the unit. <code>Anchor</code> has no speaker field today, so one is added (the section field is the stopgap).</li>
+  <li><span class="who c">Code</span> <b>Speaker names are matched</b> by exact name to a team list the user keeps for the bid (new), and to names that appear in the bid's B facts. Code proposes a side; it does not decide one.</li>
+  <li><span class="who u">User</span> <b>The speaker map is confirmed</b> once per transcript, before labelling: the proposed sides are shown and unmatched speakers are named.</li>
+  <li><span class="who m">Model</span> <span class="who c">Code</span> <b>A fact can span both sides.</b> If we ask "so the deadline is the 24th?" and the buyer answers "yes", LABEL codes our question and marks the answer as a continuation, so the fact starts on our side. Code sets the level from the speakers of all the fact's units: a fact with a buyer unit gets the buyer's level and a <code>both sides</code> mark. Code cannot tell whether the answer agreed, so such a fact is shown in the source's words with both turns, never as a STATE statement (today the statement is written for the coded unit alone, here the question). The higher level is the safe choice: at level 2 a disagreement with a buyer document is a conflict the user sees, and nothing is replaced. A buyer answer that states a point of its own ("no, the 30th") is a coded unit and a fact of its own.</li>
+  <li><span class="who m">Model</span> <b>Hedged statements</b> get a voted <code>tentative</code> flag from the transcript playbook. A tentative buyer statement that disagrees with the RFP is still a conflict, and the card shows the flag.</li>
+</ol>
+
+<h2 id="log">Changes to the correction log</h2>
+<p>Addenda, reissues, transcripts and notes all reach the user's facts through the correction log, so its changes are shared by every document type.</p>
+<p>Today <code>_entry</code> accepts only the sources <code>chat</code> and <code>ui</code>; the operations are edit, delete, add, raise, resolve and undo; and <code>replay</code> applies the live entries in file order over one run's facts. Some of that order carries meaning: a change made by resolving a conflict belongs to the resolve entry written just before it. So entries cannot be re-sorted by issue date.</p>
+<p>Proposed: relations are not log entries. They are stored with each document's result and applied in issue order to build the bid's facts, and the user's log is then replayed on top in file order, as today. The log gains two operations, <b>reject a relation</b> and <b>ungroup</b>, and a conflict that code raises for a document is derived from the relations, the way a Q fact's conflict is derived from the facts today. Its ID is fixed, so the user's choice stays attached to it, and it closes when a later buyer document settles it. A conflict the user had already resolved is not changed silently: it is shown again with the new document.</p>
+
+<h2 id="risks">Risks</h2>
+<div class="scroll"><table>
+<thead><tr><th>Risk</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td>goldset reads with the same definitions, fact rules and flag tests as the extractor, so a shared misreading scores as correct.</td><td>goldset takes only the playbook's header and definitions, not its reading rules.</td></tr>
+<tr><td>A speaker on the wrong side creates false conflicts or hides real ones.</td><td>The user confirms the speaker map before labelling; facts with both sides show both turns in the source's words.</td></tr>
+<tr><td>A wrong "same" group hides a real change between documents.</td><td>Same numbers and dates required; close pairs shown as related; the user can ungroup. Facts without numbers rest on the model's answer.</td></tr>
+<tr><td>RELATE's candidates leave out the unit an addendum changes, so the change is read as an addition and the old fact stays current.</td><td>GROUP across the bid and the pair check look at the two facts again; the ladder then lets the later buyer document win.</td></tr>
+<tr><td>A heading is missed by the PDF reader, or a section has subsections, so "replace section X" reaches too few or too many facts.</td><td>The user sees the facts a heading reaches before they are marked; partly replaced sections are flagged.</td></tr>
+<tr><td>RELATE answers vary between runs, as labels do.</td><td>Answers are stored with the result. Whether RELATE needs votes is decided by measuring it on a real addendum.</td></tr>
+<tr><td>Labels vary on about one unit in ten between runs.</td><td>Results are stored and reused; reissues are aligned by text, not by comparing fact lists.</td></tr>
+<tr><td>GROUP is per category, so a value stated under several codes isn't grouped.</td><td>The subject test runs across categories. A fact that depends on a changed value without stating it needs a new question, not yet measured.</td></tr>
+<tr><td>Internal notes leak into something sent outside the team.</td><td>Visibility on every citation; every export filters on it.</td></tr>
+<tr><td>Buyer-specific or sector overlays make it hard to tell which layer caused a bad label.</td><td>No overlays until the base playbooks are measured.</td></tr>
+</tbody></table></div>
+
+<h2 id="order">Build order</h2>
+<ol>
+  <li><b>RFP playbook, no behaviour change.</b> Gather today's pieces into the playbook shape. Test: the assembled system prompt and task texts are byte-identical to today's, so the cache key and <code>VERSION</code> don't change. (A score comparison is not a usable test: labels vary between runs.)</li>
+  <li><b>Bid, CLASSIFY and citations.</b> Group documents with their three properties; CLASSIFY and the user's confirmation; unique document IDs; (document, unit) citations wherever citations are compared; playbook name and version in the stored-result key.</li>
+  <li><b>Relations under the correction log.</b> Relations stored per document and applied in issue order before the log is replayed; reject-relation and ungroup operations; documents as a source of conflicts; conflicts that a later buyer document closes.</li>
+  <li><b>Priority ladder and visibility in code.</b> Levels on facts and citations; the disagreement outcomes, which need the conflicts of step 3; exports filtered by visibility.</li>
+  <li><b>GROUP across the bid and the subject test.</b> Group IDs hash the bid; groups show their highest current member; the pair check runs on pairs code lists; the ladder of step 4 decides.</li>
+  <li><b>Change-addendum playbook and RELATE.</b> Uses the candidates and the pair check of step 5. Needs a real change or Q&amp;A addendum to test on.</li>
+  <li><b>Reissue alignment.</b> Units aligned by text; corrections carried to new fact IDs.</li>
+  <li><b>Transcript cutter, speaker map and playbook.</b> Needs a speaker on <code>Anchor</code>, the team list, cut units stored with the result, and RELATE from step 6.</li>
+  <li><b>Deal notes playbook.</b> Uses the notes cutter and RELATE; adds nothing else.</li>
+  <li><b>Per-type evaluation.</b> For addenda: relations found and applied to the right facts. For transcripts and notes: supported and useful. For groups: wrong groups and missed duplicates. Each of steps 5 to 9 is trusted only once its part of this exists, so the parts are built with those steps, not after them.</li>
+</ol>
+
+</div>
+<script>
+(() => {
+  const levels = [
+    { id: 1, label: "Buyer document" },
+    { id: 2, label: "Buyer on a call" },
+    { id: 3, label: "Our side on a call" },
+    { id: 4, label: "Deal notes" },
+  ];
+  const state = { incoming: 2, existing: 1 };
+
+  const outcome = (incoming, existing) => {
+    if (incoming === 1 && existing === 1) return { cls: "", tag: ["ok", "Buyer order decides"], title: "Both are buyer documents",
+      text: "The order of precedence the buyer states decides, once the user has confirmed it. Otherwise the later issue wins: the earlier fact is marked replaced, with the document that replaced it.",
+      list: ["One document, or documents issued together such as the RFP and its sample contract, have no order: the disagreement is a Q fact.",
+             "If the earlier fact was edited by the user, it is not replaced silently: a conflict is raised.",
+             "If no earlier unit can be named as the one the new unit changes, nothing is applied and it is shown for review."] };
+    if (incoming === 1) return { cls: "", tag: ["ok", "Buyer document settles it"], title: "A buyer document outranks what was said or noted",
+      text: "The lower fact is kept and marked replaced, with a relation to the buyer document. If the lower fact was in an open conflict, that conflict is closed automatically and shows the buyer document that settled it. A conflict the user had already resolved is not changed silently: it is shown again with the new document." };
+    if (incoming === 2 && existing === 1) return { cls: "bad", tag: ["bad", "Conflict"], title: "The buyer has said two different things",
+      text: "Only the written one is binding. The RFP fact stays; a conflict is raised with options:",
+      list: ["The RFP stands.",
+             "Ask the buyer in writing before the question deadline: a question is recorded for the bid team; no fact changes.",
+             "Rely on the verbal clarification, at our own risk. This is the user's choice, logged as theirs: the one way a lower level overrides a higher one."],
+      foot: "When a later addendum settles it either way, an open conflict is closed automatically and the call statement is marked confirmed or replaced." };
+    if (incoming === 2 && existing === 2) return { cls: "bad", tag: ["bad", "Conflict"], title: "The buyer said two different things on calls",
+      text: "Neither is binding, and neither replaces the other. A conflict is raised so the bid team can ask the buyer in writing." };
+    if (incoming === 2 && existing >= 3) return { cls: "warn", tag: ["warn", "Warning"], title: "The buyer said otherwise on a call",
+      text: "The buyer's statement outranks ours, but nothing is replaced below level 1. Our fact is kept, linked to the buyer's statement and flagged as possibly wrong." };
+    if (incoming === 3 && existing <= 2) return { cls: "warn", tag: ["warn", "Warning"], title: "Our team may be working from a wrong assumption",
+      text: "Our own statement cannot change what the buyer wrote or said. The buyer's fact is unchanged. Our statement is kept, linked to it and flagged as possibly wrong: a warning, not a conflict." };
+    if (incoming === 4 && existing <= 2) return { cls: "warn", tag: ["warn", "Warning"], title: "The notes are out of date or mistaken",
+      text: "Deal notes are the lowest level. The buyer's fact is unchanged. The note is kept, linked to it and flagged as possibly wrong: a warning, not a conflict." };
+    if (incoming === existing) return { cls: "warn", tag: ["warn", "Both kept"], title: "Two of our own sources disagree",
+      text: "Neither replaces the other. Both are kept, linked, and flagged for review." };
+    if (incoming === 3 && existing === 4) return { cls: "warn", tag: ["warn", "Review"], title: "What we said on a call differs from our notes",
+      text: "The call outranks the notes, but nothing is replaced below level 1. Both are kept and flagged; the note is shown as possibly out of date." };
+    return { cls: "warn", tag: ["warn", "Review"], title: "Our notes differ from what we said on a call",
+      text: "The note may be newer than the call, so neither is assumed wrong. Both are kept, linked and flagged for review." };
+  };
+
+  const render = () => {
+    document.querySelectorAll(".seg").forEach(seg => {
+      seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.v === state[seg.dataset.key])));
+    });
+    const o = outcome(state.incoming, state.existing);
+    const r = document.getElementById("result");
+    r.className = "result" + (o.cls ? " " + o.cls : "");
+    r.innerHTML = `<div class="head"><span class="tag ${o.tag[0]}">${o.tag[1]}</span>${o.title}</div><p>${o.text}</p>` +
+      (o.list ? `<ul>${o.list.map(x => `<li>${x}</li>`).join("")}</ul>` : "") +
+      (o.foot ? `<p>${o.foot}</p>` : "");
+  };
+
+  document.querySelectorAll(".seg").forEach(seg => {
+    levels.forEach(l => {
+      const b = document.createElement("button");
+      b.type = "button"; b.dataset.v = l.id; b.textContent = `${l.id} · ${l.label}`;
+      b.addEventListener("click", () => { state[seg.dataset.key] = l.id; render(); });
+      seg.appendChild(b);
+    });
+  });
+  render();
+})();
+</script>
+</body>
+</html>

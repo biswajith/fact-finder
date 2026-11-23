@@ -1,0 +1,1078 @@
+{
+  "_note": "Made-up example in the shape of Gong's public API (v2). 'extensive' is the response of POST /v2/calls/extensive with parties exposed; 'transcript' is the response of POST /v2/calls/transcript. start and end are milliseconds from the start of the call; duration is seconds. Join transcript speakerId to parties[].speakerId to get names and affiliation.",
+  "extensive": {
+    "requestId": "4al018gzaztcr8nbukw",
+    "records": {
+      "totalRecords": 1,
+      "currentPageSize": 1,
+      "currentPageNumber": 0
+    },
+    "calls": [
+      {
+        "metaData": {
+          "id": "7782342274025937895",
+          "url": "https://app.gong.io/call?id=7782342274025937895",
+          "title": "Ulster County RFP UC26-039 - clarification call",
+          "scheduled": "2026-08-12T10:00:00-04:00",
+          "started": "2026-08-12T10:00:02-04:00",
+          "duration": 346,
+          "primaryUserId": "4410392871150362218",
+          "direction": "Conference",
+          "system": "Microsoft Teams",
+          "scope": "External",
+          "media": "Video",
+          "language": "eng",
+          "workspaceId": "5562739194953732039",
+          "sdrDisposition": null,
+          "clientUniqueId": null,
+          "customData": null,
+          "purpose": null,
+          "meetingUrl": "https://teams.microsoft.com/l/meetup-join/example",
+          "isPrivate": false,
+          "calendarEventId": "AAMkAGI2TG93AAA="
+        },
+        "parties": [
+          {
+            "id": "3104582217736401552",
+            "emailAddress": "tom.okafor@halvardactuarial.example",
+            "name": "Tom Okafor",
+            "title": "Bid Manager",
+            "userId": "4410392871150362218",
+            "speakerId": "6927345540112087431",
+            "context": [],
+            "affiliation": "Internal",
+            "methods": [
+              "Invitee",
+              "Attendee"
+            ]
+          },
+          {
+            "id": "3104582217736401553",
+            "emailAddress": "priya.raman@halvardactuarial.example",
+            "name": "Priya Raman",
+            "title": "Principal",
+            "userId": "4410392871150362231",
+            "speakerId": "1588203947720365019",
+            "context": [],
+            "affiliation": "Internal",
+            "methods": [
+              "Invitee",
+              "Attendee"
+            ]
+          },
+          {
+            "id": "3104582217736401554",
+            "emailAddress": "dwhitcomb@ulstercounty.example",
+            "name": "Dana Whitcomb",
+            "speakerId": "8371920465518823046",
+            "context": [],
+            "affiliation": "External",
+            "methods": [
+              "Invitee",
+              "Attendee"
+            ]
+          },
+          {
+            "id": "3104582217736401555",
+            "emailAddress": "mfell@ulstercounty.example",
+            "name": "Marcus Fell",
+            "speakerId": "2049957713360871254",
+            "context": [],
+            "affiliation": "External",
+            "methods": [
+              "Invitee",
+              "Attendee"
+            ]
+          },
+          {
+            "id": "3104582217736401556",
+            "speakerId": "7713002846159902387",
+            "context": [],
+            "affiliation": "Unknown",
+            "phoneNumber": "+1 845-555-0142",
+            "methods": [
+              "Attendee"
+            ]
+          },
+          {
+            "id": "3104582217736401557",
+            "emailAddress": "sam.lee@halvardactuarial.example",
+            "name": "Sam Lee",
+            "title": "Senior Actuary",
+            "userId": "4410392871150362240",
+            "context": [],
+            "affiliation": "Internal",
+            "methods": [
+              "Invitee"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "transcript": {
+    "requestId": "7xq2mz0kp4r1c9vbn3d",
+    "records": {
+      "totalRecords": 1,
+      "currentPageSize": 1,
+      "currentPageNumber": 0
+    },
+    "callTranscripts": [
+      {
+        "callId": "7782342274025937895",
+        "transcript": [
+          {
+            "speakerId": "6927345540112087431",
+            "topic": "Small Talk",
+            "sentences": [
+              {
+                "start": 4180,
+                "end": 6158,
+                "text": "Morning everyone, thanks for making time."
+              },
+              {
+                "start": 6278,
+                "end": 8849,
+                "text": "I know you're busy with the TPA change."
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 9180,
+                "end": 10211,
+                "text": "Sure, happy to."
+              },
+              {
+                "start": 10331,
+                "end": 14732,
+                "text": "I should say up front, anything formal still has to go through Purchasing in writing."
+              },
+              {
+                "start": 14852,
+                "end": 17849,
+                "text": "This is just so we're not talking past each other."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 18180,
+                "end": 18661,
+                "text": "Understood."
+              },
+              {
+                "start": 18781,
+                "end": 21849,
+                "text": "Priya, do you want to start with the valuation years?"
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 22180,
+                "end": 22800,
+                "text": "Yes."
+              },
+              {
+                "start": 22920,
+                "end": 35392,
+                "text": "So the purpose section talks about liability for the years ending December 31, 2026, 2027 and 2028, but the contract period section says the term starts January 1, 2027 and runs through 2029."
+              },
+              {
+                "start": 35512,
+                "end": 36873,
+                "text": "Which is it?"
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 38180,
+                "end": 40536,
+                "text": "Yeah, we noticed that after it went out."
+              },
+              {
+                "start": 40656,
+                "end": 43556,
+                "text": "The first valuation we need is for year end 2026."
+              },
+              {
+                "start": 43676,
+                "end": 46848,
+                "text": "So the first report is early 2027, about the 2026 year."
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 47180,
+                "end": 50215,
+                "text": "Right, and the contract dates are just when the agreement runs."
+              },
+              {
+                "start": 50335,
+                "end": 52849,
+                "text": "The work in January 2027 is the 2026 valuation."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 53180,
+                "end": 59355,
+                "text": "So three valuations, year ends 2026, 2027, 2028, inside a contract that runs 2027 to 2029."
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 60180,
+                "end": 61654,
+                "text": "That's how I read it."
+              },
+              {
+                "start": 61774,
+                "end": 65849,
+                "text": "I'd put that in a written question though, so it ends up in an addendum."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 66180,
+                "end": 67170,
+                "text": "Will do."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 69180,
+                "end": 72850,
+                "text": "On timing, when do you need the final report each year?"
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 73180,
+                "end": 79350,
+                "text": "The auditors want the Statement of Actuarial Opinion in hand for the financial statements, so final report by March 31."
+              },
+              {
+                "start": 79470,
+                "end": 83849,
+                "text": "Draft a few weeks before that so we can go through it with you."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 84180,
+                "end": 86281,
+                "text": "Draft by early March, then."
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 87180,
+                "end": 88911,
+                "text": "Early March is fine."
+              },
+              {
+                "start": 89031,
+                "end": 91503,
+                "text": "Mid-February would be even better, honestly."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 92180,
+                "end": 92692,
+                "text": "Okay."
+              },
+              {
+                "start": 92812,
+                "end": 94853,
+                "text": "Next one is a packaging question."
+              },
+              {
+                "start": 94973,
+                "end": 98849,
+                "text": "The RFP asks for the electronic copy on CD or thumb drive."
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 99180,
+                "end": 102711,
+                "text": "You can just email the electronic copy to Purchasing, that's fine."
+              },
+              {
+                "start": 102831,
+                "end": 104849,
+                "text": "Nobody has a CD drive anymore."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 105180,
+                "end": 107850,
+                "text": "And the original and the photocopy still come by mail?"
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 108180,
+                "end": 110872,
+                "text": "Yes, hard copies still have to be physically delivered."
+              },
+              {
+                "start": 110992,
+                "end": 112849,
+                "text": "Sealed, the way the RFP says."
+              }
+            ]
+          },
+          {
+            "speakerId": "7713002846159902387",
+            "sentences": [
+              {
+                "start": 113180,
+                "end": 115952,
+                "text": "Sorry, this is Jen from Purchasing, I'm just joining."
+              },
+              {
+                "start": 116072,
+                "end": 120849,
+                "text": "Dana, I'd hold off on telling them email is okay, I'd have to check with Brendan."
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 121180,
+                "end": 122345,
+                "text": "Oh, fair enough."
+              },
+              {
+                "start": 122465,
+                "end": 125849,
+                "text": "Jen's right, go by the RFP until you hear otherwise."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 126180,
+                "end": 129763,
+                "text": "No problem, we'll ask that one in writing too."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 130180,
+                "end": 132955,
+                "text": "Can you give us a feel for the claim volume?"
+              },
+              {
+                "start": 133075,
+                "end": 135850,
+                "text": "The RFP says 365 open claims as of May 31."
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 136180,
+                "end": 137749,
+                "text": "It's gone up a bit since."
+              },
+              {
+                "start": 137869,
+                "end": 140849,
+                "text": "As of the end of July we were at about 380 open."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 141180,
+                "end": 142541,
+                "text": "Any big drivers?"
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 143180,
+                "end": 146450,
+                "text": "Two of the school districts had a rough spring."
+              },
+              {
+                "start": 146570,
+                "end": 148826,
+                "text": "A couple of larger lost-time claims."
+              },
+              {
+                "start": 148946,
+                "end": 149849,
+                "text": "Nothing catastrophic."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 150180,
+                "end": 153850,
+                "text": "And participants, is it still the list in Attachment A?"
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 154180,
+                "end": 154739,
+                "text": "One change."
+              },
+              {
+                "start": 154859,
+                "end": 158140,
+                "text": "One of the three villages is leaving the plan at the end of this year."
+              },
+              {
+                "start": 158260,
+                "end": 160075,
+                "text": "I can't say which until their board votes."
+              },
+              {
+                "start": 160195,
+                "end": 162848,
+                "text": "So you'd do a withdrawal calculation for them in the first year."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 163180,
+                "end": 166763,
+                "text": "That's the individual participant withdrawal calculation in the scope."
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 167180,
+                "end": 168541,
+                "text": "Exactly that one."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 170180,
+                "end": 172037,
+                "text": "On the TPA change you mentioned."
+              },
+              {
+                "start": 172157,
+                "end": 174849,
+                "text": "Who's the new TPA and when do they start?"
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 175180,
+                "end": 177712,
+                "text": "We can't say who yet, the contract isn't signed."
+              },
+              {
+                "start": 177832,
+                "end": 179055,
+                "text": "They start January 1."
+              },
+              {
+                "start": 179175,
+                "end": 184848,
+                "text": "So the first valuation will be on data that comes partly from the old TPA and partly from the new one."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 185180,
+                "end": 186097,
+                "text": "That's useful."
+              },
+              {
+                "start": 186217,
+                "end": 188849,
+                "text": "We'll want a data hand-off plan then."
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 189180,
+                "end": 189800,
+                "text": "Please."
+              },
+              {
+                "start": 189920,
+                "end": 192392,
+                "text": "That's my biggest worry this year."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 193180,
+                "end": 193714,
+                "text": "Insurance."
+              },
+              {
+                "start": 193834,
+                "end": 196281,
+                "text": "Schedule C has the professional liability box."
+              },
+              {
+                "start": 196401,
+                "end": 198848,
+                "text": "Is that box checked for this one?"
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 199180,
+                "end": 199972,
+                "text": "It is."
+              },
+              {
+                "start": 200092,
+                "end": 203849,
+                "text": "One million per occurrence, two million aggregate, same as the general liability."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 204180,
+                "end": 206281,
+                "text": "Good, that's what we carry."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "topic": "Pricing",
+            "sentences": [
+              {
+                "start": 207180,
+                "end": 207924,
+                "text": "Payment terms."
+              },
+              {
+                "start": 208044,
+                "end": 211849,
+                "text": "I think we have net thirty in our standard terms, is that workable?"
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "topic": "Pricing",
+            "sentences": [
+              {
+                "start": 212180,
+                "end": 216857,
+                "text": "No, it's sixty days after we receive the invoice, and the controller has to approve it."
+              },
+              {
+                "start": 216977,
+                "end": 218849,
+                "text": "That's county-wide, we can't change it."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "topic": "Pricing",
+            "sentences": [
+              {
+                "start": 219180,
+                "end": 220541,
+                "text": "Okay, sixty days."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "topic": "Pricing",
+            "sentences": [
+              {
+                "start": 221180,
+                "end": 222583,
+                "text": "And you'd want monthly invoices?"
+              },
+              {
+                "start": 222703,
+                "end": 224849,
+                "text": "For an annual report that's a bit odd."
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "topic": "Pricing",
+            "sentences": [
+              {
+                "start": 225180,
+                "end": 226977,
+                "text": "The RFP says monthly, I know."
+              },
+              {
+                "start": 227097,
+                "end": 231586,
+                "text": "In practice for this contract we've been paid on delivery of the final report each year."
+              },
+              {
+                "start": 231706,
+                "end": 234849,
+                "text": "But I can't promise that, put down what the RFP says."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 235180,
+                "end": 235800,
+                "text": "Understood."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 237180,
+                "end": 238911,
+                "text": "Do you expect interviews?"
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 240180,
+                "end": 240684,
+                "text": "Probably."
+              },
+              {
+                "start": 240804,
+                "end": 244321,
+                "text": "If we do them it'd be the week of September 21st."
+              },
+              {
+                "start": 244441,
+                "end": 245849,
+                "text": "Two or three firms."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 246180,
+                "end": 248281,
+                "text": "Who sits on the committee?"
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 249180,
+                "end": 253504,
+                "text": "Me, Marcus, someone from the controller's office and someone from Finance."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "topic": "Pricing",
+            "sentences": [
+              {
+                "start": 254180,
+                "end": 257344,
+                "text": "And on scoring, how much weight does price really carry?"
+              },
+              {
+                "start": 257464,
+                "end": 258849,
+                "text": "It says thirty points."
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "topic": "Pricing",
+            "sentences": [
+              {
+                "start": 259180,
+                "end": 260316,
+                "text": "Thirty points, yes."
+              },
+              {
+                "start": 260436,
+                "end": 263118,
+                "text": "But honestly the plan is what separates people."
+              },
+              {
+                "start": 263238,
+                "end": 266849,
+                "text": "The last round, everyone's price was within a few thousand dollars."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 267180,
+                "end": 268170,
+                "text": "That's helpful."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 269180,
+                "end": 270759,
+                "text": "One more on scope."
+              },
+              {
+                "start": 270879,
+                "end": 273472,
+                "text": "The bullet about anticipated and unanticipated contingencies."
+              },
+              {
+                "start": 273592,
+                "end": 275848,
+                "text": "What do you actually want there?"
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 276180,
+                "end": 277609,
+                "text": "Mostly a sensitivity range."
+              },
+              {
+                "start": 277729,
+                "end": 281299,
+                "text": "What happens to the reserve if trends go the wrong way."
+              },
+              {
+                "start": 281419,
+                "end": 282848,
+                "text": "A low, expected, high."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 283180,
+                "end": 286850,
+                "text": "So a range around the central estimate, with the assumptions behind each."
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 287180,
+                "end": 288170,
+                "text": "That's it."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 289180,
+                "end": 292850,
+                "text": "And on optional services, are you expecting much hourly work?"
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 293180,
+                "end": 293668,
+                "text": "Some."
+              },
+              {
+                "start": 293788,
+                "end": 297488,
+                "text": "Each budget season we usually ask for a funding scenario or two."
+              },
+              {
+                "start": 297608,
+                "end": 299848,
+                "text": "Maybe ten or fifteen hours a year."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 300180,
+                "end": 300800,
+                "text": "Okay."
+              }
+            ]
+          },
+          {
+            "speakerId": "1588203947720365019",
+            "sentences": [
+              {
+                "start": 302180,
+                "end": 303318,
+                "text": "Last thing from us."
+              },
+              {
+                "start": 303438,
+                "end": 304576,
+                "text": "The local office question."
+              },
+              {
+                "start": 304696,
+                "end": 305591,
+                "text": "We're in Albany."
+              },
+              {
+                "start": 305711,
+                "end": 306849,
+                "text": "Is that a problem?"
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 307180,
+                "end": 308086,
+                "text": "Not a problem."
+              },
+              {
+                "start": 308206,
+                "end": 310591,
+                "text": "You'd get the one point for New York State."
+              },
+              {
+                "start": 310711,
+                "end": 313096,
+                "text": "Just tell us how you'd be available for meetings."
+              },
+              {
+                "start": 313216,
+                "end": 315848,
+                "text": "We'd want someone here in person for the draft review."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "topic": "Pricing",
+            "sentences": [
+              {
+                "start": 316180,
+                "end": 318850,
+                "text": "We can commit to in-person for the draft review."
+              },
+              {
+                "start": 319180,
+                "end": 326850,
+                "text": "For our part, we'd plan to price one fixed annual fee for the three valuations and the renewal years, and quote the hourly rates separately."
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 327180,
+                "end": 328850,
+                "text": "That works for us."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 329180,
+                "end": 332818,
+                "text": "And I have questions due on the 18th, ten days before the due date."
+              },
+              {
+                "start": 332938,
+                "end": 333849,
+                "text": "Is that right?"
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 334180,
+                "end": 336126,
+                "text": "That sounds right, the 18th."
+              },
+              {
+                "start": 336246,
+                "end": 337849,
+                "text": "Send everything to Brendan."
+              }
+            ]
+          },
+          {
+            "speakerId": "6927345540112087431",
+            "sentences": [
+              {
+                "start": 338180,
+                "end": 338691,
+                "text": "Great."
+              },
+              {
+                "start": 338811,
+                "end": 340849,
+                "text": "Thanks both, this was really helpful."
+              }
+            ]
+          },
+          {
+            "speakerId": "2049957713360871254",
+            "sentences": [
+              {
+                "start": 341180,
+                "end": 341776,
+                "text": "Thanks."
+              },
+              {
+                "start": 341896,
+                "end": 342849,
+                "text": "Good luck."
+              }
+            ]
+          },
+          {
+            "speakerId": "8371920465518823046",
+            "sentences": [
+              {
+                "start": 343180,
+                "end": 344170,
+                "text": "Bye now."
+              }
+            ],
+            "topic": "Next Steps"
+          }
+        ]
+      }
+    ]
+  }
+}

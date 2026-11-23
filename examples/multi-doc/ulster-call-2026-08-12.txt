@@ -1,0 +1,140 @@
+Meeting: RFP-UC26-039 Actuarial Services - clarification call
+Date: Wednesday, August 12, 2026, 10:00 AM - 10:06 AM ET
+Platform: Microsoft Teams, recorded by Gong
+Readable source of ulster-call-2026-08-12.gong.json, which to_gong.py builds from this file.
+Attendees:
+  Dana Whitcomb - Ulster County, Risk Management
+  Marcus Fell - Ulster County, Self-Insurance Plan Administrator
+  Priya Raman - Halvard Actuarial Partners, Principal
+  Tom Okafor - Halvard Actuarial Partners, Bid Manager
+  +1 845 555 0142 (joined by phone)
+
+[00:00:04] Tom Okafor: Morning everyone, thanks for making time. I know you're busy with the TPA change.
+
+[00:00:09] Dana Whitcomb: Sure, happy to. I should say up front, anything formal still has to go through Purchasing in writing. This is just so we're not talking past each other.
+
+[00:00:18] Tom Okafor: Understood. Priya, do you want to start with the valuation years?
+
+[00:00:22] Priya Raman: Yes. So the purpose section talks about liability for the years ending December 31, 2026, 2027 and 2028, but the contract period section says the term starts January 1, 2027 and runs through 2029. Which is it?
+
+[00:00:38] Dana Whitcomb: Yeah, we noticed that after it went out. The first valuation we need is for year end 2026. So the first report is early 2027, about the 2026 year.
+
+[00:00:47] Marcus Fell: Right, and the contract dates are just when the agreement runs. The work in January 2027 is the 2026 valuation.
+
+[00:00:53] Priya Raman: So three valuations, year ends 2026, 2027, 2028, inside a contract that runs 2027 to 2029.
+
+[00:01:00] Dana Whitcomb: That's how I read it. I'd put that in a written question though, so it ends up in an addendum.
+
+[00:01:06] Tom Okafor: Will do.
+
+[00:01:09] Priya Raman: On timing, when do you need the final report each year?
+
+[00:01:13] Marcus Fell: The auditors want the Statement of Actuarial Opinion in hand for the financial statements, so final report by March 31. Draft a few weeks before that so we can go through it with you.
+
+[00:01:24] Priya Raman: Draft by early March, then.
+
+[00:01:27] Marcus Fell: Early March is fine. Mid-February would be even better, honestly.
+
+[00:01:32] Tom Okafor: Okay. Next one is a packaging question. The RFP asks for the electronic copy on CD or thumb drive.
+
+[00:01:39] Dana Whitcomb: You can just email the electronic copy to Purchasing, that's fine. Nobody has a CD drive anymore.
+
+[00:01:45] Tom Okafor: And the original and the photocopy still come by mail?
+
+[00:01:48] Dana Whitcomb: Yes, hard copies still have to be physically delivered. Sealed, the way the RFP says.
+
+[00:01:53] +1 845 555 0142: Sorry, this is Jen from Purchasing, I'm just joining. Dana, I'd hold off on telling them email is okay, I'd have to check with Brenden.
+
+[00:02:01] Dana Whitcomb: Oh, fair enough. Jen's right, go by the RFP until you hear otherwise.
+
+[00:02:06] Tom Okafor: No problem, we'll ask that one in writing too.
+
+[00:02:10] Priya Raman: Can you give us a feel for the claim volume? The RFP says 365 open claims as of May 31.
+
+[00:02:16] Marcus Fell: It's gone up a bit since. As of the end of July we were at about 380 open.
+
+[00:02:21] Priya Raman: Any big drivers?
+
+[00:02:23] Marcus Fell: Two of the school districts had a rough spring. A couple of larger lost-time claims. Nothing catastrophic.
+
+[00:02:30] Tom Okafor: And participants, is it still the list in Attachment A?
+
+[00:02:34] Marcus Fell: One change. One of the three villages is leaving the plan at the end of this year. I can't say which until their board votes. So you'd do a withdrawal calculation for them in the first year.
+
+[00:02:43] Priya Raman: That's the individual participant withdrawal calculation in the scope.
+
+[00:02:47] Marcus Fell: Exactly that one.
+
+[00:02:50] Tom Okafor: On the TPA change you mentioned. Who's the new TPA and when do they start?
+
+[00:02:55] Marcus Fell: We can't say who yet, the contract isn't signed. They start January 1. So the first valuation will be on data that comes partly from the old TPA and partly from the new one.
+
+[00:03:05] Priya Raman: That's useful. We'll want a data hand-off plan then.
+
+[00:03:09] Marcus Fell: Please. That's my biggest worry this year.
+
+[00:03:13] Tom Okafor: Insurance. Schedule C has the professional liability box. Is that box checked for this one?
+
+[00:03:19] Dana Whitcomb: It is. One million per occurrence, two million aggregate, same as the general liability.
+
+[00:03:24] Tom Okafor: Good, that's what we carry.
+
+[00:03:27] Priya Raman: Payment terms. I think we have net thirty in our standard terms, is that workable?
+
+[00:03:32] Dana Whitcomb: No, it's sixty days after we receive the invoice, and the Comptroller has to approve it. That's county-wide, we can't change it.
+
+[00:03:39] Priya Raman: Okay, sixty days.
+
+[00:03:41] Tom Okafor: And you'd want monthly invoices? For an annual report that's a bit odd.
+
+[00:03:45] Dana Whitcomb: The RFP says monthly, I know. In practice for this contract we've been paid on delivery of the final report each year. But I can't promise that, put down what the RFP says.
+
+[00:03:55] Tom Okafor: Understood.
+
+[00:03:57] Priya Raman: Do you expect interviews?
+
+[00:04:00] Dana Whitcomb: Probably. If we do them it'd be the week of September 21st. Two or three firms.
+
+[00:04:06] Tom Okafor: Who sits on the committee?
+
+[00:04:09] Dana Whitcomb: Me, Marcus, someone from the Comptroller's office and someone from Finance.
+
+[00:04:14] Priya Raman: And on scoring, how much weight does price really carry? It says thirty points.
+
+[00:04:19] Dana Whitcomb: Thirty points, yes. But honestly the plan is what separates people. The last round, everyone's price was within a few thousand dollars.
+
+[00:04:27] Tom Okafor: That's helpful.
+
+[00:04:29] Priya Raman: One more on scope. The bullet about anticipated and unanticipated contingencies. What do you actually want there?
+
+[00:04:36] Marcus Fell: Mostly a sensitivity range. What happens to the reserve if trends go the wrong way. A low, expected, high.
+
+[00:04:43] Priya Raman: So a range around the central estimate, with the assumptions behind each.
+
+[00:04:47] Marcus Fell: That's it.
+
+[00:04:49] Tom Okafor: And on optional services, are you expecting much hourly work?
+
+[00:04:53] Marcus Fell: Some. Each budget season we usually ask for a funding scenario or two. Maybe ten or fifteen hours a year.
+
+[00:05:00] Tom Okafor: Okay.
+
+[00:05:02] Priya Raman: Last thing from us. The local office question. We're in Albany. Is that a problem?
+
+[00:05:07] Dana Whitcomb: Not a problem. You'd get the one point for New York State. Just tell us how you'd be available for meetings. We'd want someone here in person for the draft review.
+
+[00:05:16] Tom Okafor: We can commit to in-person for the draft review.
+
+[00:05:19] Tom Okafor: For our part, we'd plan to price one fixed annual fee for the three valuations and the renewal years, and quote the hourly rates separately.
+
+[00:05:27] Dana Whitcomb: That works for us.
+
+[00:05:29] Tom Okafor: And I have questions due on the 18th, ten days before the due date. Is that right?
+
+[00:05:34] Dana Whitcomb: That sounds right, the 18th. Send everything to Brenden.
+
+[00:05:38] Tom Okafor: Great. Thanks both, this was really helpful.
+
+[00:05:41] Marcus Fell: Thanks. Good luck.
+
+[00:05:43] Dana Whitcomb: Bye now.
