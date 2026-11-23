@@ -63,8 +63,10 @@ export function splitBlocks(text: string, opts: { streaming?: boolean } = {}): B
 
 
 /** The steps of a plan the assistant is waiting on, one per line, for the reader to edit. */
-export function planLines(p: { plan_text?: string; steps?: { step: string }[] } | null | undefined): string {
+export function planLines(p: { plan_text?: string; steps?: { step: string }[]; plan_steps?: { step: string; covers?: string[] }[] } | null | undefined): string {
   if (p?.steps?.length) return p.steps.map((x, i) => `${i + 1}. ${x.step}`).join('\n');
+  if (p?.plan_steps?.length)
+    return p.plan_steps.map((x, i) => `${i + 1}. ${x.step}${x.covers?.length ? ` (covers: ${x.covers.join(', ')})` : ''}`).join('\n');
   const text = (p?.plan_text ?? '').replace(/^\s*Plan:\s*/i, '').trim();
   // "1. look up; 2. report" or "1) look up 2) report" becomes one step a line
   const parts = text.split(/\s*;?\s*(?=\d+[.)]\s)/).map((x) => x.trim().replace(/;$/, '')).filter(Boolean);
@@ -84,9 +86,15 @@ function stepItems(step: string): { text: string; items: string[] } {
 
 /** An assistant message that shows a plan ("Plan: 1. ...; 2. ..." or "Plan:\n1. ...") split into
  * its steps and the words after it; null for any other message. */
-export function planMessage(text: string): { steps: PlanStep[]; rest: string } | null {
+export function planMessage(
+  text: string,
+  planning?: { plan_steps?: { step: string; covers?: string[] }[] } | null,
+): { steps: PlanStep[]; rest: string } | null {
   const m = text.match(/^\s*Plan:\s*([\s\S]*?)(?:\n\s*\n([\s\S]*))?$/i);
   if (!m) return null;
+  // The planner's own steps and topics, when it gave them; older plans are read from their text.
+  if (planning?.plan_steps?.length)
+    return { steps: planning.plan_steps.map((x) => ({ text: x.step, items: x.covers ?? [], done: false })), rest: (m[2] ?? '').trim() };
   const lines = planLines({ plan_text: m[1].replace(/\n/g, ' ') }).split('\n');
   const steps = lines
     .map((l) => l.replace(/^\s*\d+[.)]\s*/, '').trim())

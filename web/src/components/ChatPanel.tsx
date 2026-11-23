@@ -73,7 +73,7 @@ function PlanCard({ steps, rest, waiting }: { steps: NonNullable<ReturnType<type
 }
 
 function Message({ m, waiting = false }: { m: ChatMessage; waiting?: boolean }) {
-  const plan = m.role === 'assistant' && m.text ? planMessage(m.text) : null;
+  const plan = m.role === 'assistant' && m.text ? planMessage(m.text, m.planning) : null;
   return (
     <div className="msg-wrap">
       {m.role === 'assistant' && m.tools && <Tools tools={m.tools} />}

@@ -945,7 +945,7 @@ async def _plan_call(model: ChatModel, messages: list[dict], extra: dict, prompt
 async def _write_plan(model: ChatModel, messages: list[dict], extra: dict, route: P.Route, tlog: TurnLog) -> None:
     """Fill `route.steps` (heavy: a JSON list of steps) or `route.plan_text` (light: one line).
     Heavy with no usable steps becomes light, so the work is still planned."""
-    route.steps, route.plan_text = [], ""
+    route.steps, route.plan_text, route.plan_steps = [], "", []
     if route.mode == "heavy":
         steps = P.parse_plan(await _plan_call(model, messages, extra, P.plan_prompt([t.name for t in TOOLS]), tlog,
                                               "plan_heavy", HEAVY_TOOL_SPECS))
@@ -954,7 +954,14 @@ async def _write_plan(model: ChatModel, messages: list[dict], extra: dict, route
             return
         route.mode = "light"
         route.add_note("planning call gave no steps, planned light")
-    text = " ".join((await _plan_call(model, messages, extra, P.LIGHT_PLAN_PROMPT, tlog, "plan_light")).split())
+    raw = await _plan_call(model, messages, extra, P.LIGHT_PLAN_PROMPT, tlog, "plan_light")
+    route.plan_steps = P.parse_light_plan(raw)
+    if route.plan_steps:
+        route.plan_text = P.light_plan_text(route.plan_steps)
+        return
+    if raw.strip():
+        route.add_note("light plan was not JSON, kept as written")
+    text = " ".join(raw.split())  # the model wrote the plan as text: keep it as it came
     route.plan_text = text if not text or text.lower().startswith("plan") else f"Plan: {text}"
 
 
@@ -1023,7 +1030,7 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
                     route = pending
             if route is None:
                 route = await _route(planning.router, context, user_text)
-                tlog.log("route", **{k: v for k, v in route.record().items() if k not in ("steps", "plan_text")},
+                tlog.log("route", **{k: v for k, v in route.record().items() if k not in ("steps", "plan_text", "plan_steps")},
                          call=tlog.decisions_call(route.call))
             else:
                 tlog.log("route", mode=route.mode, source="plan", note="the reply answers the plan that was waiting")

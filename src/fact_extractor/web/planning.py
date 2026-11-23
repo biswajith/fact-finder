@@ -57,7 +57,8 @@ class Route:
     probabilities: dict[str, float] | None = None
     note: str = ""
     steps: list[dict] = field(default_factory=list)  # heavy mode: [{"step": str, "done": bool}]
-    plan_text: str = ""  # light mode: the one-line plan
+    plan_text: str = ""  # light mode: the plan as the customer and the model read it
+    plan_steps: list[dict] = field(default_factory=list)  # light mode: [{"step": str, "covers": [str]}], when the model gave them
     status: str = ""  # "", AWAITING, "approved", "cancelled"
     feedback: dict | None = None  # the judge's verdict on the customer's reply to the plan
     call: dict | None = None  # the Decisions call that chose the mode, for the session log (not stored on messages)
@@ -79,6 +80,8 @@ class Route:
             out["steps"] = [dict(s) for s in self.steps]
         if self.plan_text:
             out["plan_text"] = self.plan_text
+        if self.plan_steps:
+            out["plan_steps"] = [{"step": s["step"], "covers": list(s.get("covers") or [])} for s in self.plan_steps]
         if self.status:
             out["status"] = self.status
         if self.feedback:
@@ -88,7 +91,7 @@ class Route:
     @classmethod
     def from_record(cls, r: dict) -> Route:
         return cls(mode=r.get("mode", "direct"), source="plan", steps=[dict(s) for s in r.get("steps") or []],
-                   plan_text=r.get("plan_text") or "")
+                   plan_text=r.get("plan_text") or "", plan_steps=[dict(s) for s in r.get("plan_steps") or []])
 
 
 @dataclass
@@ -322,10 +325,12 @@ LIGHT_PROMPT = (
 )
 
 LIGHT_PLAN_PROMPT = (
-    "Before you do anything, write your plan for the customer's latest message in one line that starts with "
-    "\"Plan:\" and numbers the steps. You cannot call tools in this step, and the customer will approve the plan "
-    "before you carry it out. Write only the plan line. Plan only what the customer asked for, and keep every "
-    "rule of your instructions."
+    "Before you do anything, write your plan for the customer's latest message. You cannot call tools in this step, "
+    "and the customer will read the plan and approve it before you carry it out.\n"
+    "Answer with JSON only, no other text: {\"steps\": [{\"step\": \"...\", \"covers\": [\"...\"]}]}. Each step is one "
+    "short action in plain words for the customer. When a step looks at several topics, name each topic in covers "
+    "(a few words each) instead of listing them in the step; leave covers out when there is no such list. Use 1 to "
+    "5 steps, in order. Plan only what the customer asked for, and keep every rule of your instructions."
 )
 
 PLAN_PROMPT = (
@@ -384,6 +389,34 @@ def parse_plan(text: str) -> list[str]:
             return steps[:MAX_STEPS]
     lines = [_NUMBERED.sub("", ln).strip() for ln in text.splitlines() if _NUMBERED.match(ln)]
     return [ln for ln in lines if ln][:MAX_STEPS]
+
+
+def parse_light_plan(text: str) -> list[dict]:
+    """Steps with the topics each covers, from the light planning call's JSON; [] when it gave none."""
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        return []
+    try:
+        data = json.loads(text[start : end + 1])
+    except ValueError:
+        return []
+    out = []
+    for s in (data.get("steps") if isinstance(data, dict) else None) or []:
+        if isinstance(s, str):
+            s = {"step": s}
+        if not isinstance(s, dict) or not str(s.get("step") or "").strip():
+            continue
+        covers = s.get("covers") if isinstance(s.get("covers"), list) else []
+        out.append({"step": " ".join(str(s["step"]).split()),
+                    "covers": [" ".join(str(c).split()) for c in covers if isinstance(c, (str, int, float)) and str(c).strip()]})
+    return out[:MAX_STEPS]
+
+
+def light_plan_text(steps: list[dict]) -> str:
+    """The light plan as text, for the chat history the model reads and the judge: one numbered line a step."""
+    return "Plan:\n" + "\n".join(
+        f"{i}. {s['step']}" + (f" (covers: {', '.join(s['covers'])})" if s.get("covers") else "")
+        for i, s in enumerate(steps, start=1))
 
 
 def numbered(steps: list[dict]) -> str:

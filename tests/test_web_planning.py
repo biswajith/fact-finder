@@ -256,6 +256,25 @@ async def test_light_plan_is_shown_and_nothing_runs_until_approved(ws, svc):
     assert not [e for e in events if e["type"] in ("tool", "changed")]
 
 
+async def test_light_plan_as_json_steps_with_topics(ws, svc):
+    plan = json.dumps({"steps": [{"step": "Look up the pricing drivers", "covers": ["scope", "volumes", "payment terms"]},
+                                 {"step": "Summarize each factor", "covers": []}]})
+    events = await run(ws, svc, Tools([plan]), planning("light"), "What drives the price?")
+    final = events[-1]["message"]
+    assert final["planning"]["plan_steps"] == [
+        {"step": "Look up the pricing drivers", "covers": ["scope", "volumes", "payment terms"]},
+        {"step": "Summarize each factor", "covers": []}]
+    assert final["text"] == ("Plan:\n1. Look up the pricing drivers (covers: scope, volumes, payment terms)\n"
+                             f"2. Summarize each factor\n\n{P.ASK_APPROVAL}")
+    assert P.pending_plan([final]).plan_steps == final["planning"]["plan_steps"]
+
+
+def test_parse_light_plan_reads_only_usable_steps():
+    assert P.parse_light_plan("Plan: 1) a 2) b") == []
+    assert P.parse_light_plan('{"steps": ["  find  it ", {"step": ""}, {"step": "fix", "covers": "x"}, 3]}') == [
+        {"step": "find it", "covers": []}, {"step": "fix", "covers": []}]
+
+
 async def test_approved_light_plan_runs_with_the_plan_in_history(ws, svc):
     plan = planning("light")
     await run(ws, svc, ScriptedChat(["Plan: 1) find it 2) fix it"]), plan, "Fix the deadline")

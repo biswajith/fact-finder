@@ -53,7 +53,7 @@
 
 .cl-plan { border-left: 3px solid var(--accent); padding: 2px 0 2px 10px; display: flex; flex-direction: column; gap: 4px; }
 .cl-plan-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
-.cl-plan-text { margin: 0; overflow-wrap: anywhere; }
+.cl-plan-text { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
 .cl-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .cl-steps li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 4px; overflow-wrap: anywhere; }
 .cl-steps .mark { color: var(--text-muted); }

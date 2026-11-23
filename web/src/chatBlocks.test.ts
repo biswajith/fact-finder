@@ -93,6 +93,16 @@ describe('planMessage', () => {
     expect(p?.steps.map((s) => [s.text, s.done])).toEqual([['Find the dates', true], ['Report them', false]]);
   });
 
+  it('uses the planner\'s own steps and topics when the message has them', () => {
+    const planning = { plan_steps: [{ step: 'Look up the pricing drivers', covers: ['scope', 'volumes'] }, { step: 'Summarize each factor' }] };
+    const p = planMessage('Plan:\n1. Look up the pricing drivers (covers: scope, volumes)\n2. Summarize each factor\n\nShall I go ahead?', planning);
+    expect(p).toEqual({
+      steps: [{ text: 'Look up the pricing drivers', items: ['scope', 'volumes'], done: false }, { text: 'Summarize each factor', items: [], done: false }],
+      rest: 'Shall I go ahead?',
+    });
+    expect(planLines(planning)).toBe('1. Look up the pricing drivers (covers: scope, volumes)\n2. Summarize each factor');
+  });
+
   it('leaves short lists in the sentence and ignores other messages', () => {
     expect(planMessage('Plan: 1. check dates, including May and June; 2. report')?.steps[0].items).toEqual([]);
     expect(planMessage('The plan is fine.')).toBeNull();
