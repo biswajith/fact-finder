@@ -210,6 +210,7 @@ class Problem:
     text: str
     ids: tuple[str, ...]
     terms: tuple[str, ...] = ()  # what the problem is about (identifiers, short names, the reference); used to match a CHECK line
+    kind: str = ""  # the kind of reference (section, attachment) for rules absent and missing; "" for the others
 
 
 @dataclass
@@ -224,6 +225,7 @@ class Result:
     verified: int = 0  # checked and no problem found
     problems: list[Problem] = field(default_factory=list)
     error: str = ""
+    section_units: list[str] = field(default_factory=list)  # units that hold a kept reference to a section, in document order
 
     def report(self) -> dict:
         return {
@@ -318,17 +320,17 @@ def _one(doc: TaggedDocument, r: Ref, order: dict[str, int]) -> Problem | None:
         return Problem("placeholder", _blank_text(doc, r), (r.unit,), (r.text,))
     if r.target is None:
         if r.kind == "section" and is_specific(r.text):  # c
-            return Problem("absent", f"{page_of(doc, r.unit)} refers to {_label(r)}, which is not in the document.", (r.unit,), (r.text,))
+            return Problem("absent", f"{page_of(doc, r.unit)} refers to {_label(r)}, which is not in the document.", (r.unit,), (r.text,), r.kind)
         if r.kind == "attachment" and is_specific(r.text) and re.search(
             r"\b(?:above|below|following|herein|this (?:rfp|document|solicitation|section))\b", norm(r.text)
         ):
-            return Problem("absent", f"{page_of(doc, r.unit)} refers to {_label(r)}, which is not in the document.", (r.unit,), (r.text,))
+            return Problem("absent", f"{page_of(doc, r.unit)} refers to {_label(r)}, which is not in the document.", (r.unit,), (r.text,), r.kind)
         return None
     if r.target == r.unit:
         return None
     t = doc.anchors.get(r.target)
     if t is None:  # a
-        return Problem("missing", f"{page_of(doc, r.unit)} refers to {_label(r)}, but the document has no such part.", (r.unit,), (r.text,))
+        return Problem("missing", f"{page_of(doc, r.unit)} refers to {_label(r)}, but the document has no such part.", (r.unit,), (r.text,), r.kind)
     ids = (r.unit, t.id)
     if is_blank(t.text):  # b
         return Problem("blank", f"{page_of(doc, r.unit)} refers to {_label(r)}, but that part ({page_of(doc, t.id)}) is blank: it reads \"{_clip(t.text, 8)}\".", ids, (r.text,))
@@ -498,6 +500,7 @@ def verify(doc: TaggedDocument, refs: list[Ref]) -> Result:
     kept, res.dropped = keep(doc, refs)
     order = {i: n for n, i in enumerate(doc.anchors)}
     res.external = sum(r.kind == "external" for r in kept)
+    res.section_units = sorted({r.unit for r in kept if r.kind == "section"}, key=order.__getitem__)
     checked = [r for r in kept if r.kind != "external"]
     res.checked = len(checked)
     problems: list[Problem] = []

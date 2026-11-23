@@ -23,12 +23,13 @@ import os
 import re
 import tempfile
 import threading
+from collections import Counter
 from collections.abc import Callable
 from datetime import date as _date
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import classify, cutters, playbooks, results
+from . import classify, cutters, ladder, playbooks, relate, results
 
 BIDS = "_bids"
 SIDES = ("buyer", "ours", "unknown")
@@ -246,6 +247,38 @@ class Bid:
 
         return self._change(no, go)
 
+    def earlier_documents(self, manifest: dict, doc: dict) -> list[dict]:
+        """The documents RELATE reads `doc` against: those before it in issue order that are extracted,
+        whose authority is the buyer's and whose units were stored. Empty for a playbook that relates
+        to nothing."""
+        if playbooks.load(doc["playbook"]).relate_to != "buyer documents":
+            return []
+        out = []
+        for e in issue_order(manifest):
+            if e["no"] == doc["no"]:
+                break
+            if e.get("run") and _authority(e) == "buyer" and (self.root / e["run"] / "units.json").is_file():
+                out.append(e)
+        return out
+
+    def needs_relate(self, manifest: dict | None = None) -> list[int]:
+        """The numbers of the extracted documents whose stored RELATE answers were made against other
+        documents than the earlier buyer documents now in the bid (a document was added that sorts
+        before them). `extract_document(..., relate_only=True)` runs RELATE again for one."""
+        m = manifest or self.manifest()
+        out = []
+        for d in m["documents"]:
+            if not d.get("run") or "RELATE" not in playbooks.load(d["playbook"]).calls:
+                continue
+            try:
+                have = json.loads((self.root / d["run"] / "relations.json").read_text(encoding="utf-8")).get("against")
+            except (OSError, ValueError):
+                have = None
+            want = [e["doc_id"] for e in self.earlier_documents(m, d)]
+            if have is None or set(have) != set(want):
+                out.append(d["no"])
+        return out
+
     def remove_document(self, no: int) -> None:
         with self.lock:
             m = self.manifest()
@@ -343,6 +376,13 @@ def issue_order(manifest: dict) -> list[dict]:
     return ordered
 
 
+def _authority(doc: dict) -> str:
+    try:
+        return playbooks.load(doc["playbook"]).authority
+    except ValueError:
+        return ""
+
+
 def doc_numbers(manifest: dict) -> dict[str, int]:
     return {d["doc_id"]: d["no"] for d in manifest["documents"]}
 
@@ -430,15 +470,83 @@ def _run_path(stored: results.Stored) -> str:
     return f"{stored.folder.parent.name}/{stored.folder.name}"
 
 
+def _read(path: Path, default):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+
+
+async def _relate(bid: Bid, d: dict, pb: playbooks.Playbook, tagged, facts: Records, client, cfg, refs, held) -> dict:
+    """RELATE for one document against the earlier buyer documents now in the bid."""
+    m = bid.manifest()
+    earlier = []
+    for e in bid.earlier_documents(m, d):
+        t = results.load_document(bid.root / e["run"], e["doc_id"])
+        if t is not None:
+            earlier.append((e["no"], t, _read(bid.root / e["run"] / "facts.json", [])))
+    return await relate.relate(tagged, d["no"], pb, facts, earlier, client, cfg, refs=refs, held_refs=held)
+
+
+def _with_held_q(rel: dict, tagged, facts: Records, report: dict, pb: playbooks.Playbook) -> Records:
+    """The facts without the Q facts an earlier RELATE run made for held references, plus the ones
+    this answer needs; the report's counts follow."""
+    from . import units as U
+
+    dropped = {f["fact_id"] for f in facts if f.get("from_held")}
+    facts = [f for f in facts if not f.get("from_held")]
+    for f in facts:
+        if dropped & set(f.get("conflicts") or []):
+            f["conflicts"] = [c for c in f["conflicts"] if c not in dropped]
+            if not f["conflicts"] and f.get("status") == "conflict":
+                f["status"] = "valid"
+    for q in relate.q_records(rel, tagged, report.get("deal_id", ""), report.get("run_id", "")):
+        apply_levels(q, pb)
+        facts.append(q)
+    U._mark_conflicts(facts)
+    report["facts"] = len(facts)
+    report["by_category"] = dict(Counter(f["category"] for f in facts))
+    report["by_status"] = dict(Counter(f["status"] for f in facts))
+    return facts
+
+
+async def _relate_stored(bid: Bid, no: int, pb: playbooks.Playbook, found: results.Stored, client, cfg, say) -> results.Stored:
+    """Run RELATE again for a stored result and rewrite its `relations.json`, its Q facts for held
+    references and the report's `relate_calls`. The labels, statements and checks are kept."""
+    from . import units as U
+
+    d = bid.document(no)
+    tagged = results.load_document(found.folder, d["doc_id"])
+    if tagged is None:
+        raise ValueError(f"document {no} has no stored units to relate")
+    old = _read(found.folder / "relations.json", {})
+    facts, report = found.facts(), found.report()
+    say("relate", "running")
+    rel = await _relate(bid, d, pb, tagged, [f for f in facts if not f.get("from_held")], client, cfg or U.Config(votes=pb.votes),
+                        old.get("ref_units") or [], old.get("held_refs") or [])
+    report["relate_calls"] = rel.pop("calls")
+    facts = _with_held_q(rel, tagged, facts, report, pb)
+    _write_json(found.folder / "facts.json", facts)
+    _write_json(found.folder / "report.json", report)
+    _write_json(found.folder / "relations.json", rel)
+    found.meta["facts"] = len(facts)
+    _write_json(found.folder / "meta.json", found.meta)
+    say("relate", "done", f"{len(rel['units'])} units, {len(rel['incomplete'])} left out")
+    return found
+
+
 async def extract_document(
     bid: Bid, no: int, client, *, votes: int | None = None, store: results.ResultStore,
-    on_step: Step | None = None, cfg=None,
+    on_step: Step | None = None, cfg=None, relate_only: bool = False,
 ) -> results.Stored:
     """Cut one confirmed document with its playbook's cutter, give each unit its side from the
     confirmed speaker map, run the playbook, set each fact's level and flags, and store the result.
-    A stored result for the same content, playbook and doc_id is reused without a model call.
-    `on_step(no, step, status, detail)` hears `cut`, `extract` and `save`. On an error the manifest
-    says `failed` with the message, and the error is raised."""
+    A playbook with RELATE then compares every unit with the earlier buyer documents of the bid and
+    stores the answers as `relations.json`. A stored result for the same content, playbook and doc_id
+    is reused without a model call. `relate_only=True` runs only RELATE again for a document that is
+    already extracted (see `Bid.needs_relate`). `on_step(no, step, status, detail)` hears `cut`,
+    `extract`, `relate` and `save`. On an error the manifest says `failed` with the message, and the
+    error is raised."""
     from . import units as U
     from .api import document_from_units
     from .web import runs
@@ -451,14 +559,21 @@ async def extract_document(
         bid._change(no, lambda m, d: d.update(fields))
 
     d = bid.document(no)
+    pb = playbooks.load(d["playbook"])
+    if relate_only:
+        if not d.get("run") or "RELATE" not in pb.calls:
+            raise ValueError(f"document {no} is not extracted or does not use RELATE")
+        folder = bid.root / d["run"]
+        return await _relate_stored(bid, no, pb, results.Stored(folder, _read(folder / "meta.json", {})), client, cfg, say)
     missing = ready(d)
     if missing:
         raise ValueError(f"document {no} is not ready: {', '.join(missing)}")
-    pb = playbooks.load(d["playbook"])
     try:
         found = store.find(d["sha256"], U.VERSION, d["doc_id"], pb.key)
         if found:
             say("extract", "reused", "stored result")
+            if "RELATE" in pb.calls and not (found.folder / "relations.json").is_file():
+                await _relate_stored(bid, no, pb, found, client, cfg, say)  # stored in another bid, or before RELATE
             mark(run=_run_path(found), status="extracted", error="")
             return found
         mark(status="extracting", error="")
@@ -480,15 +595,25 @@ async def extract_document(
         cfg = dataclasses.replace(cfg or U.Config(votes=pb.votes), votes=votes or (cfg.votes if cfg else pb.votes))
         result = await U.extract(
             tagged, client, deal_id=bid.manifest()["deal_id"], cfg=cfg, run_id=runs.new_run_id(), playbook=pb,
+            hold_section_refs="RELATE" in pb.calls,
         )
         for r in result.facts:
             apply_levels(r, pb)
         say("extract", "done", f"{len(result.facts)} facts")
+        rel = None
+        if "RELATE" in pb.calls:
+            say("relate", "running")
+            rel = await _relate(bid, d, pb, tagged, result.facts, client, cfg, result.section_units, result.held_refs)
+            result.report["relate_calls"] = rel.pop("calls")
+            result.facts = _with_held_q(rel, tagged, result.facts, result.report, pb)
+            say("relate", "done", f"{len(rel['units'])} units, {len(rel['incomplete'])} left out")
         say("save", "running")
         saved = store.save(
             data, d["sha256"], U.VERSION, result, result.labels, playbook=pb.key, source_name=d["file_name"],
             units=tagged,
         )
+        if rel is not None:
+            _write_json(saved.folder / "relations.json", rel)
         mark(run=_run_path(saved), status="extracted", error="")
         say("save", "done")
         return saved
@@ -501,10 +626,12 @@ async def extract_document(
 # --- the bid's fact list ----------------------------------------------------------------
 
 Records = list[dict]
-FactStep = Callable[[dict, Records], Records]  # (manifest, records in issue order) -> records
+# (bid, manifest, records in issue order, outputs) -> records. `outputs` collects what a step derives
+# besides the records: `outputs["conflicts"]` are the conflicts raised for documents.
+FactStep = Callable[["Bid", dict, Records, dict], Records]
 
 
-def _stamp(manifest: dict, records: Records) -> Records:
+def _stamp(bid: Bid, manifest: dict, records: Records, out: dict) -> Records:
     """Every fact says which document it is from and every citation which document, level and
     visibility; the fields the later steps fill are present and empty."""
     nos = doc_numbers(manifest)
@@ -523,7 +650,37 @@ def _stamp(manifest: dict, records: Records) -> Records:
     return records
 
 
-FACT_STEPS: list[FactStep] = [_stamp]  # later packages add their steps here, in order
+def _apply_relations(bid: Bid, manifest: dict, records: Records, out: dict) -> Records:
+    """Apply every document's stored relations in issue order (`ladder.apply`). Reads the user's
+    correction log for two things only: the relations the user rejected and the facts the user
+    edited. Relations stored against other documents than the ones now before a document are
+    applied as stored."""
+    from .web.workspace import live_entries, read_jsonl  # no FastAPI behind it
+
+    present = {r["doc_id"] for r in records}
+    docs = [d for d in issue_order(manifest) if d["doc_id"] in present]
+    by_doc: dict[str, Records] = {}
+    for r in records:
+        by_doc.setdefault(r["doc_id"], []).append(r)
+    rels, units = {}, {}
+    for d in docs:
+        folder = bid.root / d["run"]
+        rels[d["doc_id"]] = _read(folder / "relations.json", {})
+        units[d["doc_id"]] = [
+            {"id": u["id"], "kind": u.get("kind", ""), "side": u.get("side", ""), "text": u.get("text", "")}
+            for u in _read(folder / "units.json", [])
+        ]
+    live = live_entries(read_jsonl(bid.folder / "workspace" / "corrections.jsonl"))
+    rejected = {(e.get("fields") or {}).get("relation_id") for e in live if e.get("op") == "reject_relation"}
+    edited = {e["fact_id"] for e in live if e.get("op") == "edit" and not e.get("conflict_id")}
+    applied = ladder.apply(
+        docs, by_doc, rels, rejected, manifest.get("precedence"), units_by_doc=units, edited=edited,
+    )
+    out["conflicts"] = applied.conflicts
+    return applied.facts
+
+
+FACT_STEPS: list[FactStep] = [_stamp, _apply_relations]  # later packages add their steps here, in order
 
 
 def build(bid: Bid) -> Records:
@@ -554,8 +711,9 @@ def build(bid: Bid) -> Records:
                 first_base = d
         if not parts:
             return []
+        out: dict = {"conflicts": []}
         for step in FACT_STEPS:
-            records = step(manifest, records)
+            records = step(bid, manifest, records, out)
         pages, summaries = 0, {}
         if first_base is not None:
             try:
@@ -568,11 +726,12 @@ def build(bid: Bid) -> Records:
             "doc_id": bid.bid_id, "run_id": "bid", "summaries": summaries,
         }
         _write_json(bid.folder / "report.json", report)
+        _write_json(bid.folder / "conflicts.json", out["conflicts"])
         _write_json(bid.folder / "facts.json", records)
         return records
 
 
 __all__ = [
     "Bid", "create", "list_bids", "issue_order", "doc_numbers", "propose_speakers", "ready", "extract_document",
-    "build", "level_of", "apply_levels", "slug",
+    "build", "level_of", "apply_levels", "slug", "citation_level",
 ]

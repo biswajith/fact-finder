@@ -532,6 +532,8 @@ class RunResult:
     facts: list[dict]
     report: dict
     labels: list[dict] = field(default_factory=list)  # every unit with its votes, coded or not
+    held_refs: list[dict] = field(default_factory=list)  # {unit, text, rule}: section references held back for RELATE
+    section_units: list[str] = field(default_factory=list)  # units with a reference to a section (candidates for RELATE)
 
 
 class _Run:
@@ -641,8 +643,11 @@ class _Run:
 
 async def extract(
     doc: TaggedDocument, client: LLMClient, *, deal_id: str, cfg: Config | None = None, run_id: str | None = None,
-    playbook: Playbook | None = None,
+    playbook: Playbook | None = None, hold_section_refs: bool = False,
 ) -> RunResult:
+    """`hold_section_refs`: a reference to a section that has no target in this document is not
+    written as a Q fact but returned on `RunResult.held_refs`, for a document that points at
+    earlier documents (an addendum); RELATE answers for it later."""
     pb = playbook or _RFP
     cfg = cfg or Config()
     run_id = run_id or f"run_{datetime.now(timezone.utc):%Y_%m_%d}_{uuid.uuid4().hex[:6]}"
@@ -710,6 +715,12 @@ async def extract(
         statements.update(await job)
     q_lines = await check_job
     xres = await xref_job
+    held: list[dict] = []
+    if hold_section_refs:
+        keep_p = [p for p in xres.problems if not (p.kind == "section" and p.rule in ("absent", "missing"))]
+        held = [{"unit": p.ids[0], "text": p.terms[0] if p.terms else "", "rule": p.rule}
+                for p in xres.problems if p not in keep_p]
+        xres.problems = keep_p
 
     voted = vote(passes, units, pb)
     groups = group(voted, units, pb)
@@ -765,7 +776,7 @@ async def extract(
     report["summaries"] = briefs
     report["groups"] = dict(Counter(k for k, _, _ in found))
     report["facts_in_groups"] = sum(bool(r.get("group_id")) for r in records)
-    return RunResult(run_id, records, report, labels)
+    return RunResult(run_id, records, report, labels, held, list(xres.section_units))
 
 
 def _q_records(q_lines: list[dict], xres: xref.Result, doc: TaggedDocument, deal_id: str, run_id: str) -> list[dict]:
