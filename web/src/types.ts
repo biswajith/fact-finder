@@ -279,6 +279,8 @@ export interface ChatMessage {
   text: string;
   tools?: ToolStep[];
   conflict_ids?: string[];
+  /** How the turn was planned; `status: "awaiting_approval"` means the assistant showed a plan and waits for a yes. */
+  planning?: { mode?: string; status?: string; plan_text?: string; steps?: { step: string; done?: boolean }[] } | null;
 }
 
 export type ChangedWhat = 'facts' | 'conflicts' | 'summaries';

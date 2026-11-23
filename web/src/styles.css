@@ -158,6 +158,8 @@ button, select { font-family: inherit; }
 .shell.chat-open.fact-open .chat-panel { right: var(--fact-w); width: var(--chat-w); }
 @media (max-width: 759px) { .shell.chat-open.fact-open .chat-panel { right: 0; width: min(var(--drawer-w), 100vw); } }
 @media (prefers-reduced-motion: reduce) { .chat-panel { transition: none; } }
+.plan-reply { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.plan-reply.editing { flex-direction: column; align-items: stretch; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
 /* The chat's left edge is a handle: drag it, or use the arrow keys on it, to set the chat's width. */
 .chat-resizer { position: absolute; z-index: 2; top: 0; bottom: 0; left: -4px; width: 9px; cursor: col-resize; touch-action: none; }
 .chat-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 3px; background: transparent; transition: background 0.12s; }

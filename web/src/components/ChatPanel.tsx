@@ -3,6 +3,7 @@ import { Button, InlineAlert, Heading, Content, TextArea } from '@adobe/react-sp
 import * as api from '../api';
 import { errorText, useRun } from '../store';
 import type { ChatEvent, ChatMessage, ToolStep } from '../types';
+import { planLines } from '../chatBlocks';
 import { ConflictCard } from './ConflictCard';
 import { ErrorBox, Loading } from './common';
 import { ChatMarkdown } from './chat/Markdown';
@@ -58,6 +59,30 @@ function Message({ m }: { m: ChatMessage }) {
 }
 
 interface Pending { text: string; tools: ToolStep[]; conflictIds: string[] }
+
+/** Under a plan that waits for a yes: proceed, or say no and change the plan (or drop it). */
+function PlanReply({ m, disabled, onSend }: { m: ChatMessage; disabled: boolean; onSend: (text: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(() => planLines(m.planning));
+  if (!editing) {
+    return (
+      <div className="plan-reply" role="group" aria-label="Answer the plan">
+        <Button variant="accent" isDisabled={disabled} onPress={() => onSend('Yes, go ahead.')}>Yes, proceed</Button>
+        <Button variant="secondary" isDisabled={disabled} onPress={() => setEditing(true)}>No, change the plan</Button>
+      </div>
+    );
+  }
+  return (
+    <div className="plan-reply editing" role="group" aria-label="Change the plan">
+      <TextArea label="The plan, as you want it" value={draft} onChange={setDraft} width="100%" autoFocus />
+      <div className="row">
+        <Button variant="accent" isDisabled={disabled || !draft.trim()} onPress={() => onSend(`Change the plan to this, then show it to me again:\n${draft.trim()}`)}>Send the changed plan</Button>
+        <Button variant="secondary" isDisabled={disabled} onPress={() => onSend('No, cancel that plan.')}>Drop the plan</Button>
+        <Button variant="secondary" isQuiet onPress={() => setEditing(false)}>Back</Button>
+      </div>
+    </div>
+  );
+}
 
 export function ChatPanel({ open, onClose, resizer }: { open: boolean; onClose: () => void; resizer?: ReactNode }) {
   const { run, status, reloadAll, chatDraft, setChatDraft, setSummaries, chatEpoch } = useRun();
@@ -160,6 +185,9 @@ export function ChatPanel({ open, onClose, resizer }: { open: boolean; onClose: 
   };
 
   const empty = history !== null && history.length === 0 && !pending;
+  // The last message is a plan the assistant is waiting on: offer the answers as buttons.
+  const lastMessage = history && history.length ? history[history.length - 1] : null;
+  const waitingPlan = !pending && lastMessage?.role === 'assistant' && lastMessage.planning?.status === 'awaiting_approval' ? lastMessage : null;
   return (
     <aside className={`chat-panel${open ? ' open' : ''}`} id="app-chat" aria-label="Assistant">
       {resizer}
@@ -178,6 +206,7 @@ export function ChatPanel({ open, onClose, resizer }: { open: boolean; onClose: 
         ) : (
           history.map((m) => <Message key={m.id} m={m} />)
         )}
+        {waitingPlan && <PlanReply key={waitingPlan.id} m={waitingPlan} disabled={sending || noKey} onSend={(t) => void send(t)} />}
         {pending && (
           <div className="msg-wrap">
             <Tools tools={pending.tools} />

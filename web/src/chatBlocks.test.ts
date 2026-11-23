@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitBlocks } from './chatBlocks';
+import { planLines, splitBlocks } from './chatBlocks';
 
 const A = 'f_0123456789';
 const B = 'f_abcdef0123';
@@ -61,5 +61,17 @@ describe('splitBlocks', () => {
 
   it('shows an unfinished last line that does not start with [[', () => {
     expect(splitBlocks('Answer [[sour', { streaming: true })).toEqual([{ kind: 'text', text: 'Answer [[sour' }]);
+  });
+});
+
+
+describe('planLines', () => {
+  it('puts each step of a one-line plan on its own line', () => {
+    expect(planLines({ plan_text: 'Plan: 1. Look up the dates; 2. report them with sources.' })).toBe('1. Look up the dates\n2. report them with sources.');
+    expect(planLines({ plan_text: 'Plan: 1) find it 2) fix it' })).toBe('1) find it\n2) fix it');
+  });
+  it('numbers the steps of a heavy plan and copes with nothing', () => {
+    expect(planLines({ steps: [{ step: 'Find all dates' }, { step: 'Check each' }] })).toBe('1. Find all dates\n2. Check each');
+    expect(planLines(null)).toBe('');
   });
 });

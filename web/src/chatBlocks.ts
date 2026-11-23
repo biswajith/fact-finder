@@ -60,3 +60,13 @@ export function splitBlocks(text: string, opts: { streaming?: boolean } = {}): B
   flush();
   return out;
 }
+
+
+/** The steps of a plan the assistant is waiting on, one per line, for the reader to edit. */
+export function planLines(p: { plan_text?: string; steps?: { step: string }[] } | null | undefined): string {
+  if (p?.steps?.length) return p.steps.map((x, i) => `${i + 1}. ${x.step}`).join('\n');
+  const text = (p?.plan_text ?? '').replace(/^\s*Plan:\s*/i, '').trim();
+  // "1. look up; 2. report" or "1) look up 2) report" becomes one step a line
+  const parts = text.split(/\s*;?\s*(?=\d+[.)]\s)/).map((x) => x.trim().replace(/;$/, '')).filter(Boolean);
+  return parts.length > 1 ? parts.join('\n') : text;
+}
