@@ -368,3 +368,21 @@ async def test_planning_call_keeps_the_heavy_tool_list_but_refuses_tools(ws, svc
     (plan_tools, plan_allowed), (loop_tools, loop_allowed) = model.calls
     assert plan_tools == loop_tools and "update_plan" in plan_tools  # one prefix for both calls
     assert (plan_allowed, loop_allowed) == (False, True)
+
+
+async def test_router_trusts_clear_probabilities_when_confidence_is_just_under_the_cut_off():
+    """direct at 0.72 against 0.25 with confidence 0.58 runs direct; the same confidence with a close
+    split, or a clear split with a confidence far below the cut-off, still falls back to light."""
+    def answer(probs, confidence, pick="direct"):
+        return ChoiceAnswer(type="choice", choice=pick, probabilities=probs, confidence=confidence)
+
+    clear = {"direct": 0.72, "light": 0.25, "heavy": 0.03}
+    r = await P.DecisionsRouter(client=FakeDecisions(answer(clear, 0.58))).route("c", "m")
+    assert (r.mode, r.source) == ("direct", "router") and "trusted the probabilities" in r.note
+
+    close = {"direct": 0.5, "light": 0.45, "heavy": 0.05}
+    r = await P.DecisionsRouter(client=FakeDecisions(answer(close, 0.58))).route("c", "m")
+    assert (r.mode, r.source) == ("light", "fallback")
+
+    r = await P.DecisionsRouter(client=FakeDecisions(answer(clear, 0.4))).route("c", "m")
+    assert (r.mode, r.source) == ("light", "fallback")

@@ -37,6 +37,12 @@ MODES = ("direct", "light", "heavy")
 VERDICTS = ("approve", "revise", "cancel", "new_request")
 DEFAULT_DECISIONS_MODEL = "gpt-6-luna"  # the only model the Decisions API serves (goldset config)
 MIN_CONFIDENCE = 0.6  # below this a Decisions answer is not trusted (see the fallbacks below)
+# Routing only: a confidence just under the cut-off is still trusted when the probabilities are clear,
+# that is the pick holds at least CLEAR_PROBABILITY and leads the next mode by CLEAR_LEAD. (Seen 2026-11-23:
+# direct at 0.72 against 0.25 with confidence 0.58 was thrown away, and a plain lookup asked for approval.)
+BORDERLINE = 0.10
+CLEAR_PROBABILITY = 0.6
+CLEAR_LEAD = 0.25
 MAX_STEPS = 10
 AWAITING = "awaiting_approval"
 
@@ -186,6 +192,14 @@ FEEDBACK_INSTRUCTIONS = _SETTING + (
 )
 
 
+def clear_pick(choice: str, probabilities: dict[str, float]) -> bool:
+    """Whether the probabilities alone make `choice` a clear pick: it holds most of the weight and leads
+    every other mode by a wide margin."""
+    top = probabilities.get(choice, 0.0)
+    rest = max((v for k, v in probabilities.items() if k != choice), default=0.0)
+    return top >= CLEAR_PROBABILITY and top - rest >= CLEAR_LEAD
+
+
 class DecisionsRouter:
     """Picks the mode, and judges replies to a plan, with Choice questions to the OpenAI Decisions API.
 
@@ -242,6 +256,11 @@ class DecisionsRouter:
         call = self._call(started, usage)
         probs = {str(k): float(v) for k, v in (a.probabilities or {}).items()}
         if a.confidence < self.min_confidence:
+            if clear_pick(str(a.choice), probs) and a.confidence >= self.min_confidence - BORDERLINE:
+                others = max((v for k, v in probs.items() if k != str(a.choice)), default=0.0)
+                return Route(str(a.choice), "router", a.confidence, probs, call=call,
+                             note=(f"confidence {a.confidence:.2f} is just under the cut-off; trusted the probabilities "
+                                   f"({a.choice} {probs[str(a.choice)]:.2f} against {others:.2f})"))
             return Route("light", "fallback", a.confidence, probs,
                          note=f"router unsure (picked {a.choice} at confidence {a.confidence:.2f})", call=call)
         return Route(str(a.choice), "router", a.confidence, probs, call=call)
