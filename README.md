@@ -278,6 +278,60 @@ page.
 - Chat and summaries need `OPENAI_API_KEY`. Everything else works without it.
 - For frontend work: `npm --prefix web run dev` (port 5173, proxies `/api` to 8765).
 
+## Many documents, one bid
+
+A bid is one opportunity with several documents: the RFP, addenda, call transcripts and your own
+deal notes. Each is read on its own, with the playbook for its type (`src/fact_extractor/playbooks/`),
+and then the facts are listed together, in the order the documents were *issued*, never the order
+they were uploaded. Design: [docs/multi-document-design.html](docs/multi-document-design.html);
+how it was built: [docs/multi-document-build-plan.md](docs/multi-document-build-plan.md).
+
+**From the web:** open Documents, start a bid, drop the files in, check the type, issue number and
+date proposed for each (addenda need both), name your team (call speakers on the team list are
+proposed as "ours"), confirm each call's speakers, then extract. It shows the planned calls and
+asks before spending tokens. The bid then opens like any run, with a document and a level on every fact.
+
+**From the CLI** (`--store` is the runs folder, default `runs`):
+
+```bash
+uv run fact-extractor bid create "Ulster County actuarial"        # prints the bid ID
+uv run fact-extractor bid add ulster-county-actuarial RFP.pdf add1.pdf call.json notes.md
+uv run fact-extractor bid add ulster-county-actuarial add1.pdf --type change-addendum --number 1 --date 2027-05-20 --yes
+uv run fact-extractor bid speakers ulster-county-actuarial 3 "Dana Pike=buyer" "Tom Okafor=ours"
+uv run fact-extractor bid show ulster-county-actuarial            # issue order, what each still needs
+uv run fact-extractor bid run ulster-county-actuarial             # extract, relate, group, check, build
+uv run fact-extractor bid eval ulster-county-actuarial key.json   # score against a hand-made key; no model call
+```
+
+`bid add` prints what each file looks like and who suggested it (rules or the model); nothing is
+read until you confirm it (`--yes`). Without `OPENAI_API_KEY`, `bid run` builds the list from what
+is stored and records the cross-document checks as not done.
+
+**What is stored where.** Each document keeps its own result under `runs/<doc_id>/<run_id>/`, as
+for a single RFP, and gains `units.json` (its units, with the speaker's side), and `relations.json`
+(what each unit does to the earlier buyer documents) for addenda, calls and notes. The bid is
+`runs/_bids/<bid_id>/`: `bid.json` (documents, types, numbers, dates, team, speakers),
+`files/` (the uploads), `facts.json`, `report.json` and `conflicts.json` (derived by `bid.build`,
+never edited by hand), `groups.json` and `pairs.json` (the answers of the group and pair-check
+calls, never asked twice) and `workspace/` (your corrections, as for a run). Corrections never touch
+the document results.
+
+**The priority ladder.**
+1. Level 1 buyer documents; level 2 the buyer on a call; level 3 our side on a call; level 4 deal notes.
+2. Between level-1 documents the later issue wins (an addendum's issue number comes before its date),
+   unless you confirmed the buyer's order of precedence. Two documents issued together that disagree
+   are a conflict, not a replacement.
+3. A lower level never changes a higher one: a call or a note that disagrees becomes a conflict
+   and both facts stay. A fact with units from both sides (a question answered "yes") is level 2.
+4. A fact's text is never rewritten by code. A conflict's first choice may carry an edit, and it is yours to apply.
+
+**Not yet measured.** RELATE (which earlier fact a later unit replaces, confirms or disagrees with)
+has only been run on made-up documents: it needs a real change or Q&A addendum, and its answer is a
+single vote. The pair check's threshold (0.7), its review band (0.5) and the "depends on the
+changed value" question are unmeasured, as is GROUP across documents on real data. Heading detection
+reads "1.0 Scope" as a heading but "1. Scope" as a list item, so a section replaced by its heading
+may reach further than it should in an RFP numbered that way.
+
 ## Reference lists from goldset
 
 `score` and `compare` need a reference list, one `CODE|fact|IDs|flags` line per
@@ -450,6 +504,9 @@ Their thresholds are untested defaults. Compare them with the hand labels in
 | `compare.py` | 13. Acceptance: score facts against a reference list |
 | `precision.py` | Precision: labelled samples, model grades, near-duplicates |
 | `stability.py` | Agreement between two runs on cited IDs, codes and fact IDs |
+| `bid.py`, `classify.py`, `cutters.py`, `playbooks/` | A bid of many documents: manifest, issue order, type proposal, one cutter and playbook per type |
+| `relate.py`, `ladder.py`, `bidgroup.py`, `reissue.py` | What a later document does to an earlier one, the priority ladder, grouping and pair check across documents, reissued RFPs |
+| `bideval.py` | Score a built bid against a hand-made key of relations, groups and speaker sides |
 | `units.py` | The unit-label pipeline and its prompts: label votes, statements, contradiction check, facts |
 | `results.py` | Stored results on disk, found by PDF content; what a re-extraction changed |
 | `score.py` | Recall against a reference list by source ID |

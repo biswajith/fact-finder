@@ -122,6 +122,9 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--model", default=None, help="defaults to $FACT_EXTRACTOR_MODEL or gpt-6-luna")
     b = bsub.add_parser("show", help="the documents of a bid, in issue order, and what each still needs")
     b.add_argument("bid")
+    b = bsub.add_parser("eval", help="score a built bid against a key of relations, sides and groups (no model call)")
+    b.add_argument("bid")
+    b.add_argument("key", help="the key file, JSON")
     for b in bsub.choices.values():
         b.add_argument("--store", default="runs", help="the folder runs and bids are kept in")
     args = ap.parse_args(argv)
@@ -315,7 +318,7 @@ def _bid(args) -> int:
             p = doc["proposed"]
             print(
                 f"{doc['no']}  {doc['doc_id']}  {doc['playbook']}  number {doc['issue_number'] or '-'}  "
-                f"date {doc['issue_date'] or '-'}  ({p['by']}'s proposal: {p['playbook']})  "
+                f"date {doc['issue_date'] or '-'}  (suggested by {'the model' if p['by'] == 'model' else p['by']}: {p['playbook']})  "
                 + ("confirmed" if doc["confirmed"] else "not confirmed; use --yes")
             )
         return code
@@ -337,6 +340,17 @@ def _bid(args) -> int:
         for s in doc["speakers"]:
             print(f"{s['name']}: {s['side'] or '-'} (proposed {s['proposed']}, {s['why']})")
         print("speakers confirmed" if doc["speakers_confirmed"] else "not confirmed: give NAME=side for the speakers")
+        return 0
+    if args.bid_cmd == "eval":
+        from . import bideval
+
+        try:
+            with open(args.key, encoding="utf-8") as f:
+                key = json.load(f)
+            print(bideval.report(bideval.score(bid, key)))
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            print(f"cannot score the bid: {e!r}" if isinstance(e, (KeyError, TypeError)) else f"cannot score the bid: {e}", file=sys.stderr)
+            return 1
         return 0
     if args.bid_cmd == "show":
         m = bid.manifest()
