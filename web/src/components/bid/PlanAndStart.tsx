@@ -5,7 +5,8 @@ import type { Bid, JobStep, Status } from '../../types';
 import { ErrorBox } from '../common';
 
 const STEP_NAMES: Record<string, string> = {
-  cut: 'Cut', extract: 'Extract', relate: 'Relate', save: 'Save', group: 'Group', pairs: 'Pairs', build: 'Build',
+  cut: 'Cut into units', extract: 'Label the units and build facts', relate: 'Link to earlier documents', save: 'Save the result',
+  group: 'Group repeated points', pairs: 'Check facts that disagree', build: 'Build the fact list',
 };
 
 function StepMark({ s }: { s: JobStep }) {
