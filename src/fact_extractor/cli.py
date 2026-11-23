@@ -100,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     web = sub.add_parser("web", help="open the chat workspace (corrections, summaries) in a browser (needs the web extra)")
     web.add_argument("--runs", default="runs", help="folder that holds the runs (default: runs)")
     web.add_argument("--port", type=int, default=8765)
+    web.add_argument("--reload", action="store_true", help="development: restart the server when its Python code changes")
     bd = sub.add_parser("bid", help="a bid: several documents about one opportunity, read one by one and listed together")
     bsub = bd.add_subparsers(dest="bid_cmd", required=True)
     b = bsub.add_parser("create", help="start an empty bid")
@@ -283,7 +284,7 @@ def _web(args) -> int:
     from .web.server import serve
 
     try:
-        serve(args.runs, args.port)
+        serve(args.runs, args.port, reload=args.reload)
     except KeyboardInterrupt:
         pass
     return 0

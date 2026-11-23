@@ -3,9 +3,19 @@
 #
 #   ./start.sh                 # set up what is missing, then serve on port 8765
 #   ./start.sh --port 9000     # any extra arguments go to `fact-extractor web`
+#   ./start.sh --dev           # development: code changes show without a restart or a rebuild.
+#                              # Open http://localhost:5173 (the page reloads itself when web/src changes;
+#                              # the server on port 8765 restarts itself when the Python code changes).
 #
 # Every step is skipped when it is already done, so running it again is cheap.
 set -euo pipefail
+
+dev=0
+args=()
+for a in "$@"; do
+  if [[ $a == --dev ]]; then dev=1; else args+=("$a"); fi
+done
+set -- "${args[@]+"${args[@]}"}"
 
 cd "$(dirname "$0")"
 
@@ -35,6 +45,15 @@ if [[ ! -d web/node_modules || web/package-lock.json -nt web/node_modules ]]; th
   say "Web dependencies (npm install)"
   npm --prefix web install --no-audit --no-fund
   touch web/node_modules
+fi
+
+if [[ $dev == 1 ]]; then
+  say "Development mode: open http://localhost:5173"
+  npm --prefix web run dev -- --clearScreen false &
+  vite=$!
+  trap 'kill "$vite" 2>/dev/null || true' EXIT INT TERM
+  uv run fact-extractor web --runs runs --reload "$@"
+  exit $?
 fi
 
 static=src/fact_extractor/web/static

@@ -1107,9 +1107,28 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
     return app
 
 
-def serve(runs_folder: str, port: int) -> None:
+RUNS_ENV = "FACT_EXTRACTOR_RUNS"
+
+
+def dev_app() -> FastAPI:
+    """The app for `serve(reload=True)`: uvicorn imports it again in a new process after every code change,
+    so the runs folder comes from the environment."""
+    import os
+
+    return create_app(os.environ.get(RUNS_ENV, "runs"))
+
+
+def serve(runs_folder: str, port: int, reload: bool = False) -> None:
+    """Serve the app. With `reload`, the server restarts whenever a Python file of the package changes
+    (development only: a restart drops uploads waiting to be confirmed and stops a running extraction)."""
     import uvicorn
 
-    app = create_app(runs_folder)
     print(f"fact-extractor web: http://127.0.0.1:{port}  (runs folder: {runs_folder})")
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    if reload:
+        import os
+
+        os.environ[RUNS_ENV] = str(runs_folder)
+        uvicorn.run("fact_extractor.web.server:dev_app", factory=True, host="127.0.0.1", port=port, log_level="warning",
+                    reload=True, reload_dirs=[str(Path(__file__).resolve().parents[1])])
+        return
+    uvicorn.run(create_app(runs_folder), host="127.0.0.1", port=port, log_level="warning")
