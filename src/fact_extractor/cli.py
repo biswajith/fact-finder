@@ -121,6 +121,10 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("bid")
     b.add_argument("--votes", type=int, default=None, help="labelling passes per unit (default: the playbook's)")
     b.add_argument("--model", default=None, help="defaults to $FACT_EXTRACTOR_MODEL or gpt-6-luna")
+    b = bsub.add_parser("relate", help="ask again for the units RELATE left unanswered, then build the bid's fact list")
+    b.add_argument("bid")
+    b.add_argument("--no", type=int, default=None, help="only this document number (default: every document)")
+    b.add_argument("--model", default=None, help="defaults to $FACT_EXTRACTOR_MODEL or gpt-6-luna")
     b = bsub.add_parser("show", help="the documents of a bid, in issue order, and what each still needs")
     b.add_argument("bid")
     b = bsub.add_parser("eval", help="score a built bid against a key of relations, sides and groups (no model call)")
@@ -383,6 +387,8 @@ def _bid(args) -> int:
                 f"{d['status']}" + (f"  needs: {', '.join(need)}" if need and not d["run"] else "")
             )
         return 0
+    if args.bid_cmd == "relate":
+        return _bid_relate(args, bid)
     # run
     from .llm import OpenAIClient
     from .results import ResultStore
@@ -417,6 +423,40 @@ def _bid(args) -> int:
         client, checker = None, None
     facts = asyncio.run(B.settle(
         bid, client, checker, on_step=lambda no, step, status, detail: print(f"bid: {step} {status} {detail}".rstrip(), file=sys.stderr),
+    ))
+    print(f"{len(facts)} facts in the bid's list: {bid.folder / 'facts.json'}")
+    return code
+
+
+def _bid_relate(args, bid) -> int:
+    """`bid relate`: ask again for the units RELATE left unanswered, then settle and build as `bid run` does."""
+    from . import bid as B
+    from .llm import OpenAIClient
+    from .results import ResultStore
+    from .web.consistency import ConsistencyChecker
+
+    if not os.environ.get("OPENAI_API_KEY"):
+        print("OPENAI_API_KEY is not set (put it in .env or the environment)", file=sys.stderr)
+        return 1
+    left = bid.incomplete_relations()
+    if args.no is not None:
+        if args.no not in {d["no"] for d in bid.manifest()["documents"]}:
+            print(f"no document {args.no} in bid {args.bid!r}", file=sys.stderr)
+            return 1
+        left = {n: u for n, u in left.items() if n == args.no}
+    store, client, code = ResultStore(args.store), OpenAIClient(args.model), 0
+    for no, unit_ids in left.items():
+        try:
+            asyncio.run(B.extract_document(bid, no, client, store=store, relate_only=True, only_incomplete=True))
+        except Exception as e:
+            print(f"d{no}: failed: {e}", file=sys.stderr)
+            code = 1
+            continue
+        print(f"d{no}: {len(unit_ids)} units asked, {len(bid.incomplete_relations().get(no, []))} still unanswered")
+    if not left:
+        print("no unit is waiting for an answer")
+    facts = asyncio.run(B.settle(
+        bid, client, ConsistencyChecker(), on_step=lambda no, step, status, detail: print(f"bid: {step} {status} {detail}".rstrip(), file=sys.stderr),
     ))
     print(f"{len(facts)} facts in the bid's list: {bid.folder / 'facts.json'}")
     return code

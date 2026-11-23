@@ -281,3 +281,88 @@ async def test_a_fact_added_to_a_bid_can_cite_a_unit_of_a_document(tmp_path):
     assert [(c["doc_id"], c["doc_no"], c["id"], c["level"]) for c in f["citations"]] == [("ADD1", add_no, "p1.1", 1)]
     assert f["unresolved_ids"] == ["d9:p1.1", "p1.1"] and f["doc_no"] == add_no and f["citations"][0]["visibility"] == "external"
     assert f["fact_id"] in {x["fact_id"] for x in ws.state().facts}
+
+
+# --- asking again for the units left unanswered ---------------------------------------------
+
+
+async def test_relate_only_asks_the_units_it_is_given_and_merges_with_the_stored_answers():
+    rfp = tagged("RFP", ("p1.1", "sentence", "Proposals are due June 10, 2026."))
+    add = tagged("ADD1", *[("p1.%d" % n, "sentence", f"Statement {n} about the due date June 10, 2026.") for n in range(1, 6)])
+    pb = playbooks.load("change-addendum")
+    earlier = [(1, rfp, [fact("RFP", "p1.1", "Due June 10, 2026")])]
+    first = await relate.relate(add, 2, pb, [], earlier, ScriptedClient(lambda r: ""), FAST)  # nothing answered
+    assert first["incomplete"] == ["p1.1", "p1.2", "p1.3", "p1.4", "p1.5"]
+    seen = []
+
+    def handler(req):
+        units_in = [ln[1:].partition("] ")[0] for ln in req.task.splitlines() if ln.startswith("[d2:")]
+        seen.append(units_in)
+        return "\n".join(f"{u}|CONFIRMS|d1:p1.1" for u in units_in if u != "d2:p1.4") + f"\nEND|{len(units_in)}"
+
+    second = await relate.relate(add, 2, pb, [], earlier, ScriptedClient(handler), FAST, only=first["incomplete"][:3], stored=first)
+    assert seen[0] == ["d2:p1.1", "d2:p1.2", "d2:p1.3"] and len(seen) == 1
+    assert [u["kind"] for u in second["units"]] == ["CONFIRMS"] * 3 + ["", ""] and second["incomplete"] == ["p1.4", "p1.5"]
+    seen.clear()
+    third = await relate.relate(add, 2, pb, [], earlier, ScriptedClient(handler), FAST, only=second["incomplete"], stored=second)
+    assert seen == [["d2:p1.4", "d2:p1.5"], ["d2:p1.4"]]  # one re-ask for the unit the answer left out
+    assert [u["kind"] for u in third["units"]] == ["CONFIRMS", "CONFIRMS", "CONFIRMS", "", "CONFIRMS"] and third["incomplete"] == ["p1.4"]
+    assert third["units"][0] == second["units"][0] and [c["name"] for c in third["calls"]] == ["RELATE1", "RELATE1b"]
+
+
+async def unanswered_bid(tmp_path):
+    bid, store, client, saved, steps, rfp_no, add_no = await make_bid(tmp_path)
+    path = saved.folder / "relations.json"
+    rel = json.loads(path.read_text())
+    changed = next(r for r in rel["units"] if r["kind"] == "REPLACES")
+    changed.update(kind="", targets=[], votes=[])
+    rel["incomplete"] = [changed["unit"]]
+    path.write_text(json.dumps(rel))
+    return bid, store, saved, add_no, changed["unit"]
+
+
+async def test_a_document_asks_again_only_for_its_incomplete_units(tmp_path):
+    bid, store, saved, add_no, unit = await unanswered_bid(tmp_path)
+    assert bid.incomplete_relations() == {add_no: [unit]}
+    client = ScriptedClient(handler)
+    steps = []
+    again = await B.extract_document(bid, add_no, client, store=store, cfg=FAST, relate_only=True, only_incomplete=True,
+                                     on_step=lambda *a: steps.append(a))
+    asked = [ln for r in client.requests for ln in r.task.splitlines() if ln.startswith("[d2:")]
+    assert len(asked) == 1 and asked[0].startswith(f"[d{add_no}:{unit}]")
+    rel = json.loads((again.folder / "relations.json").read_text())
+    assert rel["incomplete"] == [] and next(r for r in rel["units"] if r["unit"] == unit)["kind"] == "REPLACES"
+    assert bid.incomplete_relations() == {}
+    assert [c["name"] for c in again.report()["relate_calls"]] == ["RELATE1", "RELATE1"]  # the new call is added
+    assert steps[-1][1:] == ("relate", "done", "1 units asked again")
+
+
+def test_bid_relate_asks_again_then_builds(tmp_path, monkeypatch, capsys):
+    import asyncio
+
+    from fact_extractor import cli
+    from fact_extractor import llm as L
+    from fact_extractor.web import consistency
+
+    bid, store, saved, add_no, unit = asyncio.run(unanswered_bid(tmp_path))
+
+    class Checker:
+        async def _ask(self, new_text, related, instructions=None):
+            return {f["fact_id"]: 0.05 for f in related}, None
+
+    client = ScriptedClient(handler)
+    monkeypatch.setattr(cli, "load_env", lambda *a: None)  # the repo's .env must not supply a key
+    monkeypatch.setattr(L, "OpenAIClient", lambda model=None: client)
+    monkeypatch.setattr(consistency, "ConsistencyChecker", Checker)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert cli.main(["bid", "relate", bid.bid_id, "--store", str(tmp_path)]) == 1  # no key: nothing is asked
+    assert "OPENAI_API_KEY is not set" in capsys.readouterr().err and client.requests == []
+    monkeypatch.setenv("OPENAI_API_KEY", "test")
+    assert cli.main(["bid", "relate", bid.bid_id, "--no", "99", "--store", str(tmp_path)]) == 1
+    assert cli.main(["bid", "relate", bid.bid_id, "--store", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert f"d{add_no}: 1 units asked, 0 still unanswered" in out and "facts in the bid's list" in out
+    assert bid.incomplete_relations() == {}
+    assert (bid.folder / "facts.json").is_file()
+    assert cli.main(["bid", "relate", bid.bid_id, "--store", str(tmp_path)]) == 0
+    assert "no unit is waiting for an answer" in capsys.readouterr().out

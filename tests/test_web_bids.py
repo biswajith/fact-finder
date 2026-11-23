@@ -398,6 +398,24 @@ async def test_a_whole_bid_through_the_routes(c, root, model, monkeypatch):
     assert len(model.requests) >= n
 
 
+async def test_process_asks_again_for_the_units_relate_left_unanswered(c, root):
+    await ready_bid(c)
+    assert (await process(c, "ulster"))["status"] == "done"
+    bid = B.Bid(root, "ulster")
+    [no] = [d["no"] for d in bid.manifest()["documents"] if d["doc_id"] == "deal"]
+    path = root / bid.document(no)["run"] / "relations.json"
+    rel = json.loads(path.read_text())
+    assert rel["units"], "the notes are related to the RFP"
+    rel["units"][0].update(kind="", targets=[], votes=[])
+    rel["incomplete"] = [rel["units"][0]["unit"]]
+    path.write_text(json.dumps(rel))
+    assert bid.incomplete_relations() == {no: rel["incomplete"]}
+    job = await process(c, "ulster")
+    assert job["status"] == "done", job
+    assert {"doc_no": no, "step": "relate", "status": "done", "detail": "1 units asked again"} in job["steps"]
+    assert bid.incomplete_relations() == {}
+
+
 async def test_an_earlier_document_added_later_makes_the_others_relate_again_and_a_relation_can_be_rejected(c, root, model):
     nos = await ready_bid(c)
     assert (await process(c, "ulster"))["status"] == "done"

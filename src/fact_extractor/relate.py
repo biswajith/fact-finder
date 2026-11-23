@@ -232,17 +232,24 @@ def parse(text: str, batch: list[dict], allowed_kinds: Iterable[str]) -> dict[st
 
 async def relate(
     doc: TaggedDocument, doc_no: int, pb: Playbook, records: list[dict], earlier: Earlier, client, cfg=None,
-    refs: Iterable[str] = (), held_refs: list[dict] | None = None,
+    refs: Iterable[str] = (), held_refs: list[dict] | None = None, only: list[str] | None = None,
+    stored: dict | None = None,
 ) -> dict:
     """Ask RELATE about every unit of `doc` and return the content of its `relations.json`, with the
     model calls under `"calls"` (the caller moves them to the report). Batches of 30 units, one call
     each; units an answer left out are asked once more, and those still missing are listed in
-    `incomplete`. A document with nothing earlier to compare with makes no call."""
+    `incomplete`. A document with nothing earlier to compare with makes no call.
+
+    With `only` (unit IDs, as `incomplete` lists them), just those units are asked, in the same batches
+    and with the same one re-ask; the units `stored` (an earlier `relations.json`) already answered keep
+    their stored answer, and `incomplete` is worked out again over every unit."""
     out: dict = {
         "playbook": pb.key, "against": [t.doc_id for _, t, _ in earlier], "units": [], "incomplete": [],
         "held_refs": list(held_refs or []), "ref_units": list(refs), "calls": [],
     }
     if not earlier or not doc.anchors:
+        if only is not None and stored:  # nothing to ask against: the stored answers stay as they were
+            out.update(units=list(stored.get("units") or []), incomplete=list(stored.get("incomplete") or []))
         return out
     cfg = cfg or U.Config()
     run = U._Run(doc, client, cfg, pb)
@@ -251,6 +258,8 @@ async def relate(
     cands = candidates(doc, records, earlier, out["ref_units"])
     rows = build_rows(doc_no, doc, cands, earlier, list(doc.anchors))
     by_unit = {r["unit"]: r for r in rows}
+    keep = {u["unit"]: u for u in (stored or {}).get("units") or [] if u.get("kind")} if only is not None else {}
+    ask_rows = [r for r in rows if r["unit"] in set(only)] if only is not None else rows
     answers: dict[str, tuple[str, list[tuple[int, str]]]] = {}
 
     async def ask(name: str, batch: list[dict]) -> None:
@@ -258,17 +267,21 @@ async def relate(
         got = parse(text, batch, allowed)
         answers.update(got)
 
-    parts = [rows[i : i + BATCH] for i in range(0, len(rows), BATCH)]
+    parts = [ask_rows[i : i + BATCH] for i in range(0, len(ask_rows), BATCH)]
     await asyncio.gather(*(ask(f"RELATE{k}", b) for k, b in enumerate(parts, start=1)))
-    left = [r for r in rows if r["unit"] not in answers]
+    left = [r for r in ask_rows if r["unit"] not in answers]
     if left:  # once more, for the units the first answers left out
         await asyncio.gather(*(ask(f"RELATE{k}b", left[i : i + BATCH]) for k, i in enumerate(range(0, len(left), BATCH), start=1)))
-    missing = [r["unit"] for r in rows if r["unit"] not in answers]
+    all_rows = [by_unit[u] for u in doc.anchors]
+    missing = [r["unit"] for r in all_rows if r["unit"] not in answers and r["unit"] not in keep]
     for c in run.calls:
         if c.name.endswith("b") and missing and c.status == "ok":
             c.status = "incomplete"
     tdocs = {no: t.doc_id for no, t, _ in earlier}
-    for r in rows:
+    for r in all_rows:
+        if r["unit"] in keep and r["unit"] not in answers:
+            out["units"].append(keep[r["unit"]])
+            continue
         kind, targets = answers.get(r["unit"], ("", []))
         out["units"].append({
             "unit": r["unit"], "kind": kind,

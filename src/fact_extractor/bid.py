@@ -320,6 +320,22 @@ class Bid:
                 out.append(d["no"])
         return out
 
+    def incomplete_relations(self, manifest: dict | None = None) -> dict[int, list[str]]:
+        """Document number -> the unit IDs whose stored RELATE answer is missing (the model gave no usable
+        answer for them). Documents with none are left out."""
+        m = manifest or self.manifest()
+        out: dict[int, list[str]] = {}
+        for d in m["documents"]:
+            if not d.get("run"):
+                continue
+            try:
+                left = json.loads((self.root / d["run"] / "relations.json").read_text(encoding="utf-8")).get("incomplete")
+            except (OSError, ValueError):
+                left = None
+            if left:
+                out[d["no"]] = [str(u) for u in left]
+        return out
+
     def remove_document(self, no: int) -> None:
         with self.lock:
             m = self.manifest()
@@ -528,7 +544,8 @@ def _read(path: Path, default):
         return default
 
 
-async def _relate(bid: Bid, d: dict, pb: playbooks.Playbook, tagged, facts: Records, client, cfg, refs, held) -> dict:
+async def _relate(bid: Bid, d: dict, pb: playbooks.Playbook, tagged, facts: Records, client, cfg, refs, held,
+                  only: list[str] | None = None, stored: dict | None = None) -> dict:
     """RELATE for one document against the earlier buyer documents now in the bid."""
     m = bid.manifest()
     earlier = []
@@ -536,7 +553,8 @@ async def _relate(bid: Bid, d: dict, pb: playbooks.Playbook, tagged, facts: Reco
         t = results.load_document(bid.root / e["run"], e["doc_id"])
         if t is not None:
             earlier.append((e["no"], t, _read(bid.root / e["run"] / "facts.json", [])))
-    return await relate.relate(tagged, d["no"], pb, facts, earlier, client, cfg, refs=refs, held_refs=held)
+    return await relate.relate(tagged, d["no"], pb, facts, earlier, client, cfg, refs=refs, held_refs=held,
+                               only=only, stored=stored)
 
 
 def _with_held_q(rel: dict, tagged, facts: Records, report: dict, pb: playbooks.Playbook) -> Records:
@@ -561,9 +579,12 @@ def _with_held_q(rel: dict, tagged, facts: Records, report: dict, pb: playbooks.
     return facts
 
 
-async def _relate_stored(bid: Bid, no: int, pb: playbooks.Playbook, found: results.Stored, client, cfg, say) -> results.Stored:
+async def _relate_stored(bid: Bid, no: int, pb: playbooks.Playbook, found: results.Stored, client, cfg, say,
+                         only_incomplete: bool = False) -> results.Stored:
     """Run RELATE again for a stored result and rewrite its `relations.json`, its Q facts for held
-    references and the report's `relate_calls`. The labels, statements and checks are kept."""
+    references and the report's `relate_calls`. The labels, statements and checks are kept.
+    With `only_incomplete`, only the units the stored answer left unanswered are asked, the other
+    answers are kept, and the new calls are added to the report's `relate_calls`."""
     from . import units as U
 
     d = bid.document(no)
@@ -573,16 +594,20 @@ async def _relate_stored(bid: Bid, no: int, pb: playbooks.Playbook, found: resul
     old = _read(found.folder / "relations.json", {})
     facts, report = found.facts(), found.report()
     say("relate", "running")
+    only = list(old.get("incomplete") or []) if only_incomplete else None
     rel = await _relate(bid, d, pb, tagged, [f for f in facts if not f.get("from_held")], client, cfg or U.Config(votes=pb.votes),
-                        old.get("ref_units") or [], old.get("held_refs") or [])
-    report["relate_calls"] = rel.pop("calls")
+                        old.get("ref_units") or [], old.get("held_refs") or [], only=only, stored=old if only_incomplete else None)
+    report["relate_calls"] = [*(report.get("relate_calls") or []), *rel.pop("calls")] if only_incomplete else rel.pop("calls")
     facts = _with_held_q(rel, tagged, facts, report, pb)
     _write_json(found.folder / "facts.json", facts)
     _write_json(found.folder / "report.json", report)
     _write_json(found.folder / "relations.json", rel)
     found.meta["facts"] = len(facts)
     _write_json(found.folder / "meta.json", found.meta)
-    say("relate", "done", f"{len(rel['units'])} units, {len(rel['incomplete'])} left out")
+    if only_incomplete:
+        say("relate", "done", f"{len(only or [])} units asked again")
+    else:
+        say("relate", "done", f"{len(rel['units'])} units, {len(rel['incomplete'])} left out")
     return found
 
 
@@ -602,13 +627,15 @@ def _previous_result(bid: Bid, d: dict, pb: playbooks.Playbook) -> results.Store
 async def extract_document(
     bid: Bid, no: int, client, *, votes: int | None = None, store: results.ResultStore,
     on_step: Step | None = None, cfg=None, relate_only: bool = False,
+    only_incomplete: bool = False,
 ) -> results.Stored:
     """Cut one confirmed document with its playbook's cutter, give each unit its side from the
     confirmed speaker map, run the playbook, set each fact's level and flags, and store the result.
     A playbook with RELATE then compares every unit with the earlier buyer documents of the bid and
     stores the answers as `relations.json`. A stored result for the same content, playbook and doc_id
     is reused without a model call. `relate_only=True` runs only RELATE again for a document that is
-    already extracted (see `Bid.needs_relate`). `on_step(no, step, status, detail)` hears `cut`,
+    already extracted (see `Bid.needs_relate`); with `only_incomplete` it asks only the units the stored
+    answer left unanswered (see `Bid.incomplete_relations`). `on_step(no, step, status, detail)` hears `cut`,
     `extract`, `relate` and `save`. On an error the manifest says `failed` with the message, and the
     error is raised."""
     from . import units as U
@@ -628,7 +655,8 @@ async def extract_document(
         if not d.get("run") or "RELATE" not in pb.calls:
             raise ValueError(f"document {no} is not extracted or does not use RELATE")
         folder = bid.root / d["run"]
-        return await _relate_stored(bid, no, pb, results.Stored(folder, _read(folder / "meta.json", {})), client, cfg, say)
+        return await _relate_stored(bid, no, pb, results.Stored(folder, _read(folder / "meta.json", {})), client, cfg, say,
+                                    only_incomplete)
     missing = ready(d)
     if missing:
         raise ValueError(f"document {no} is not ready: {', '.join(missing)}")

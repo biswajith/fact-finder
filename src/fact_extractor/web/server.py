@@ -947,6 +947,13 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                     continue
                 await relate_again()
             await relate_again()
+            for no in bid.incomplete_relations():  # units RELATE gave no usable answer for
+                try:
+                    await B.extract_document(bid, no, client, votes=votes, store=store, on_step=say,
+                                             relate_only=True, only_incomplete=True)
+                except Exception as e:
+                    say(no, "relate", "failed", str(e))
+                    failed.append(f"d{no}: {e}")
             await B.settle(bid, client, app.state.checker, on_step=say)
             say(0, "build", "running")
             facts = B.build(bid)
