@@ -172,6 +172,15 @@ def test_parse_brief_joins_items_cited_one_by_one():
     assert again[1] == got[1] and again[0] == {"row": "Contradictions", "text": "", "fact_ids": [], "checked": False}
 
 
+def test_parse_brief_drops_items_that_only_say_not_stated():
+    facts = [{"fact_id": "f1", "text": "Liability insurance of at least $1,000,000 per occurrence."}]
+    got = units.parse_brief("Insurance and bonds|Liability insurance at least $1,000,000 per occurrence; bonds not stated.|1\n"
+                            "Termination|termination consequences not stated|1\nEND|2", facts, ("Insurance and bonds", "Termination"))
+    assert got[0] == {"row": "Insurance and bonds", "text": "Liability insurance at least $1,000,000 per occurrence",
+                      "fact_ids": ["f1"], "checked": True}
+    assert got[1] == {"row": "Termination", "text": "", "fact_ids": [], "checked": False}
+
+
 def test_parse_groups_keeps_a_line_in_one_group():
     got = units.parse_groups("SAME|1,2\nLIST|Modules in scope|3, 4,5,9\nLIST||6,7\nSAME|2,8\nnoise\nSAME|6,7\nEND|4", 8)
     assert got == [("same", "", [1, 2]), ("list", "Modules in scope", [3, 4, 5]), ("same", "", [6, 7])]

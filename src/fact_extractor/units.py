@@ -223,6 +223,9 @@ def brief_task(facts: list[dict]) -> str:
     return f"TASK BRIEF\n\n{lines}"
 
 
+NOT_STATED = re.compile(r"\bnot stated\W*$", re.IGNORECASE)
+
+
 def parse_brief(text: str, facts: list[dict], rows: tuple[str, ...]) -> list[dict]:
     """The section's rows, always. A row is `checked` when it cites facts and every number in
     it is in those facts; the screen shows the cited facts themselves for a row that is
@@ -230,7 +233,10 @@ def parse_brief(text: str, facts: list[dict], rows: tuple[str, ...]) -> list[dic
 
     A model that cites each item on its own may repeat a row once per item, or separate the
     items' fact numbers with semicolons: the repeats are joined into one row, items separated
-    by semicolons, and any run of non-digits separates fact numbers."""
+    by semicolons, and any run of non-digits separates fact numbers.
+
+    An item that only says something is not stated ("bonds not stated") rests on no fact and is
+    dropped; a row left with no items is not stated."""
     parts: dict[str, tuple[list[str], list[dict]]] = {}
     names = {r.lower(): r for r in rows}
     for line in text.splitlines():
@@ -238,11 +244,11 @@ def parse_brief(text: str, facts: list[dict], rows: tuple[str, ...]) -> list[dic
         row = names.get(p[0].lower())
         if row is None or len(p) < 2:
             continue
-        body = " ".join(p[1].split()).rstrip(";").strip()
-        if not body or body.lower() == "not stated":
-            parts.setdefault(row, ([], []))
-            continue
+        items = [t.strip() for t in " ".join(p[1].split()).split(";")]
+        body = "; ".join(t for t in items if t and not NOT_STATED.search(t))
         bodies, cited = parts.setdefault(row, ([], []))
+        if not body:
+            continue
         bodies.append(body)
         for x in re.split(r"\D+", p[2] if len(p) > 2 else ""):
             if x and 1 <= int(x) <= len(facts) and facts[int(x) - 1] not in cited:
