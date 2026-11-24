@@ -203,9 +203,11 @@ OUTPUT
 Exactly these rows, in this order, one line each:
 {rows}
 {guide}
-text is plain words, under 60 words, with names, numbers, dates and addresses copied exactly. Separate several items with semicolons. Never use the | character in it.
-fact numbers is a comma-separated list of the facts the text rests on.
+text is plain words, under 60 words, with names, numbers, dates and addresses copied exactly. Never use the | character in it.
+Separate several items with semicolons. The screen shows each item on a line of its own, so each item is one sentence or phrase that reads complete by itself: use a semicolon only between items, never to join two parts of one sentence, and never start an item with a word such as it, they, and, may or must that leans on the item before it.
+fact numbers is a comma-separated list of the facts the text rests on. Fact numbers go only here, never in text.
 When the facts say nothing for a row, write: Row|not stated|
+In a row that has something to say, leave out what the facts do not state; never add an item saying it is not stated.
 After the last row write: END|{len(sec.rows)}"""
 
 
@@ -224,26 +226,35 @@ def brief_task(facts: list[dict]) -> str:
 def parse_brief(text: str, facts: list[dict], rows: tuple[str, ...]) -> list[dict]:
     """The section's rows, always. A row is `checked` when it cites facts and every number in
     it is in those facts; the screen shows the cited facts themselves for a row that is
-    not, so a figure the model made up is never shown as the RFP's."""
-    got: dict[str, dict] = {}
+    not, so a figure the model made up is never shown as the RFP's.
+
+    A model that cites each item on its own may repeat a row once per item, or separate the
+    items' fact numbers with semicolons: the repeats are joined into one row, items separated
+    by semicolons, and any run of non-digits separates fact numbers."""
+    parts: dict[str, tuple[list[str], list[dict]]] = {}
     names = {r.lower(): r for r in rows}
     for line in text.splitlines():
         p = [x.strip() for x in line.split("|")]
         row = names.get(p[0].lower())
-        if row is None or row in got or len(p) < 2:
+        if row is None or len(p) < 2:
             continue
-        body = " ".join(p[1].split())
-        cited = []
-        for x in (p[2] if len(p) > 2 else "").split(","):
-            x = x.strip()
-            if x.isdigit() and 1 <= int(x) <= len(facts) and facts[int(x) - 1] not in cited:
+        body = " ".join(p[1].split()).rstrip(";").strip()
+        if not body or body.lower() == "not stated":
+            parts.setdefault(row, ([], []))
+            continue
+        bodies, cited = parts.setdefault(row, ([], []))
+        bodies.append(body)
+        for x in re.split(r"\D+", p[2] if len(p) > 2 else ""):
+            if x and 1 <= int(x) <= len(facts) and facts[int(x) - 1] not in cited:
                 cited.append(facts[int(x) - 1])
-        stated = bool(body) and body.lower() != "not stated"
+    got: dict[str, dict] = {}
+    for row, (bodies, cited) in parts.items():
+        body = "; ".join(bodies)
         sources = [f["text"] for f in cited] + [f.get("source_text", "") for f in cited]
         got[row] = {
-            "row": row, "text": body if stated else "",
-            "fact_ids": [f["fact_id"] for f in cited] if stated else [],
-            "checked": stated and bool(cited) and not missing_values(body, sources),
+            "row": row, "text": body,
+            "fact_ids": [f["fact_id"] for f in cited] if body else [],
+            "checked": bool(body) and bool(cited) and not missing_values(body, sources),
         }
     return [got.get(r, {"row": r, "text": "", "fact_ids": [], "checked": False}) for r in rows]
 

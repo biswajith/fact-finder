@@ -160,6 +160,18 @@ async def test_grouping_marks_facts_and_never_removes_one(doc):
     assert res.report["facts_in_groups"] >= 4 and res.report["seconds"]["group_and_summaries"] >= 0
 
 
+def test_parse_brief_joins_items_cited_one_by_one():
+    facts = [{"fact_id": f"f{n}", "text": t} for n, t in enumerate(["Appendix A is missing.", "Appendix B is missing.", "Dates are not set."], 1)]
+    rows = ("Contradictions", "Unclear points")
+    # the items' numbers separated by semicolons
+    got = units.parse_brief("Contradictions|not stated|\nUnclear points|Can you send Appendix A and B?; When are the dates?|1,2;3\nEND|2", facts, rows)
+    assert got[1] == {"row": "Unclear points", "text": "Can you send Appendix A and B?; When are the dates?",
+                      "fact_ids": ["f1", "f2", "f3"], "checked": True}
+    # the row repeated once per item
+    again = units.parse_brief("Unclear points|Can you send Appendix A and B?|1,2\nUnclear points|When are the dates?|3\nEND|2", facts, rows)
+    assert again[1] == got[1] and again[0] == {"row": "Contradictions", "text": "", "fact_ids": [], "checked": False}
+
+
 def test_parse_groups_keeps_a_line_in_one_group():
     got = units.parse_groups("SAME|1,2\nLIST|Modules in scope|3, 4,5,9\nLIST||6,7\nSAME|2,8\nnoise\nSAME|6,7\nEND|4", 8)
     assert got == [("same", "", [1, 2]), ("list", "Modules in scope", [3, 4, 5]), ("same", "", [6, 7])]
