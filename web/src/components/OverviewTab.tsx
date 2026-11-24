@@ -354,8 +354,10 @@ function KeyDates({ dated, undated, open }: {
 
 /** Subtitle for the page header: the buyer rows when present. */
 function buyerLine(rows: SummaryRow[]): string {
-  const pick = (re: RegExp) => rows.find((r) => re.test(r.row) && r.text)?.text;
-  const name = pick(/buyer|issuer|agency|organi[sz]ation|client|customer|entity/i) ?? rows.find((r) => r.text)?.text;
+  // a row may hold several items; the header names the first (the buyer, not its departments)
+  const first = (t?: string) => t?.split(/;\s+/)[0];
+  const pick = (re: RegExp) => first(rows.find((r) => re.test(r.row) && r.text)?.text);
+  const name = pick(/buyer|issuer|agency|organi[sz]ation|client|customer|entity/i) ?? first(rows.find((r) => r.text)?.text);
   const id = pick(/rfp|solicitation|reference|number|tender|ref/i);
   const parts = [name, id && id !== name ? id : undefined].filter(Boolean) as string[];
   return parts.join(' · ');

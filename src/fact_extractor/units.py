@@ -54,7 +54,9 @@ from .validate import check_output
 # units-3: facts carry groups (same point restated, items of one list).
 # units-4: an incomplete label or statement answer is retried; the buyer brief is stored.
 # units-5: a cross-reference call (XREF) finds the references; code verifies them (Q facts).
-VERSION = "units-5"
+# units-6: a date written without its year in the source ("5/10") supports the full date; a fact in
+#          the source's words drops markdown emphasis.
+VERSION = "units-6"
 
 _RFP = load("rfp")  # the reading rules of an RFP: playbooks/rfp.md
 CODES = _RFP.codes
@@ -513,11 +515,15 @@ def fact_id(doc_id: str, unit_id: str) -> str:
     return "f_" + hashlib.sha1(f"{doc_id}|{unit_id}".encode()).hexdigest()[:10]
 
 
+_MARKUP = re.compile(r"\*\*|__|`")
+
+
 def _statement(g: Group, doc: TaggedDocument, statements: dict[str, str]) -> tuple[str, str]:
     """The fact's text and where it came from: the model's statement when every number in
-    it is in the fact's units, else the RFP's own words.
+    it is in the fact's units, else the RFP's own words, without markdown emphasis (a note's
+    "**2024-05-13, SW.**" reads as "2024-05-13, SW."); the citation keeps the words as written.
     """
-    source = " ".join(doc.anchors[i].text for i in g.ids)
+    source = _MARKUP.sub("", " ".join(doc.anchors[i].text for i in g.ids))
     s = statements.get(g.main)
     if s:
         texts = [doc.anchors[i].text for i in g.ids] + [doc.anchors[i].section for i in g.ids]

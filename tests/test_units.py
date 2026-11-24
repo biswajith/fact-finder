@@ -398,3 +398,14 @@ async def test_all_units_answered_without_end_is_accepted_and_logged(doc):
     assert units.has_end("x\n end|3 \n") and not units.has_end("p1.1|R\nTHE END")
 
 
+
+
+def test_a_fact_in_the_source_words_drops_markdown_emphasis():
+    from fact_extractor.models import Anchor, TaggedDocument
+    a = Anchor("notes", "p9.1", 9, "8", "Activity", "**2024-05-13, SW.** RFP out 5/10 at `noon`.", None, "sentence")
+    doc = TaggedDocument("notes", {"p9.1": a}, "", 9)
+    g = units.Group("p9.1", ["p9.1"], None)
+    # no statement: the fact keeps the source's words, without the emphasis marks
+    assert units._statement(g, doc, {}) == ("2024-05-13, SW. RFP out 5/10 at noon.", "rfp")
+    # a statement whose date was written without its year in the source now passes
+    assert units._statement(g, doc, {"p9.1": "The RFP was released 2024-05-10."}) == ("The RFP was released 2024-05-10.", "model")

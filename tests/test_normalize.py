@@ -59,3 +59,15 @@ def test_spelled_out_numbers_in_sources():
     # Words that only sit side by side are not one number.
     assert missing_values("32 copies", ["three and two copies"]) == {"32"}
     assert missing_values("96,000 accounts", [src]) == {"96000"}
+
+
+def test_a_date_written_without_its_year_supports_the_full_date():
+    assert missing_values("The RFP was released 2024-05-10.", ["**2024-05-13, SW.** RFP out 5/10."]) == set()
+    assert missing_values("Briefing call on 2024-07-24.", ["Briefing call 7/24."]) == set()
+    assert missing_values("Presentations are the week of 2024-09-16.", ["the week of September 16th."]) == set()
+    assert missing_values("Presentations start 2024-09-16.", ["from 16 Sept onwards"]) == set()
+    # the month and day must still match, and a fact's own month/day form is not loosened
+    assert missing_values("The RFP was released 2024-05-11.", ["RFP out 5/10."]) == {"date:2024-05-11"}
+    assert missing_values("Due 6/10.", ["Due 6/11."]) != set()
+    # a full date in the source is read as a full date, not as a month and day
+    assert missing_values("Due 2025-06-10.", ["Due June 10, 2024."]) == {"date:2025-06-10"}

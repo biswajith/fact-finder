@@ -33,6 +33,14 @@ _DATE_PATTERNS = [
     re.compile(rf"\b{_DAY}(?:\s+of)?\s+{_MON},?\s+{_YEAR}\b", re.I),
     re.compile(r"\b(?P<m>\d{1,2})/(?P<day>\d{1,2})/(?P<year>\d{4})\b"),  # US order
 ]
+# A date written without its year, as notes and calls write them: "5/10", "7/24", "September 16th",
+# "16 Sept". Read in a source only (generous), as "md:MM-DD": a fact's full date with the same month
+# and day rests on it, since the year comes from the context the writer knew.
+_MONTH_DAY_PATTERNS = [
+    re.compile(r"(?<![\d/.])(?P<m>\d{1,2})/(?P<day>\d{1,2})(?![\d/])"),
+    re.compile(rf"\b{_MON}\s+{_DAY}\b(?!,?\s*\d)", re.I),
+    re.compile(rf"\b{_DAY}(?:\s+of)?\s+{_MON}\b(?!,?\s*\d)", re.I),
+]
 _TIME = re.compile(
     r"\b(?P<h>\d{1,2})(?::(?P<min>\d{2}))?\s*(?P<ap>a\.?\s?m\.?|p\.?\s?m\.?)(?![a-z])"
     r"|\b(?P<h24>[01]?\d|2[0-3]):(?P<min24>[0-5]\d)\b",
@@ -151,6 +159,17 @@ def values(text: str, *, generous: bool = False) -> set[str]:
             if generous:
                 out.update({str(year), str(day), str(month)})
             take(m)
+    if generous:
+        for pat in _MONTH_DAY_PATTERNS:
+            for m in pat.finditer(text):
+                if not free(m):
+                    continue
+                g = m.groupdict()
+                month = int(g["m"]) if g.get("m") else _MONTHS[g["mon"].lower()]
+                day = int(g["day"])
+                if 1 <= month <= 12 and 1 <= day <= 31:
+                    out.update({f"md:{month:02d}-{day:02d}", str(month), str(day)})
+                    take(m)
 
     for m in _TIME.finditer(text):
         if not free(m):
@@ -216,7 +235,7 @@ def missing_values(fact: str, sources: list[str]) -> set[str]:
         split = unglue(s)
         if split != s:
             have |= values(split, generous=True)
-    return values(fact) - have
+    return {v for v in values(fact) - have if not (v.startswith("date:") and "md:" + v[10:] in have)}
 
 
 _STOP = set(
