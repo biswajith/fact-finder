@@ -75,3 +75,28 @@ class ScriptedClient:
 
 def task_name(req: Request) -> str:
     return req.task.split("\n", 1)[0].removeprefix("TASK ").strip()
+
+
+_NAME = r"[A-Z][\w.'-]+(?: [A-Z][\w.'-]+)+|\+[\d -]+\d"  # two capitalised words, or a phone number
+
+
+def who_answer(req: Request) -> str:
+    """A stand-in for the model's WHO answer: a line says who speaks it when it starts `Name:`
+    (after an optional `[hh:mm:ss]`) with a full name or a phone number, and a line that starts no turn
+    carries on the turn above. Lines before the first turn are no one's."""
+    import re
+
+    lines = req.document.split("\nLINES\n", 1)[1].splitlines()
+    before = req.document.split("THE LINES JUST BEFORE (do not answer for these)\n", 1)
+    last = "-"
+    for ln in (before[1].split("\n\nLINES\n", 1)[0].splitlines() if len(before) > 1 else []):
+        m = re.match(rf"^\[[^\]]+\] (?:\[[\d:]+\]\s*)?({_NAME}):\s", ln)
+        last = m.group(1) if m else last
+    out = []
+    for ln in lines:
+        i, _, text = ln.partition("] ")
+        m = re.match(rf"^(?:\[[\d:]+\]\s*)?({_NAME}):\s", text)
+        if m:
+            last = m.group(1).strip()
+        out.append(f"{i.lstrip('[')}|{last}")
+    return "\n".join(out) + f"\nEND|{len(out)}\n"

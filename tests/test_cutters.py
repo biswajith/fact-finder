@@ -17,64 +17,74 @@ def read(name: str) -> bytes:
     return (EXAMPLES / name).read_bytes()
 
 
-# --- transcripts -------------------------------------------------------------------------
+# --- any file, read by its format ---------------------------------------------------------------
 
 
-@pytest.mark.parametrize("call", ["ulster-call-2026-08-12", "durham-call-2024-07-24"])
-def test_gong_and_text_forms_of_one_call_give_the_same_speakers_and_turns(call):
-    g_units, g_info = cutters.cut_transcript(read(f"{call}.gong.json"), f"{call}.gong.json")
-    t_units, t_info = cutters.cut_transcript(read(f"{call}.txt"), f"{call}.txt")
-    assert [s["name"] for s in g_info["speakers"]] == [s["name"] for s in t_info["speakers"]]
-    assert g_info["date"] == t_info["date"] and g_info["date"]
-    assert len({u.page for u in g_units}) == len({u.page for u in t_units})
-    assert [(u.page, u.page_label, u.speaker) for u in g_units] == [(u.page, u.page_label, u.speaker) for u in t_units]
-    assert len(g_units) == len(t_units)
-
-
-def test_gong_speakers_come_from_the_parties_and_silent_invitees_are_left_out():
-    units, info = cutters.cut_transcript(read("ulster-call-2026-08-12.gong.json"), "x.json")
-    names = [s["name"] for s in info["speakers"]]
-    assert "Sam Lee" not in names and "+1 845-555-0142" in names  # no speakerId: never spoke; a dial-in has a number
-    assert {s["affiliation"] for s in info["speakers"]} == {"Internal", "External", "Unknown"}
-    assert len({u.key for u in units}) == len(units)
-    assert units[0].page == 1 and units[0].page_label == "00:00:04" and units[0].section == "Small Talk"
-
-
-def test_a_party_with_no_name_or_number_is_speaker_id():
-    gong = {
-        "extensive": {"calls": [{"metaData": {"started": "2026-01-02T10:00:00Z"}, "parties": []}]},
-        "transcript": {"callTranscripts": [{"transcript": [
-            {"speakerId": "77", "sentences": [{"start": 61000, "end": 62000, "text": "Hello. Yes."}]}]}]},
-    }
-    units, info = cutters.cut_transcript(json.dumps(gong).encode(), "c.json")
-    assert [(u.speaker, u.page_label, u.text) for u in units] == [
-        ("Speaker 77", "00:01:01", "Hello."), ("Speaker 77", "00:01:01", "Yes.")]
-    assert info["date"] == "2026-01-02"
-
-
-def test_text_transcript_merges_consecutive_lines_of_one_speaker():
-    text = ("Meeting: Kick-off\nDate: March 3, 2027\n\n"
-            "[00:00:01] Ann: First. Second.\n[00:00:09] Ann: Still Ann.\n[00:00:12] Bo: Reply here.\n")
-    units, info = cutters.cut_transcript(text.encode(), "c.txt")
-    assert [(u.page, u.speaker, u.text) for u in units] == [
-        (1, "Ann", "First."), (1, "Ann", "Second."), (1, "Ann", "Still Ann."), (2, "Bo", "Reply here.")]
-    assert info["title"] == "Kick-off" and info["date"] == "2027-03-03"
-
-
-def test_not_a_gong_export_is_refused():
-    with pytest.raises(ValueError, match="Gong"):
-        cutters.cut_transcript(b'{"a": 1}', "x.json")
-
-
-def test_form_of_guesses_from_name_and_content():
+def test_form_of_is_the_file_format_only():
     assert cutters.form_of("a.PDF", b"") == "pdf" and cutters.form_of("a.bin", b"%PDF-1.7") == "pdf"
+    assert cutters.form_of("a.docx", b"PK") == "word"
     assert cutters.form_of("a.csv", b"") == "sheet" and cutters.form_of("a.xlsx", b"") == "sheet"
-    assert cutters.form_of("a.md", b"# t") == "notes" and cutters.form_of("a.txt", b"plain words") == "notes"
-    assert cutters.form_of("a.txt", b"[00:00:01] A: x\n[00:00:02] B: y\n[00:00:03] A: z\n") == "transcript"
-    assert cutters.form_of("a.json", read("ulster-call-2026-08-12.gong.json")) == "transcript"
-    assert cutters.form_of("a.json", b'{"k": 1}') == "notes"
-    with pytest.raises(ValueError, match="tag_pdf"):
-        cutters.cut("pdf", b"", "a.pdf")
+    assert cutters.form_of("a.json", b"{}") == "json"
+    assert cutters.form_of("a.md", b"# t") == "text" and cutters.form_of("a.txt", b"[00:00:01] A: x") == "text"
+    with pytest.raises(ValueError, match="read_document"):
+        cutters.read(b"%PDF-1.7", "a.pdf")
+
+
+def test_lines_that_each_say_something_stay_apart_and_a_wrapped_line_is_joined():
+    units = cutters.read(b"Ann Lee: Hello all\nBo Kim: Thanks for\ncoming. Bye.\n", "call.txt")
+    assert [u.text for u in units] == ["Ann Lee: Hello all", "Bo Kim: Thanks for coming.", "Bye."]
+
+
+def test_any_json_is_read_as_its_text_whatever_the_keys():
+    units = cutters.read(read("ulster-call-2026-08-12.gong.json"), "call.json")
+    text = "\n".join(u.text for u in units)
+    assert "name: Tom Okafor" in text and "Morning everyone, thanks for making time." in text
+    assert cutters.read(b'{"a": {"b": ["x y", "z"]}, "n": 3}', "a.json")[0].text == "x y, z"
+    assert [u.text for u in cutters.read(b"not json at all", "a.json")] == ["not json at all"]
+
+
+def word_file() -> bytes:
+    from docx import Document
+
+    doc = Document()
+    doc.add_heading("Request for Proposals", 0)
+    doc.add_heading("1. Scope", 1)
+    doc.add_paragraph("The vendor must provide support. Proposals are due March 3, 2027.")
+    doc.add_paragraph("Submit three copies.", style="List Bullet")
+    t = doc.add_table(rows=2, cols=2)
+    t.rows[0].cells[0].text, t.rows[0].cells[1].text = "Item", "Requirement"
+    t.rows[1].cells[0].text, t.rows[1].cells[1].text = "Uptime", "99.9%"
+    doc.add_heading("2. Terms", 1)
+    doc.add_paragraph("Three years.")
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+def test_a_word_file_keeps_headings_lists_tables_and_sentences_in_order():
+    units = cutters.read(word_file(), "rfp.docx")
+    assert [(u.kind, u.text, u.page, u.section) for u in units] == [
+        ("heading", "Request for Proposals", 1, "Request for Proposals"),
+        ("heading", "1. Scope", 2, "1. Scope"),
+        ("sentence", "The vendor must provide support.", 2, "1. Scope"),
+        ("sentence", "Proposals are due March 3, 2027.", 2, "1. Scope"),
+        ("list_item", "Submit three copies.", 2, "1. Scope"),
+        ("table_row", "Item: Uptime | Requirement: 99.9%", 2, "1. Scope"),
+        ("heading", "2. Terms", 3, "2. Terms"),
+        ("sentence", "Three years.", 3, "2. Terms"),
+    ]
+    assert "Proposals are due March 3, 2027." in cutters.plain_text(word_file(), "rfp.docx", 20)
+
+
+def test_read_document_reads_a_pdf_with_its_layout_and_anything_else_from_its_units(tmp_path):
+    import pymupdf
+
+    pdf = pymupdf.open()
+    pdf.new_page().insert_text((72, 72), "Ann Lee: Hello all.")
+    doc = cutters.read_document(pdf.tobytes(), "call.pdf", "call", tmp_path)
+    assert [a.text for a in doc.anchors.values()] == ["Ann Lee: Hello all."] and doc.anchors["p1.1"].bbox
+    doc = cutters.read_document(b"Ann Lee: Hello all.", "call.txt", "call", tmp_path)
+    assert [a.text for a in doc.anchors.values()] == ["Ann Lee: Hello all."] and doc.anchors["p1.1"].bbox is None
 
 
 # --- notes ---------------------------------------------------------------------------------
@@ -162,23 +172,13 @@ def test_xlsx_one_sheet_is_one_page():
         ("Year: 2027 | Fee: 36000", 1, "Pricing"), ("Clause: Term | Text: Three years", 2, "Terms")]
 
 
-def test_the_file_decides_how_it_is_read_and_the_playbook_only_how_text_is_read():
-    assert cutters.reader("notes", "deal.pdf", b"%PDF-1.7") == "pdf"
-    assert cutters.reader("notes", "crm.xlsx", b"PK") == "sheet"
-    assert cutters.reader("pdf", "requirements.xlsx", b"PK") == "sheet"
-    assert cutters.reader("pdf", "notes.md", b"# notes") == "notes"
-    assert cutters.reader("notes", "notes.md", b"# notes") == "notes"
-    assert cutters.reader("transcript", "call.txt", b"Dana: hi") == "transcript"
-    assert cutters.reader("sheet", "x.txt", b"hello") == "notes"
-
-
 # --- stored units ----------------------------------------------------------------------------
 
 
 def test_stored_units_rebuild_the_tagged_document_exactly(tmp_path):
-    units = cutters.cut_notes(NOTES) + cutters.cut_transcript(read("ulster-call-2026-08-12.txt"), "c.txt")[0][:3]
-    units = [u.__class__(f"k{n}", u.text, u.kind, u.page + (n > 12) * 10, u.page_label, u.section, u.speaker, "buyer" if u.speaker else "")
-             for n, u in enumerate(units)]
+    units = cutters.cut_notes(NOTES) + cutters.read(read("ulster-call-2026-08-12.txt"), "c.txt")[12:15]
+    units = [u.__class__(f"k{n}", u.text, u.kind, u.page + (n > 12) * 10, u.page_label, u.section, "Ann" if n > 12 else "",
+                         "buyer" if n > 12 else "") for n, u in enumerate(units)]
     doc, _ = document_from_units("notes-1", units)
     (tmp_path / "units.json").write_text(json.dumps(results.unit_rows(doc)), encoding="utf-8")
     back = results.load_document(tmp_path, "notes-1")

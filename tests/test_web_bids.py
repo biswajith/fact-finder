@@ -14,6 +14,7 @@ pytest.importorskip("fastapi")
 pytest.importorskip("httpx")
 
 import httpx
+from test_bid_e2e import sides, who
 from test_web_agent import ScriptedChat
 from test_web_summaries import Scripted
 
@@ -75,6 +76,22 @@ def handler(req):
     return "END|0\n"
 
 
+def small_model(req):
+    """The small model at upload: say what a document is, who speaks each line of a call, and which side
+    each person is on, from what the text shows."""
+    kind = task_name(req)
+    if kind == "CLASSIFY":
+        if "Exported" in req.document:
+            return "deal-notes|-|2026-08-14"
+        return "call-transcript|-|2026-08-12" if "speakerId" in req.document else "rfp|-|-"
+    return {"WHO": who, "SPEAKERS": sides}[kind](req)
+
+
+def speaker_model(answer):
+    """A small model whose answer about sides is `answer`; it says who speaks each line as `small_model`."""
+    return ScriptedClient(lambda r: answer(r) if task_name(r) == "SPEAKERS" else small_model(r))
+
+
 class FakeChecker:
     async def _ask(self, new_text, related, instructions=None):
         return {f["fact_id"]: 0.05 for f in related}, None
@@ -97,6 +114,7 @@ def model():
 
 def make_app(root, **kw):
     kw.setdefault("bid_client", ScriptedClient(handler))
+    kw.setdefault("classifier", ScriptedClient(small_model))
     kw.setdefault("checker", FakeChecker())
     return create_app(root, chat_model=ScriptedChat(["hi"]), summary_model=Scripted(), **kw)
 
@@ -154,7 +172,7 @@ async def ready_bid(c, with_addendum=False):
 async def test_create_list_get_and_patch(c, root):
     made = (await c.post("/api/bids", json={"name": "Ulster County", "deal_id": "d1"})).json()
     assert made["bid_id"] == "ulster-county" and made["deal_id"] == "d1" and made["order"] == [] and made["run"] == ""
-    assert {"name", "description", "role", "form"} <= set(made["playbooks"][0]) and "rfp" in [p["name"] for p in made["playbooks"]]
+    assert {"name", "description", "role", "spoken"} <= set(made["playbooks"][0]) and "rfp" in [p["name"] for p in made["playbooks"]]
     assert (await c.post("/api/bids", json={"name": " "})).status_code == 400
     [row] = (await c.get("/api/bids")).json()
     assert set(row) == {"bid_id", "name", "run", "documents", "facts", "modified"} and row["documents"] == 0
@@ -181,7 +199,7 @@ async def test_uploads_are_checked(c, root):
     assert r.status_code == 400 and r.json()["detail"] == "this file type is not supported"
     assert (await upload(c, "ulster", "", b"x")).status_code == 400
     assert (await upload(c, "ulster", "a.pdf", b"not a pdf")).status_code == 400
-    for name, data in (("a.txt", b"\xff\xfe\x00bad"), ("a.md", b" \n"), ("a.xlsx", b"not a workbook")):
+    for name, data in (("a.txt", b"\xff\xfe\x00bad"), ("a.md", b" \n"), ("a.xlsx", b"not a workbook"), ("a.docx", b"not a document")):
         r = await upload(c, "ulster", name, data)
         assert r.status_code == 400 and r.json()["detail"] == "the file could not be read", name
     ok = await upload(c, "ulster", "deal.md", NOTES)
@@ -189,7 +207,7 @@ async def test_uploads_are_checked(c, root):
     doc = ok.json()
     assert (doc["no"], doc["doc_id"], doc["playbook"], doc["issue_date"], doc["status"], doc["confirmed"]) == (
         1, "deal", "deal-notes", "2026-08-14", "uploaded", False)
-    assert doc["proposed"]["by"] == "rules" and doc["missing"] == ["type not confirmed"]
+    assert doc["proposed"]["by"] == "model" and doc["missing"] == ["type not confirmed"]
     dup = await upload(c, "ulster", "again.md", NOTES)
     assert dup.status_code == 400 and dup.json()["detail"] == "this file is already in the bid"
     assert (await upload(c, "ulster", "../../evil.md", b"# other\n")).json()["file"] == "files/2_evil.md"
@@ -227,7 +245,7 @@ async def test_the_team_list_proposes_speakers_until_they_are_confirmed(c):
     await c.post("/api/bids", json={"name": "Ulster"})
     doc = (await upload(c, "ulster", "call.json", CALL)).json()
     assert doc["playbook"] == "call-transcript" and [(s["name"], s["proposed"], s["side"]) for s in doc["speakers"]] == [
-        ("Dana Pike", "buyer", ""), ("Tom Okafor", "ours", "")]  # the call's own affiliation
+        ("Dana Pike", "buyer", ""), ("Tom Okafor", "ours", "")]  # the model read the call's own affiliation
     await c.patch("/api/bids/ulster", json={"team": [{"name": "Dana Pike"}]})
     [d] = (await c.get("/api/bids/ulster")).json()["documents"]
     assert {s["name"]: (s["proposed"], s["why"]) for s in d["speakers"]}["Dana Pike"] == ("ours", "team list")
@@ -243,9 +261,9 @@ async def test_the_model_places_speakers_at_upload_and_again_on_request(root):
 
     def answer(req):
         seen.append(task_name(req))
-        return "s1|OTHER|-|BUYER|advisor to the buyer\ns2|BUYER|-|-|odd\nEND|2\n"
+        return "Dana Pike|OTHER|-|BUYER|advisor to the buyer\nTom Okafor|BUYER|-|-|odd\nEND|2\n"
 
-    app = make_app(root, speaker_model=ScriptedClient(answer))
+    app = make_app(root, speaker_model=speaker_model(answer))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         await c.post("/api/bids", json={"name": "Ulster"})
         doc = (await upload(c, "ulster", "call.json", CALL)).json()
@@ -253,6 +271,7 @@ async def test_the_model_places_speakers_at_upload_and_again_on_request(root):
         assert {s["name"]: (s["proposed"], s["acts_for"]) for s in doc["speakers"]} == {"Dana Pike": ("other", "buyer"), "Tom Okafor": ("buyer", "")}
         assert doc["speakers"][0]["why"] == "model: advisor to the buyer" and "speakers_model" in doc
         assert (await upload(c, "ulster", "n.md", NOTES)).json()["speakers"] == [] and seen == ["SPEAKERS"]  # notes: no call
+        assert doc["voices"] and set(doc["voices"].values()) == {"Dana Pike", "Tom Okafor"}
         again = await c.post("/api/bids/ulster/documents/1/speakers/suggest")
         assert again.status_code == 200 and seen == ["SPEAKERS", "SPEAKERS"]
         assert (await c.post("/api/bids/ulster/documents/2/speakers/suggest")).status_code == 400  # not a transcript
@@ -269,10 +288,10 @@ async def test_a_failed_speaker_call_leaves_the_rules_and_no_key_is_a_clear_erro
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=make_app(root, speaker_model=boom)), base_url="http://test") as c:
         await c.post("/api/bids", json={"name": "Ulster"})
         doc = (await upload(c, "ulster", "call.json", CALL)).json()
-        assert boom.requests and "speakers_model" not in doc
-        assert [(s["proposed"], s["why"]) for s in doc["speakers"]] == [("buyer", "Gong affiliation"), ("ours", "Gong affiliation")]
+        assert boom.requests and "speakers_model" not in doc and doc["voices"] is None and doc["speakers"] == []
+        assert doc["missing"] == ["type not confirmed", "speakers not read yet"] or doc["missing"] == ["type not confirmed"]
         assert (await c.post("/api/bids/ulster/documents/1/speakers/suggest")).status_code == 400
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=make_app(root)), base_url="http://test") as c:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=make_app(root, classifier=None)), base_url="http://test") as c:
         await c.post("/api/bids", json={"name": "Third"})
         await upload(c, "third", "call.json", CALL)
         r = await c.post("/api/bids/third/documents/1/speakers/suggest")
@@ -281,7 +300,7 @@ async def test_a_failed_speaker_call_leaves_the_rules_and_no_key_is_a_clear_erro
 
 async def test_changing_a_note_to_a_call_places_its_speakers_once(root):
     seen = []
-    app = make_app(root, speaker_model=ScriptedClient(lambda r: seen.append(1) or "s1|BUYER|-|-|the buyer\nEND|1\n"))
+    app = make_app(root, speaker_model=speaker_model(lambda r: seen.append(1) or "Dana Pike|BUYER|-|-|the buyer\nEND|1\n"))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
         await c.post("/api/bids", json={"name": "Ulster"})
         await upload(c, "ulster", "call.json", CALL)
@@ -346,7 +365,7 @@ async def test_a_whole_bid_through_the_routes(c, root, model, monkeypatch):
 
     m = (await c.get("/api/bids/ulster")).json()
     assert m["run"] == "_bids/ulster" and [d["status"] for d in m["documents"]] == ["extracted", "extracted", "extracted", "uploaded"]
-    assert m["order"] == ["RFP", "call", "deal", "extra"]
+    assert m["order"] == ["extra", "RFP", "call", "deal"]  # the model called the unconfirmed note an RFP, with no date
     rows = {r["run"]: r for r in (await c.get("/api/runs")).json()}
     assert rows["_bids/ulster"]["kind"] == "bid" and rows["_bids/ulster"]["name"] == "Ulster" and rows["_bids/ulster"]["documents"] == 4
     assert all("kind" not in r for k, r in rows.items() if k != "_bids/ulster")

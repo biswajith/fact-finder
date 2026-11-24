@@ -1,9 +1,9 @@
 """Speakers' sides by the model (speakers.py): the answer checked in code, and how the bid uses it."""
 
-import json
+import asyncio
 
 import pytest
-from conftest import ScriptedClient
+from conftest import ScriptedClient, who_answer
 
 from fact_extractor import bid as B
 from fact_extractor import cutters, playbooks, speakers
@@ -27,36 +27,48 @@ Attendees:
 """
 
 
-def gong_export() -> bytes:
-    parties = [
-        {"speakerId": "1", "name": "Ann Lee", "emailAddress": "ann@fenwick.example", "title": "Principal", "affiliation": "External"},
-        {"speakerId": "2", "name": "Bo Kim", "title": "Analyst", "affiliation": "Internal"},
-    ]
-    turns = [{"speakerId": s, "topic": "", "sentences": [{"start": 1000 * n, "text": "Hello there."}]} for n, s in enumerate("12", 1)]
-    return json.dumps({"extensive": {"calls": [{"metaData": {"title": "t", "started": "2026-03-02T10:00:00Z"}, "parties": parties}]},
-                       "transcript": {"callTranscripts": [{"transcript": turns}]}}).encode()
+def tagged(text: str = HEADER):
+    from fact_extractor.api import document_from_units
+
+    return document_from_units("call", cutters.read(text.encode(), "call.txt"))[0]
+
+
+async def ainfo():
+    return B.Bid.call_info({"voices": await speakers.find_voices(tagged(), ScriptedClient(who_answer))})
 
 
 def info():
-    return cutters.cut_transcript(HEADER.encode(), "c.txt")[1]
+    return asyncio.run(ainfo())
 
 
-def test_the_header_gives_organisation_title_and_note():
-    got = {s["name"]: (s["organisation"], s["title"], s["note"]) for s in info()["speakers"]}
-    assert got == {
-        "Ann Lee": ("Fenwick Advisory", "Principal", "the town's selection advisor"),
-        "Bo Kim": ("Town of Marlow", "Finance Director", ""),
-        "Cy Day": ("Northgate Systems", "", ""),
-        "Di Fox": ("", "", ""),
-        "+1 555-010-0199": ("", "", "joined by phone"),
-    }
-    assert set(info()["speakers"][0]) >= {"id", "name", "email", "title", "affiliation", "organisation", "note"}
+def test_the_model_says_who_speaks_each_line_and_lines_no_one_speaks_have_no_name():
+    doc = tagged()
+    voices = asyncio.run(speakers.find_voices(doc, ScriptedClient(who_answer)))
+    said = {doc.anchors[i].text: n for i, n in voices.items()}
+    assert said["[00:00:09] Bo Kim: Thanks."] == "Bo Kim" and said["We want to hear the plan."] == "Bo Kim"
+    assert "Meeting: Kickoff" not in said and "Attendees:" not in said
+    assert [s["name"] for s in info()["speakers"]] == ["Ann Lee", "Bo Kim", "Cy Day", "Di Fox", "+1 555 010 0199"]
 
 
-def test_a_gong_export_takes_the_organisation_from_the_email_domain():
-    got = cutters.cut_transcript(gong_export(), "c.json")[1]["speakers"]
-    assert [(s["name"], s["organisation"], s["title"], s["note"]) for s in got] == [
-        ("Ann Lee", "fenwick.example", "Principal", ""), ("Bo Kim", "", "Analyst", "")]
+def test_who_keeps_only_asked_ids_and_names_the_document_writes():
+    doc = tagged()
+    ids = list(doc.anchors)
+    answer = f"{ids[-1]}|Zed Quist\n{ids[-2]}|di fox\nx9.9|Ann Lee\n{ids[-3]}|-\nEND|4\n"
+    got = asyncio.run(speakers.find_voices(doc, ScriptedClient(lambda r: answer)))
+    assert got == {ids[-2]: "di fox"}  # a made-up name, an unknown ID and "-" are dropped
+
+
+def test_who_reads_in_batches_with_the_lines_before_and_fails_as_a_whole(monkeypatch):
+    monkeypatch.setattr(speakers, "WHO_BATCH", 4)
+    doc = tagged()
+    client = ScriptedClient(who_answer)
+    got = asyncio.run(speakers.find_voices(doc, client))
+    assert len(client.requests) == -(-len(doc.anchors) // 4)
+    assert all("THE LINES JUST BEFORE" in r.document for r in client.requests[1:])
+    assert got[list(doc.anchors)[-1]] == "+1 555 010 0199"
+    calls = iter(range(100))
+    flaky = ScriptedClient(lambda r: CallFailed("down") if next(calls) in (1, 2) else who_answer(r))
+    assert asyncio.run(speakers.find_voices(doc, flaky)) is None  # one batch failed twice
 
 
 CONTEXT = {"bid_name": "Marlow", "team": ["Cy Day"], "buyer_names": ["Contact Bo Kim, Finance"], "other_documents": ["rfp.pdf"]}
@@ -73,21 +85,21 @@ LINES = (
 @pytest.mark.asyncio
 async def test_by_model_keeps_good_lines_and_checks_the_rest():
     client = ScriptedClient(lambda r: LINES)
-    got = await speakers.by_model(info(), "Ann Lee: Welcome all.", CONTEXT, client)
+    got = await speakers.by_model(await ainfo(), HEADER, CONTEXT, client)
     assert set(got) == {"Ann Lee", "Bo Kim", "Cy Day"}  # an unknown ID and a bad side are dropped
     assert got["Ann Lee"] == {"side": "other", "organisation": "Fenwick Advisory", "acts_for": "buyer", "reason": "set up the call for the town"}
-    assert got["Cy Day"]["organisation"] == "Northgate Systems"  # not in the text: the cutter's one stands
+    assert got["Cy Day"]["organisation"] == ""  # not in the text: dropped
     assert len(got["Cy Day"]["reason"]) == 120
     [req] = client.requests
     assert req.effort == "low" and req.max_output_tokens < 1000
-    assert "Ann Lee | Ann Lee | Fenwick Advisory | Principal | the town's selection advisor | -" in req.document
+    assert "Ann Lee | Ann Lee | - | - | - | -" in req.document
     assert "Our team: Cy Day" in req.document and "rfp.pdf" in req.document and "Contact Bo Kim" in req.document
 
 
 @pytest.mark.asyncio
 async def test_by_model_returns_none_when_the_call_fails_and_retries_once():
     client = ScriptedClient(lambda r: CallFailed("down"))
-    assert await speakers.by_model(info(), "", CONTEXT, client) is None
+    assert await speakers.by_model(await ainfo(), "", CONTEXT, client) is None
     assert len(client.requests) == 2
 
 
@@ -108,15 +120,13 @@ MODEL = {
 }
 
 
-def test_proposal_order_team_list_then_model_then_b_fact_then_affiliation():
-    inf = {"speakers": [
-        {"id": s, "name": s, "organisation": "", "title": "", "note": "", "affiliation": a}
-        for s, a in (("Ann Lee", ""), ("Bo Kim", ""), ("Cy Day", ""), ("Di Fox", "Internal"), ("Ed Roe", ""))]}
+def test_proposal_order_team_list_then_model_then_b_fact():
+    inf = {"speakers": [{"id": s, "name": s} for s in ("Ann Lee", "Bo Kim", "Cy Day", "Di Fox", "Ed Roe")]}
     got = {s["id"]: s for s in B.propose_speakers(inf, [{"name": "Cy Day"}], ["Ask Ed Roe."], MODEL)}
     assert (got["Cy Day"]["proposed"], got["Cy Day"]["why"]) == ("ours", "team list")
     assert (got["Ann Lee"]["proposed"], got["Ann Lee"]["why"], got["Ann Lee"]["acts_for"]) == ("other", "model: advisor", "buyer")
     assert (got["Bo Kim"]["proposed"], got["Bo Kim"]["organisation"]) == ("buyer", "Town of Marlow")
-    assert (got["Di Fox"]["proposed"], got["Di Fox"]["why"]) == ("ours", "Gong affiliation")  # model said unknown
+    assert (got["Di Fox"]["proposed"], got["Di Fox"]["why"]) == ("unknown", "none")  # model said unknown
     assert (got["Ed Roe"]["proposed"], got["Ed Roe"]["why"]) == ("buyer", "B fact")
     also = {s["id"]: s for s in B.propose_speakers({"speakers": [{"id": "Ed Roe", "name": "Ed Roe"}]}, [], ["Ask Ed Roe."], {"Ed Roe": MODEL["Ann Lee"]})}
     assert also["Ed Roe"]["proposed"] == "other"  # the model beats a B fact
@@ -124,7 +134,7 @@ def test_proposal_order_team_list_then_model_then_b_fact_then_affiliation():
 
 def test_other_is_ready_and_level_3_without_unclear_and_unknown_stays_unclear():
     pb = playbooks.load("call-transcript")
-    call = {"confirmed": True, "playbook": "call-transcript", "issue_date": "2026-03-02", "speakers_confirmed": True,
+    call = {"confirmed": True, "playbook": "call-transcript", "issue_date": "2026-03-02", "speakers_confirmed": True, "voices": {},
             "speakers": [{"side": "other"}, {"side": "buyer"}]}
     assert B.ready(call) == []
     assert B.level_of(pb, ["other"]) == (3, [])
@@ -137,11 +147,13 @@ def test_other_is_ready_and_level_3_without_unclear_and_unknown_stays_unclear():
 def test_the_stored_answer_re_proposes_and_a_confirmed_call_is_never_changed(tmp_path):
     bid = B.create(tmp_path, "Marlow", "m")
     doc = bid.add_document(HEADER.encode(), "call.txt")
+    bid.update_document(doc["no"], playbook="call-transcript")
+    assert B.ready(bid.document(doc["no"]))[:1] == ["type not confirmed"] and bid.document(doc["no"])["voices"] is None
+    doc = asyncio.run(speakers.read_voices(bid, doc["no"], ScriptedClient(who_answer)))
     assert all(s["proposed"] == "unknown" for s in doc["speakers"])
     doc = bid.set_speaker_model(doc["no"], MODEL)
     got = {s["name"]: s for s in doc["speakers"]}
     assert got["Ann Lee"]["proposed"] == "other" and got["Ann Lee"]["organisation"] == "Fenwick Advisory"
-    assert got["Ann Lee"]["title"] == "Principal" and got["Ann Lee"]["note"] == "the town's selection advisor"
     bid.update_document(doc["no"], confirmed=True)
     m = bid.manifest()
     m["team"] = [{"name": "Cy Day"}]
@@ -153,3 +165,4 @@ def test_the_stored_answer_re_proposes_and_a_confirmed_call_is_never_changed(tmp
     assert again["speakers_model"] == MODEL and {s["side"] for s in again["speakers"]} == {"other"}
     with pytest.raises(ValueError):
         bid.update_document(doc["no"], speakers=[{"name": "Ann Lee", "side": "third"}])
+    assert bid.set_voices(doc["no"], {})["voices"] == again["voices"]  # confirmed: the voices stay

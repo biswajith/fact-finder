@@ -1,7 +1,7 @@
 """Playbooks: the standing rules for reading one kind of document.
 
 A playbook is a markdown file `<name>.md`: a header between `---` lines that code reads
-(the cutter, the allowed codes and flags, which calls run, the allowed relation kinds, votes,
+(the authority, the allowed codes and flags, which calls run, the allowed relation kinds, votes,
 level, visibility, summary sections, version), then a body that the model reads. The header
 is `key: value`, lists are `[a, b]`, `#` starts a comment, and an indented line continues the
 value above it. There is no YAML dependency.
@@ -21,7 +21,6 @@ from importlib import resources
 
 from .. import prompts
 
-CUTTERS = ("pdf", "transcript", "notes", "sheet")
 AUTHORITIES = ("buyer", "speaker", "notes")
 ROLES = ("base", "change", "context")
 CALLS = ("LABEL", "STATE", "CHECK", "XREF", "RELATE")
@@ -55,12 +54,12 @@ FLAG_TESTS = {
 }
 
 _KEYS = {
-    "name", "description", "reads", "version", "cutter", "authority", "role", "codes", "flags", "precedence",
+    "name", "description", "reads", "version", "authority", "role", "codes", "flags", "precedence",
     "calls", "relations", "relate_to", "votes", "level", "visibility", "sections",
 }
 _LISTS = {"codes", "flags", "precedence", "calls", "relations", "sections"}
 _INTS = {"version", "votes"}
-_REQUIRED = ("name", "description", "cutter", "authority", "role", "codes", "calls")
+_REQUIRED = ("name", "description", "authority", "role", "codes", "calls")
 _RFP_WORDING = ("rfp", "reissued-rfp")  # the two playbooks that keep the exact RFP wording
 
 
@@ -74,7 +73,6 @@ class Playbook:
     name: str
     description: str
     version: int
-    cutter: str
     authority: str
     role: str
     codes: tuple[str, ...]
@@ -93,6 +91,11 @@ class Playbook:
     @property
     def key(self) -> str:
         return f"{self.name}@{self.version}"
+
+    @property
+    def spoken(self) -> bool:
+        """Whether the document records people speaking, so each unit has a speaker (a call)."""
+        return self.authority == "speaker"
 
     @property
     def noun(self) -> str:
@@ -185,7 +188,6 @@ def parse(text: str, where: str = "playbook") -> Playbook:
         if bad:
             raise ValueError(f"{where}: unknown {key} {bad[0]!r}; allowed: {', '.join(allowed) or 'none'}")
 
-    check("cutter", v["cutter"], CUTTERS)
     check("authority", v["authority"], AUTHORITIES)
     check("role", v["role"], ROLES)
     check("calls", v["calls"], CALLS)
@@ -206,7 +208,7 @@ def parse(text: str, where: str = "playbook") -> Playbook:
     if "{categories}" not in body and not v.get("reads"):
         raise ValueError(f"{where}: a body without {{categories}} needs a reads: key")
     return Playbook(
-        name=v["name"], description=v["description"], version=v.get("version", 1), cutter=v["cutter"],
+        name=v["name"], description=v["description"], version=v.get("version", 1),
         authority=v["authority"], role=v["role"], codes=v["codes"], flags=v.get("flags", ()),
         precedence=precedence, calls=v["calls"], relations=v.get("relations", ()),
         relate_to=v.get("relate_to", ""), votes=v.get("votes", 3), level=v.get("level", "1"),

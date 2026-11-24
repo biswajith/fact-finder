@@ -1,7 +1,8 @@
 """CLASSIFY: what kind of document is this, which issue is it, and when was it issued?
 
 Two ways to answer, and the user confirms either one before anything is read:
-- `by_rules` looks at the file's form and the words on its first page. It needs no model.
+- `by_rules` looks only at the words at the start of the document, whatever its file format. It needs
+  no model, and it only tells an addendum by its own words; anything else it calls an RFP.
 - `by_model` asks the model one closed question and checks every part of the answer in code
   against the text it was shown; a part that fails keeps the rules' value.
 
@@ -21,7 +22,6 @@ FIRST_WORDS = 3000  # how much of the document the model reads
 _ADDENDUM = re.compile(r"\b(?:addendum|amendment)\b", re.I)
 _QA = re.compile(r"questions\s+and\s+answers|\bq\s*&\s*a\b", re.I)
 _NUMBER = re.compile(r"\b(?:addendum|amendment)\s*(?:no\.?|number|#)?\s*(\d+)\b", re.I)
-_EXPORTED = re.compile(r"\bexport(?:ed)?\b(.*)$", re.I | re.M)
 _ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -34,17 +34,6 @@ def first_date(text: str) -> str | None:
             if token and (best is None or m.start() < best[0]):
                 best = (m.start(), token.removeprefix("date:"))
     return best[1] if best else None
-
-
-def first_page_text(data: bytes) -> str:
-    """The text of the first page of a PDF; empty when it cannot be read."""
-    try:
-        import pymupdf
-
-        with pymupdf.open(stream=data, filetype="pdf") as doc:
-            return doc[0].get_text() if doc.page_count else ""
-    except Exception:  # an unreadable PDF is still a document the user can classify by hand
-        return ""
 
 
 def first_text(units: Sequence, words: int = FIRST_WORDS) -> str:
@@ -62,33 +51,21 @@ def first_text(units: Sequence, words: int = FIRST_WORDS) -> str:
     return "\n".join(out)
 
 
+RULES_WORDS = 400  # the start of a document that is not a PDF the rules read (about one page)
+
+
 def by_rules(file_name: str, data: bytes) -> dict:
-    """The proposal that needs no model: from the form of the file and its first page."""
-    form = cutters.form_of(file_name, data)
-    number: int | None = None
-    date: str | None = None
-    if form == "pdf":
-        text = first_page_text(data)
-        if _ADDENDUM.search(text):
-            name = "qa-addendum" if _QA.search(text) else "change-addendum"
-        else:
-            name = "rfp"
-        m = _NUMBER.search(text)
-        number = int(m.group(1)) if m else None
-        date = first_date(text)
-    elif form == "transcript":
-        name = "call-transcript"
-        try:
-            date = cutters.cut_transcript(data, file_name)[1]["date"] or None
-        except ValueError:
-            date = None
-    elif form == "notes":
-        name = "deal-notes"
-        m = _EXPORTED.search(data.decode("utf-8-sig", errors="replace"))
-        date = first_date(m.group(1)) if m else None
+    """The proposal that needs no model, from the start of the document (a PDF's first page, else its
+    first words) in any file format: an addendum, and a Q&A addendum, by their own words; anything
+    else an RFP. The first date there is the issue date. The model's CLASSIFY or the user corrects it."""
+    text = cutters.plain_text(data, file_name, RULES_WORDS, pages=1)
+    if _ADDENDUM.search(text):
+        name = "qa-addendum" if _QA.search(text) else "change-addendum"
     else:
-        name = "fill-in-template"
-    return {"playbook": name, "issue_number": number, "issue_date": date, "by": "rules", "checked": True}
+        name = "rfp"
+    m = _NUMBER.search(text)
+    return {"playbook": name, "issue_number": int(m.group(1)) if m else None, "issue_date": first_date(text),
+            "by": "rules", "checked": True}
 
 
 def system() -> str:
@@ -117,7 +94,7 @@ async def _ask(client: LLMClient, req: Request) -> str | None:
 async def by_model(file_name: str, first_text: str, client: LLMClient, *, rules: dict | None = None) -> dict | None:
     """The CLASSIFY call. `first_text` is the start of the document. Code keeps the playbook only
     if it exists, the number only if it is on the pages read, the date only if `normalize.values`
-    finds that date in the text read. A part that fails keeps the value in `rules` (what
+    finds that date in the text read, or the text writes it as YYYY-MM-DD (also inside a time stamp). A part that fails keeps the value in `rules` (what
     `by_rules` gave) and sets `checked` false. None when the call fails."""
     rules = rules or {}
     task = f"TASK CLASSIFY\nFile name: {file_name}\nSay what kind of document this is.\nFormat: PLAYBOOK|issue number or -|date as YYYY-MM-DD or -"
@@ -142,7 +119,7 @@ async def by_model(file_name: str, first_text: str, client: LLMClient, *, rules:
         else:
             checked = False
     if date != "-":
-        if _ISO.match(date) and f"date:{date}" in normalize.values(first_text):
+        if _ISO.match(date) and (f"date:{date}" in normalize.values(first_text) or re.search(rf"(?<!\d){date}(?!\d)", first_text)):
             out["issue_date"] = date
         else:
             checked = False

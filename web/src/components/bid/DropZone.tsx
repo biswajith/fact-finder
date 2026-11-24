@@ -1,11 +1,11 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import { Button, FileTrigger } from '@adobe/react-spectrum';
 
-export const ACCEPTED = ['.pdf', '.json', '.txt', '.md', '.csv', '.xlsx'];
+export const ACCEPTED = ['.pdf', '.docx', '.json', '.txt', '.md', '.csv', '.xlsx'];
 const accepted = (name: string) => ACCEPTED.some((ext) => name.toLowerCase().endsWith(ext));
 
 /** Drag files here or choose them; the files go up one at a time in the order given. */
-const HINT = 'RFPs, addenda and templates (PDF, spreadsheet), call transcripts (Gong export or text) and deal notes.';
+const HINT = 'RFPs, addenda, templates, call transcripts and deal notes, as PDF, Word, spreadsheet, JSON or text.';
 
 /** `title` is the section heading (null: none, the page gives one); `hint` the line under the zone. */
 export function DropZone({ onFiles, title = 'Add documents', hint = HINT }: { onFiles: (files: File[]) => void; title?: string | null; hint?: string }) {

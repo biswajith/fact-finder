@@ -2,7 +2,6 @@
 name: deal-notes
 description: Our own notes on a deal, such as CRM fields and capture notes: intelligence, guesses and to-dos, in note form.
 reads: our own deal notes
-cutter: notes
 authority: notes
 role: context
 codes: [B, D, C, R, E, S, PRIORITY, DECIDER, BUDGET, COMPETITOR, ACTION, QUESTION]

@@ -439,7 +439,8 @@ export interface BidPlaybook {
   name: string;
   description: string;
   role: BidRole;
-  form: string;
+  /** The document records people speaking (a call): each line has a speaker. */
+  spoken: boolean;
   /** "1", "by speaker" or "4". */
   level: string;
   visibility: 'external' | 'internal';

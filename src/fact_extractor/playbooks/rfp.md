@@ -1,7 +1,6 @@
 ---
 name: rfp
 description: A request for proposals from the buyer: the full document, issued once.
-cutter: pdf
 authority: buyer
 role: base
 codes: [B, C, G, X, D, S, E, R]

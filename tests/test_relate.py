@@ -220,7 +220,7 @@ async def test_the_rfp_itself_has_no_relations_and_the_bid_applies_the_stored_on
 async def test_a_notes_file_with_no_earlier_buyer_document_stores_empty_relations(tmp_path):
     bid = B.create(tmp_path, "Solo")
     d = bid.add_document(b"# Notes\n\nThe budget is fixed.\n", "n.md")
-    bid.update_document(d["no"], confirmed=True, issue_date="2026-08-14")
+    bid.update_document(d["no"], playbook="deal-notes", confirmed=True, issue_date="2026-08-14")
     client = ScriptedClient(lambda r: "END|0\n" if task_name(r) != "RELATE" else pytest.fail("RELATE called"))
     saved = await B.extract_document(bid, d["no"], client, store=results.ResultStore(tmp_path), cfg=FAST)
     rel = json.loads((saved.folder / "relations.json").read_text())

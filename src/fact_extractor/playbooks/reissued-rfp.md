@@ -1,7 +1,6 @@
 ---
 name: reissued-rfp
 description: A full RFP issued again after an earlier issue; read the same way as the first issue.
-cutter: pdf
 authority: buyer
 role: base
 codes: [B, C, G, X, D, S, E, R]

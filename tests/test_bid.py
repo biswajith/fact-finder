@@ -4,10 +4,10 @@ import json
 
 import pymupdf
 import pytest
-from conftest import ScriptedClient, task_name
+from conftest import ScriptedClient, task_name, who_answer
 
 from fact_extractor import bid as B
-from fact_extractor import playbooks, results, units
+from fact_extractor import playbooks, results, speakers, units
 from fact_extractor.web import runs
 
 FAST = units.Config(backoff_base=0, warmup_timeout=1, brief=False, grouping=False)
@@ -24,6 +24,13 @@ def pdf(*lines: str) -> bytes:
 @pytest.fixture
 def bid(tmp_path):
     return B.create(tmp_path, "Ulster County actuarial", "deal-1")
+
+
+async def add_call(bid, data, name="call.txt", **fields):
+    """Upload a call, set its type, and let the stand-in model say who speaks each line."""
+    d = bid.add_document(data, name)
+    bid.update_document(d["no"], playbook="call-transcript", **fields)
+    return await speakers.read_voices(bid, d["no"], ScriptedClient(who_answer))
 
 
 def add(bid, name="x.pdf", data=None, **fields):
@@ -87,7 +94,7 @@ def test_remove_only_before_extraction(bid):
     with pytest.raises(ValueError):
         bid.remove_document(d["no"])
     with pytest.raises(ValueError):
-        bid.update_document(d["no"], playbook="rfp")
+        bid.update_document(d["no"], playbook="deal-notes")
     with pytest.raises(ValueError):
         bid.update_document(d["no"], doc_id="z")
 
@@ -121,18 +128,12 @@ def test_undated_documents():
 # --- speakers and readiness --------------------------------------------------------------
 
 
-def test_speaker_proposals_team_list_beats_b_fact_beats_affiliation():
-    info = {"speakers": [
-        {"id": "1", "name": "Tom Okafor", "affiliation": "External"},
-        {"id": "2", "name": "Dana Pike", "affiliation": "Internal"},
-        {"id": "3", "name": "Raj Mehta", "affiliation": "Internal"},
-        {"id": "4", "name": "Lee Ward", "affiliation": "External"},
-        {"id": "5", "name": "+1 845-555-0142", "affiliation": "Unknown"},
-    ]}
+def test_speaker_proposals_team_list_beats_b_fact():
+    info = {"speakers": [{"id": "1", "name": "Tom Okafor"}, {"id": "2", "name": "Dana Pike"}, {"id": "3", "name": "Raj Mehta"},
+                         {"id": "5", "name": "+1 845-555-0142"}]}
     got = B.propose_speakers(info, [{"name": "Tom Okafor"}, {"name": "Dana Pike"}], ["Questions go to Dana Pike, Purchasing."])
     assert [(s["id"], s["proposed"], s["why"]) for s in got] == [
-        ("1", "ours", "team list"), ("2", "ours", "team list"), ("3", "ours", "Gong affiliation"),
-        ("4", "buyer", "Gong affiliation"), ("5", "unknown", "none")]
+        ("1", "ours", "team list"), ("2", "ours", "team list"), ("3", "unknown", "none"), ("5", "unknown", "none")]
     got = B.propose_speakers(info, [], ["Contact: Raj Mehta, Purchasing"])
     assert (got[2]["proposed"], got[2]["why"]) == ("buyer", "B fact")
 
@@ -143,8 +144,9 @@ def test_ready_lists_what_is_missing():
     assert B.ready({"confirmed": True, "playbook": "change-addendum"}) == ["issue date missing", "issue number missing"]
     assert B.ready({"confirmed": True, "playbook": "reissued-rfp"}) == ["previous version not chosen"]
     assert B.ready({"confirmed": True, "playbook": "deal-notes"}) == ["issue date missing"]
-    call = {"confirmed": True, "playbook": "call-transcript", "issue_date": "2026-08-01",
-            "speakers": [{"side": ""}, {"side": "unknown"}], "speakers_confirmed": False}
+    call = {"confirmed": True, "playbook": "call-transcript", "issue_date": "2026-08-01", "speakers": []}
+    assert B.ready(call) == ["speakers not read yet"]
+    call.update(voices={"p1.1": "Ann"}, speakers=[{"side": ""}, {"side": "unknown"}], speakers_confirmed=False)
     assert B.ready(call) == ["speakers not confirmed", "a speaker has no side"]
     call.update(speakers=[{"side": "buyer"}, {"side": "unknown"}], speakers_confirmed=True)
     assert B.ready(call) == []
@@ -184,7 +186,7 @@ RULES = {"budget": "BUDGET", "work for us": "=", "Chase": "ACTION"}
 
 
 async def test_notes_are_level_4(bid, tmp_path):
-    d = add(bid, "deal.md", NOTES, issue_date="2026-08-14")
+    d = add(bid, "deal.md", NOTES, playbook="deal-notes", issue_date="2026-08-14")
     steps = []
     client = ScriptedClient(label_handler(RULES))
     store = results.ResultStore(tmp_path)
@@ -210,7 +212,7 @@ async def test_deal_notes_in_a_pdf_are_read_as_a_pdf(bid, tmp_path):
 
 
 async def test_a_stored_result_is_reused_without_a_model_call(bid, tmp_path):
-    d = add(bid, "deal.md", NOTES, issue_date="2026-08-14")
+    d = add(bid, "deal.md", NOTES, playbook="deal-notes", issue_date="2026-08-14")
     store = results.ResultStore(tmp_path)
     first = await B.extract_document(bid, d["no"], ScriptedClient(label_handler(RULES)), store=store, cfg=FAST)
     again = ScriptedClient(lambda r: pytest.fail("a model call"))
@@ -223,7 +225,7 @@ async def test_not_ready_and_failures(bid, tmp_path):
     store = results.ResultStore(tmp_path)
     with pytest.raises(ValueError, match="type not confirmed"):
         await B.extract_document(bid, d["no"], ScriptedClient(lambda r: "x"), store=store)
-    bid.update_document(d["no"], confirmed=True, issue_date="2026-08-14")
+    bid.update_document(d["no"], playbook="deal-notes", confirmed=True, issue_date="2026-08-14")
     with pytest.raises(RuntimeError):
         await B.extract_document(bid, d["no"], ScriptedClient(lambda r: (_ for _ in ()).throw(RuntimeError("boom"))),
                                  store=store, cfg=FAST)
@@ -232,8 +234,8 @@ async def test_not_ready_and_failures(bid, tmp_path):
 
 
 async def test_a_call_gets_levels_from_the_side_of_its_units(bid, tmp_path):
-    d = bid.add_document(CALL, "call.txt")
-    assert d["playbook"] == "call-transcript" and d["issue_date"] == "2026-08-12"
+    d = await add_call(bid, CALL)
+    assert d["issue_date"] == "2026-08-12"
     names = [s["name"] for s in d["speakers"]]
     assert names == ["Dana Pike", "Tom Okafor", "+1 845-555-0142"]
     bid.update_document(d["no"], confirmed=True)
@@ -244,30 +246,34 @@ async def test_a_call_gets_levels_from_the_side_of_its_units(bid, tmp_path):
     with pytest.raises(ValueError):
         bid.update_document(d["no"], speakers=[{"name": "Dana Pike", "side": "them"}])
     saved = await B.extract_document(bid, d["no"], ScriptedClient(label_handler(RULES)), store=results.ResultStore(tmp_path), cfg=FAST)
-    by_text = {f["source_text"]: f for f in saved.facts()}
-    buyer = by_text["The budget is fixed at 90,000 dollars."]
-    ours_with_buyer = next(f for f in saved.facts() if "discount" in f["source_text"])
-    unknown = by_text["Maybe the budget grows."]
+    def said(words):
+        return next(f for f in saved.facts() if words in f["source_text"])
+
+    buyer = said("The budget is fixed at 90,000 dollars.")
+    ours_with_buyer = said("discount")
+    unknown = said("Maybe the budget grows.")
     assert buyer["level"] == 2 and "both-sides" not in buyer["flags"]
     assert ours_with_buyer["level"] == 2 and "both-sides" in ours_with_buyer["flags"]
     assert ours_with_buyer["text"] == ours_with_buyer["source_text"] and ours_with_buyer["text_from"] == "rfp"
     assert {c["side"] for c in ours_with_buyer["citations"]} == {"ours", "buyer"}
     assert unknown["level"] == 3 and "unclear" in unknown["flags"]
     units_json = json.loads((saved.folder / "units.json").read_text())
-    assert {u["side"] for u in units_json} == {"buyer", "ours", "unknown"}
+    assert {u["side"] for u in units_json} == {"", "buyer", "ours", "unknown"}  # "": the header, which no one speaks
 
 
 async def test_another_party_gives_level_3_without_unclear_and_its_units_name_its_organisation(bid, tmp_path):
     header = b"Attendees:\n  Dana Pike - Fenwick Advisory, Principal (the buyer's advisor)\n  Tom Okafor - Halvard, Bid Manager\n\n"
-    d = bid.add_document(header + CALL, "call.txt")
+    d = await add_call(bid, header + CALL)
+    # the organisation comes from the model's answer about sides, which reads the attendee list
+    bid.set_speaker_model(d["no"], {"Dana Pike": {"side": "other", "organisation": "Fenwick Advisory", "acts_for": "", "reason": ""}})
     bid.update_document(d["no"], confirmed=True, speakers_confirmed=True, speakers=[
         {"name": "Dana Pike", "side": "other"}, {"name": "Tom Okafor", "side": "ours"}, {"name": "+1 845-555-0142", "side": "other"}])
     assert B.ready(bid.document(d["no"])) == []
     saved = await B.extract_document(bid, d["no"], ScriptedClient(label_handler(RULES)), store=results.ResultStore(tmp_path), cfg=FAST)
-    budget = next(f for f in saved.facts() if f["source_text"] == "The budget is fixed at 90,000 dollars.")
+    budget = next(f for f in saved.facts() if "The budget is fixed at 90,000 dollars." in f["source_text"])
     assert budget["level"] == 3 and "unclear" not in budget["flags"]
     assert [(c["speaker"], c["side"]) for c in budget["citations"]] == [("Dana Pike (Fenwick Advisory)", "other")]
-    phone = next(f for f in saved.facts() if f["source_text"] == "Maybe the budget grows.")
+    phone = next(f for f in saved.facts() if "Maybe the budget grows." in f["source_text"])
     assert phone["level"] == 3 and "unclear" not in phone["flags"] and phone["citations"][0]["speaker"] == "+1 845-555-0142"
 
 
@@ -288,8 +294,8 @@ async def make_bid(tmp_path):
     store = results.ResultStore(tmp_path)
     rfp = bid.add_document(pdf("1. Scope", "The vendor must provide 24/7 support."), "RFP-1.pdf")
     bid.update_document(rfp["no"], confirmed=True, issue_date="2026-07-20")
-    notes = add(bid, "deal.md", NOTES, issue_date="2026-08-14")
-    call = bid.add_document(CALL, "call.txt")
+    notes = add(bid, "deal.md", NOTES, playbook="deal-notes", issue_date="2026-08-14")
+    call = await add_call(bid, CALL)
     bid.update_document(call["no"], confirmed=True, speakers_confirmed=True, speakers=[
         {"name": "Dana Pike", "side": "buyer"}, {"name": "Tom Okafor", "side": "ours"}, {"name": "+1 845-555-0142", "side": "unknown"}])
     client = ScriptedClient(label_handler({**RULES, "must provide": "R"}))

@@ -2,7 +2,6 @@
 name: fill-in-template
 description: A form or spreadsheet from the buyer that the bidder fills in and returns, such as a price sheet or a response matrix.
 reads: a fill-in form from the buyer
-cutter: sheet
 authority: buyer
 role: base
 codes: [S, R, C, D, E, B]

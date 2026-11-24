@@ -181,6 +181,7 @@ ul.differs li { margin: 4px 0; max-width: none; }
 
 <span class="status">built on feature/multi-document-bid 2026-11-22 · RELATE not yet measured on a real addendum</span>
 <h1>Many documents, one bid</h1>
+<p><strong>Note.</strong> Changed on 2026-11-24: a file is read by its format alone (PDF, Word, sheet, JSON or text), never by its document type, and playbooks no longer have a cutter. Calls are no longer parsed for Gong keys or timestamped speaker lines: a model call (<code>speakers.find_voices</code>) says who speaks each line. The call system's affiliation is no longer a rule for a speaker's side. Where this document says otherwise, the README is current.</p>
 <p class="lede">The extractor reads one RFP. A real bid also has addenda, call transcripts and the team's own deal notes. This page proposes how each kind of document is read, and how the facts from all of them agree on which one to believe. Every step is marked by who does it: the model, code, or the user.</p>
 
 <nav aria-label="On this page">

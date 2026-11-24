@@ -134,7 +134,7 @@ def test_bid_add_says_who_suggested_the_type(tmp_path, capsys, monkeypatch):
     notes.write_text("# Deal notes\n\nExported 2027-06-01.\n")
     assert cli.main(["bid", "add", "ulster", str(notes), "--store", str(root)]) == 0
     out = capsys.readouterr().out
-    assert "(suggested by rules: deal-notes)" in out and "rules's" not in out and "not confirmed; use --yes" in out
+    assert "(suggested by rules: rfp)" in out and "rules's" not in out and "not confirmed; use --yes" in out
     from fact_extractor import classify
 
     real = classify.by_rules
@@ -142,4 +142,4 @@ def test_bid_add_says_who_suggested_the_type(tmp_path, capsys, monkeypatch):
     other = tmp_path / "other.md"
     other.write_text("# Other\n\nExported 2027-06-02.\n")
     cli.main(["bid", "add", "ulster", str(other), "--yes", "--store", str(root)])
-    assert "(suggested by the model: deal-notes)" in capsys.readouterr().out
+    assert "(suggested by the model: rfp)" in capsys.readouterr().out

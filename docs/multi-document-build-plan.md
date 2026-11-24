@@ -1,5 +1,7 @@
 # Many documents, one bid: build plan
 
+> Changed on 2026-11-24: a file is read by its format alone (PDF, Word, sheet, JSON or text), never by its document type, and playbooks no longer have a cutter. Calls are no longer parsed for Gong keys or timestamped speaker lines: a model call (`speakers.find_voices`) says who speaks each line. The call system's affiliation is no longer a rule for a speaker's side. Where this document says otherwise, the README is current.
+
 Implements `docs/multi-document-design.html` (the spec). Branch: `feature/multi-document-bid`.
 Work packages run one at a time, in order. Each package owns the files it lists; it does not edit
 other files except to fix a test or import it broke.

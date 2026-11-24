@@ -1,10 +1,19 @@
-"""Cutters: turn a file that is not a PDF into the units the labelling pipeline reads.
+"""Readers: turn any file into the units the labelling pipeline reads.
 
-Each cutter returns `api.SourceUnit` rows (keys unique, in reading order); `api.document_from_units`
-gives them their short IDs and anchors. A transcript turn, a notes section or a sheet is a "page":
-the pipeline labels in batches of pages, and a citation shows the page label.
+How a file is read depends only on its format, never on the document type: an RFP may come as a
+PDF, a Word file or a sheet, and a call as a PDF or plain text. What a document is (its type) and
+how its content is organised (who speaks, which part is a heading) is for the model to say, not
+for the reader to assume. A reader only keeps what the format itself makes plain: pages, headings
+and tables.
 
-PDFs are not cut here: `web.runs.tag_pdf` reads them with their layout and boxes.
+- PDF: `web.runs.tag_pdf`, which reads the layout and boxes (see `read_document`).
+- Word (.docx): paragraphs in order, a heading style as a heading, a table as table rows.
+- Sheet (.csv, .xlsx): one sheet a page, each row a table row under the first row.
+- JSON: its text values in order, one record a line.
+- Anything else: text, with markdown headings, lists and tables kept when they are there.
+
+Each reader returns `api.SourceUnit` rows (keys unique, in reading order); `api.document_from_units`
+gives them their short IDs and anchors.
 """
 
 from __future__ import annotations
@@ -14,236 +23,175 @@ import io
 import json
 import re
 from datetime import date, datetime
+from pathlib import Path
 
 from .api import SourceUnit
 from .tagging import split_sentences, table_row_text
 
-FORMS = ("pdf", "transcript", "notes", "sheet")
-
-_TURN = re.compile(r"^\[(\d{1,2}):(\d{2}):(\d{2})\]\s*([^:]+?)\s*:\s*(.*)$")
-_MONTHS = {m: i for i, m in enumerate(
-    ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
-     "november", "december"), start=1)}
-_DATE_TEXT = re.compile(r"\b(" + "|".join(_MONTHS) + r")\s+(\d{1,2}),?\s+(\d{4})\b", re.I)
-_DATE_ISO = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
-
-
-# --- which cutter ---------------------------------------------------------------------
+FORMS = ("pdf", "word", "sheet", "json", "text")
 
 
 def form_of(name: str, data: bytes) -> str:
-    """Guess `pdf | transcript | notes | sheet` from the extension and, for `.json` and `.txt`, the content."""
-    ext = name.lower().rsplit(".", 1)[-1] if "." in name else ""
-    if ext == "pdf" or data[:5] == b"%PDF-":
+    """The file's format, from its extension and its first bytes."""
+    ext = Path(name).suffix.lower()
+    if ext == ".pdf" or data[:5] == b"%PDF-":
         return "pdf"
-    if ext in ("csv", "xlsx"):
+    if ext == ".docx":
+        return "word"
+    if ext in (".csv", ".xlsx"):
         return "sheet"
-    if ext == "json":
-        try:
-            obj = json.loads(data.decode("utf-8-sig"))
-        except ValueError:
-            return "notes"
-        return "transcript" if _gong_calls(obj) else "notes"
-    if ext == "txt":
-        lines = data.decode("utf-8-sig", errors="replace").splitlines()
-        return "transcript" if sum(bool(_TURN.match(ln.strip())) for ln in lines) >= 3 else "notes"
-    return "notes"
+    if ext == ".json":
+        return "json"
+    return "text"
 
 
-def reader(cutter: str, name: str, data: bytes) -> str:
-    """How to read this file under a playbook whose cutter is `cutter`. The file decides how it is read,
-    the playbook only what is extracted: a PDF is read as a PDF and a sheet as a sheet whatever the
-    document type; a text file is read the way the playbook says when that way reads text (a
-    transcript or notes), else by its own form."""
+def read(data: bytes, name: str) -> list[SourceUnit]:
+    """The units of any file that is not a PDF."""
     form = form_of(name, data)
-    if form in ("pdf", "sheet"):
-        return form
-    return cutter if cutter in ("transcript", "notes") else form
-
-
-def cut(form: str, data: bytes, name: str) -> list[SourceUnit]:
-    """The units of a file of this form."""
-    if form == "transcript":
-        return cut_transcript(data, name)[0]
-    if form == "notes":
-        return cut_notes(data.decode("utf-8-sig", errors="replace"))
+    if form == "word":
+        return read_word(data)
     if form == "sheet":
         return cut_sheet(data, name)
-    raise ValueError("pdf units come from runs.tag_pdf, not a cutter" if form == "pdf" else f"unknown form {form!r}")
+    if form == "json":
+        return read_json(data)
+    if form == "text":
+        return cut_notes(data.decode("utf-8-sig", errors="replace"))
+    raise ValueError("pdf units come from runs.tag_pdf; use read_document")
 
 
-# --- transcripts ----------------------------------------------------------------------
+def read_document(data: bytes, name: str, doc_id: str, runs_root: str | Path):
+    """The tagged document of any file: a PDF with its layout, anything else from `read`."""
+    if form_of(name, data) == "pdf":
+        from .web import runs
+
+        return runs.tag_pdf(data, doc_id, runs_root)
+    from .api import document_from_units
+
+    return document_from_units(doc_id, read(data, name))[0]
 
 
-def _gong_calls(obj: object) -> bool:
-    """Whether `obj` has the two Gong responses: a call with a transcript."""
+def plain_text(data: bytes, name: str, words: int | None = None, pages: int | None = None) -> str:
+    """The text of any file, one unit (or PDF line) a line, up to `words` words and, for a PDF, its
+    first `pages` pages: what the model reads to say what a document is. Empty for a file that
+    cannot be read."""
     try:
-        return bool(obj["transcript"]["callTranscripts"][0]["transcript"])  # type: ignore[index]
-    except (KeyError, IndexError, TypeError):
-        return False
+        if form_of(name, data) == "pdf":
+            import pymupdf
 
-
-def _phone(value: str) -> str:
-    """One spelling for a dial-in number, so a spoken-form line and a Gong party agree:
-    `+1 845 555 0142` and `+1 845-555-0142` both give `+1 845-555-0142`."""
-    digits = re.sub(r"\D", "", value)
-    if value.strip().startswith("+") and len(digits) == 11 and digits[0] == "1":
-        return f"+1 {digits[1:4]}-{digits[4:7]}-{digits[7:]}"
-    return value.strip()
-
-
-def _clock(seconds: int) -> str:
-    return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
-
-
-def _turn_units(turns: list[tuple[str, str, str, str]]) -> list[SourceUnit]:
-    """`turns` = (speaker, hh:mm:ss, section, text). One turn is one page, one sentence one unit."""
-    out: list[SourceUnit] = []
-    for n, (speaker, label, section, text) in enumerate(turns, start=1):
-        spans = split_sentences(text) or ([(0, len(text))] if text.strip() else [])
-        for k, (s, e) in enumerate(spans, start=1):
-            out.append(SourceUnit(f"t{n}.{k}", text[s:e].strip(), "sentence", n, label, section, speaker))
-    return out
-
-
-def cut_transcript(data: bytes, name: str) -> tuple[list[SourceUnit], dict]:
-    """A call transcript: a Gong export (JSON with `extensive` and `transcript`) or plain text with
-    `[hh:mm:ss] Name: text` lines. Returns the units and the call's info
-    `{"title", "date", "speakers": [{"id", "name", "email", "title", "affiliation", "organisation",
-    "note"}]}`; the speakers are those who spoke, in order of first speech. `organisation` is the email's
-    domain for a Gong party, and for plain text what the header's attendee list says."""
-    text = data.decode("utf-8-sig", errors="replace")
-    if name.lower().endswith(".json") or text.lstrip().startswith("{"):
-        try:
-            obj = json.loads(text)
-        except ValueError as e:
-            raise ValueError(f"not a Gong export: {e}") from None
-        if not _gong_calls(obj):
-            raise ValueError("not a Gong export: no transcript found")
-        return _cut_gong(obj)
-    return _cut_text(text)
-
-
-def _cut_gong(obj: dict) -> tuple[list[SourceUnit], dict]:
-    call = ((obj.get("extensive") or {}).get("calls") or [{}])[0]
-    meta = call.get("metaData") or {}
-    parties = {p["speakerId"]: p for p in call.get("parties") or [] if p.get("speakerId")}
-
-    def speaker_name(sid: str) -> str:
-        p = parties.get(sid) or {}
-        return (p.get("name") or "").strip() or _phone(p.get("phoneNumber") or "") or f"Speaker {sid}"
-
-    turns: list[tuple[str, str, str, str]] = []
-    spoke: dict[str, None] = {}
-    for mono in obj["transcript"]["callTranscripts"][0]["transcript"]:
-        sentences = [s for s in mono.get("sentences") or [] if str(s.get("text", "")).strip()]
-        if not sentences:
+            with pymupdf.open(stream=data, filetype="pdf") as doc:
+                count = doc.page_count if pages is None else min(pages, doc.page_count)
+                lines = "\n".join(doc[i].get_text() for i in range(count)).splitlines()
+        else:
+            lines = [u.text for u in read(data, name)]
+    except Exception:  # an unreadable file is still a document the user can classify by hand
+        return ""
+    out, left = [], words
+    for line in lines:
+        parts = line.split()
+        if not parts:
             continue
-        sid = str(mono.get("speakerId", ""))
-        spoke[sid] = None
-        start = int(sentences[0].get("start") or 0) // 1000
-        turns.append((speaker_name(sid), _clock(start), mono.get("topic") or "",
-                      " ".join(str(s["text"]).strip() for s in sentences)))
-    speakers = []
-    for sid in spoke:
-        p = parties.get(sid) or {}
-        speakers.append({
-            "id": sid, "name": speaker_name(sid), "email": p.get("emailAddress") or "",
-            "title": p.get("title") or "", "affiliation": p.get("affiliation") or "",
-            "organisation": _domain(p.get("emailAddress") or ""), "note": "",
-        })
-    info = {"title": meta.get("title") or "", "date": str(meta.get("started") or "")[:10], "speakers": speakers}
-    return _turn_units(turns), info
-
-
-def _domain(email: str) -> str:
-    """The part of an email address after `@`, as written; empty when there is none."""
-    return email.rpartition("@")[2].strip() if "@" in email else ""
-
-
-_NOTE = re.compile(r"\s*\(([^()]*)\)\s*$")
-
-
-def _attendee(line: str) -> dict | None:
-    """One attendee line of a plain-text header: `Name - Organisation, Title (note)`. Organisation,
-    title and note are each optional; a dial-in is a number, perhaps with a note. None for a line
-    that is not a person (a blank line or a label such as `Attendees:`)."""
-    line = line.strip().lstrip("-*\u2022 ").strip()
-    if not line or line.endswith(":"):
-        return None
-    note = ""
-    m = _NOTE.search(line)
-    if m:
-        note, line = m.group(1).strip(), line[: m.start()].strip()
-    name, sep, rest = line.partition(" - ")
-    name = name.strip()
-    if not name:
-        return None
-    if name.startswith("+"):
-        name = _phone(name)
-    organisation, _, title = rest.partition(",") if sep else ("", "", "")
-    return {"name": name, "organisation": organisation.strip(), "title": title.strip(), "note": note}
-
-
-def _attendees(header: list[str]) -> dict[str, dict]:
-    """The people the header lists after an `Attendees:` line (up to the next blank line or label), by name."""
-    out: dict[str, dict] = {}
-    inside = False
-    for raw in header:
-        line = raw.strip()
-        if re.match(r"^(attendees|participants)\s*:?\s*$", line, re.I):
-            inside = True
+        if left is None:
+            out.append(" ".join(parts))
             continue
-        if not inside:
-            continue
-        if not line or re.match(r"^[A-Za-z ]{2,20}:\s", line):
+        out.append(" ".join(parts[:left]))
+        left -= len(parts)
+        if left <= 0:
             break
-        who = _attendee(line)
-        if who:
-            out.setdefault(who["name"].casefold(), who)
+    return "\n".join(out)
+
+
+# --- Word -----------------------------------------------------------------------------
+
+
+def read_word(data: bytes) -> list[SourceUnit]:
+    """A .docx: body paragraphs and tables in order. A paragraph whose style is a heading (or the
+    title) is a heading and sets the section; a list paragraph is a list item; other paragraphs are
+    split into sentences. A table's first row is its header, each later row a table row. A heading
+    of the first level starts a new page, labelled with its text."""
+    from docx import Document
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    doc = Document(io.BytesIO(data))
+    out: list[SourceUnit] = []
+    state = {"page": 1, "label": "1", "section": ""}
+
+    def add(text: str, kind: str) -> None:
+        text = " ".join(text.split())
+        if text:
+            out.append(SourceUnit(f"w{len(out) + 1}", text, kind, state["page"], state["label"], state["section"]))  # type: ignore[arg-type]
+
+    for block in doc.element.body.iterchildren():
+        tag = block.tag.rsplit("}", 1)[-1]
+        if tag == "p":
+            para = Paragraph(block, doc)
+            text = para.text.strip()
+            if not text:
+                continue
+            style = (para.style.name if para.style is not None else "").lower()
+            if style.startswith("heading") or style == "title":
+                level = re.search(r"\d+", style)
+                if out and (style == "title" or (level and level.group(0) == "1")):
+                    state["page"] += 1
+                if style == "title" or (level and level.group(0) == "1"):
+                    state["label"] = text[:40]
+                state["section"] = text
+                add(text, "heading")
+            elif "list" in style or para._p.pPr is not None and para._p.pPr.numPr is not None:
+                add(text, "list_item")
+            else:
+                for a, b in split_sentences(text) or [(0, len(text))]:
+                    add(text[a:b], "sentence")
+        elif tag == "tbl":
+            rows = [[" ".join(c.text.split()) for c in r.cells] for r in Table(block, doc).rows]
+            rows = [r for r in rows if any(r)]
+            if not rows:
+                continue
+            header = rows[0]
+            if len(rows) == 1:
+                add(" | ".join(c for c in header if c), "table_row")
+            for r in rows[1:]:
+                filled = [c for c in r if c]
+                add(filled[0], "sentence") if len(set(filled)) == 1 else add(table_row_text(header, r), "table_row")
     return out
 
 
-def _text_date(header: str) -> str:
-    m = _DATE_ISO.search(header)
-    if m:
-        return m.group(0)
-    m = _DATE_TEXT.search(header)
-    if m:
-        return f"{int(m.group(3)):04d}-{_MONTHS[m.group(1).lower()]:02d}-{int(m.group(2)):02d}"
-    return ""
+# --- JSON -----------------------------------------------------------------------------
 
 
-def _cut_text(text: str) -> tuple[list[SourceUnit], dict]:
-    header: list[str] = []
-    turns: list[list] = []  # [speaker, label, text]
-    for raw in text.splitlines():
-        line = raw.strip()
-        m = _TURN.match(line)
-        if m:
-            h, mi, s, who, said = m.groups()
-            who = _phone(who) if who.strip().startswith("+") else who.strip()
-            if turns and turns[-1][0] == who:  # Gong holds one speaker's run as one monologue
-                turns[-1][2] += " " + said.strip()
+def read_json(data: bytes) -> list[SourceUnit]:
+    """JSON: the text values in document order, whatever the keys. A record's text values go on one
+    line as `key: value; key: value`, so the words keep what the record says about them; a record with
+    one value that reads as words is just those words. Numbers and true/false are left out. Text that is not JSON is read
+    as text."""
+    text = data.decode("utf-8-sig", errors="replace")
+    try:
+        obj = json.loads(text)
+    except ValueError:
+        return cut_notes(text)
+    lines: list[str] = []
+
+    def walk(v: object, key: str = "") -> None:
+        if isinstance(v, dict):
+            flat = [(k, x.strip()) for k, x in v.items() if isinstance(x, str) and x.strip()]
+            if flat:
+                lone = flat[0][1] if len(flat) == 1 else ""
+                # a lone value that reads as words stands alone; an ID or a code keeps its key
+                lines.append(lone if lone and (" " in lone or lone[-1:] in ".!?") else "; ".join(f"{k}: {x}" for k, x in flat))
+            for x in v.values():
+                if isinstance(x, (dict, list)):
+                    walk(x)
+        elif isinstance(v, list):
+            if v and all(isinstance(x, str) for x in v):
+                lines.append(", ".join(x.strip() for x in v if x.strip()))
             else:
-                turns.append([who, _clock(int(h) * 3600 + int(mi) * 60 + int(s)), said.strip()])
-        elif not turns:
-            header.append(line)
-        elif line:
-            turns[-1][2] += " " + line  # a wrapped line belongs to the turn above
-    head = "\n".join(header)
-    title = next((h.split(":", 1)[1].strip() for h in header if h.lower().startswith(("meeting:", "title:"))), "")
-    date_line = next((h for h in header if h.lower().startswith("date:")), head)
-    seen: dict[str, None] = dict.fromkeys(t[0] for t in turns)
-    listed = _attendees(header)
+                for x in v:
+                    walk(x)
+        elif isinstance(v, str) and v.strip():
+            lines.append(v.strip())
 
-    def person(n: str) -> dict:
-        who = listed.get(n.casefold()) or {}
-        return {"id": n, "name": n, "email": "", "title": who.get("title", ""), "affiliation": "",
-                "organisation": who.get("organisation", ""), "note": who.get("note", "")}
-
-    info = {"title": title, "date": _text_date(date_line), "speakers": [person(n) for n in seen]}
-    return _turn_units([(t[0], t[1], "", t[2]) for t in turns if t[2].strip()]), info
+    walk(obj)
+    return cut_notes("\n\n".join(ln for ln in lines if ln))
 
 
 # --- notes ----------------------------------------------------------------------------
@@ -255,6 +203,19 @@ _SEPARATOR = re.compile(r"^:?-{2,}:?$")
 
 def _cells(line: str) -> list[str]:
     return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def _lines_to_paragraphs(lines: list[str]) -> list[str]:
+    """Join the lines of one block where a line only wraps the one before it: the line before has no
+    closing punctuation and this one starts in lower case. Any other line break is kept, so lines
+    that each say something of their own (a speaker's turn, a log entry) are not run together."""
+    out: list[str] = []
+    for line in lines:
+        if out and not re.search(r"[.!?:;\"')\]]$", out[-1]) and line[:1].islower():
+            out[-1] += " " + line
+        else:
+            out.append(line)
+    return out
 
 
 def cut_notes(text: str) -> list[SourceUnit]:
@@ -276,9 +237,9 @@ def cut_notes(text: str) -> list[SourceUnit]:
 
     def flush() -> None:
         if paragraph:
-            joined = " ".join(paragraph)
-            for s, e in split_sentences(joined) or [(0, len(joined))]:
-                add(joined[s:e], "sentence")
+            for joined in _lines_to_paragraphs(paragraph):
+                for s, e in split_sentences(joined) or [(0, len(joined))]:
+                    add(joined[s:e], "sentence")
             paragraph.clear()
         if item:
             add(" ".join(item), "list_item")

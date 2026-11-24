@@ -42,7 +42,7 @@ PAGE_CACHE = 32
 MAX_PDF = 100 * 1024 * 1024
 VOTES = (1, 3, 5)
 BID_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,80}$")
-UPLOAD_TYPES = (".pdf", ".json", ".txt", ".md", ".csv", ".xlsx")
+UPLOAD_TYPES = (".pdf", ".docx", ".json", ".txt", ".md", ".csv", ".xlsx")
 AUDIENCES = ("", "internal", "external")
 MAX_TIMELINE = 12  # facts one timeline block may show
 
@@ -245,24 +245,21 @@ def check_upload(name: str, data: bytes) -> None:
             load_workbook(io.BytesIO(data), read_only=True).close()
         except Exception as e:
             raise unreadable from e
+    elif ext == ".docx":
+        import io
+
+        try:
+            from docx import Document
+
+            Document(io.BytesIO(data))
+        except Exception as e:
+            raise unreadable from e
     else:
         try:
             if not data.decode("utf-8-sig").strip():
                 raise unreadable
         except UnicodeDecodeError as e:
             raise unreadable from e
-
-
-def pdf_start(data: bytes, words: int = classify.FIRST_WORDS, pages: int = 5) -> str:
-    """The text CLASSIFY reads of a PDF: its first pages, up to `words` words."""
-    try:
-        import pymupdf
-
-        with pymupdf.open(stream=data, filetype="pdf") as doc:
-            text = " \n".join(doc[i].get_text() for i in range(min(pages, doc.page_count)))
-    except Exception:
-        return ""
-    return "\n".join(" ".join(line.split()) for line in text.splitlines() if line.strip())[: words * 8]
 
 
 def safe_pdf_name(name: str) -> str:
@@ -343,7 +340,7 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
 
     def bid_view(bid: B.Bid, m: dict | None = None) -> dict:
         m = m or bid.manifest()
-        pbs = [{"name": pb.name, "description": pb.description, "role": pb.role, "form": pb.cutter,
+        pbs = [{"name": pb.name, "description": pb.description, "role": pb.role, "spoken": pb.spoken,
                 "level": pb.level, "visibility": pb.visibility, "calls": list(pb.calls), "votes": pb.votes}
                for pb in playbooks.all()]
         return {**m, "documents": [entry(d) for d in m["documents"]], "order": [d["doc_id"] for d in B.issue_order(m)],
@@ -783,8 +780,7 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         client = small_client(classifier)
         if client is not None:  # one small call; any failure leaves the rules' proposal
             try:
-                text = pdf_start(data) if file_name.lower().endswith(".pdf") else classify.first_text(
-                    cutters.cut(cutters.form_of(file_name, data), data, file_name))
+                text = await asyncio.to_thread(cutters.plain_text, data, file_name, classify.FIRST_WORDS, 5)
                 got = await classify.by_model(file_name, text, client, rules=doc["proposed"]) if text.strip() else None
                 if got is not None:
                     doc = await asyncio.to_thread(bid.set_proposal, doc["no"], got)
@@ -805,12 +801,14 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
             return None
 
     async def suggest_speakers(bid: B.Bid, no: int, client) -> bool:
-        """Ask the model who is on which side of a call, when the document is an unconfirmed transcript.
-        Any failure leaves the rules' proposal."""
+        """For an unconfirmed call: ask the model who speaks each line, when that is not known yet, then
+        who is on which side. Any failure leaves what was there."""
         d = bid.document(no)
-        if client is None or d["speakers_confirmed"] or d.get("run") or playbooks.load(d["playbook"]).cutter != "transcript":
+        if client is None or d["speakers_confirmed"] or d.get("run") or not playbooks.load(d["playbook"]).spoken:
             return False
         try:
+            if not d.get("voices") and await speakers.read_voices(bid, no, client) is None:
+                return False
             return await speakers.suggest(bid, no, client) is not None
         except Exception:
             return False
@@ -822,7 +820,7 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         if client is None:
             raise BadRequest("OPENAI_API_KEY is not set")
         d = one_document(bid.document, no)
-        if playbooks.load(d["playbook"]).cutter != "transcript":
+        if not playbooks.load(d["playbook"]).spoken:
             raise BadRequest("only a call transcript has speakers")
         if d["speakers_confirmed"] or d.get("run"):
             raise BadRequest("the speakers of this document are confirmed")
@@ -847,7 +845,7 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                 raise BadRequest(f"{key} must not be null")
         before = one_document(bid.document, no)["playbook"]
         doc = one_document(bid.update_document, no, **fields)
-        if doc["playbook"] != before and "speakers_model" not in doc:  # became a call: place its speakers
+        if doc["playbook"] != before and (not doc.get("voices") or "speakers_model" not in doc):  # became a call
             if await suggest_speakers(bid, no, small_client(speaker_model or classifier)):
                 doc = bid.document(no)
         return entry(doc)
@@ -875,13 +873,7 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                    "missing": B.ready(d), "units": 0, "calls": [], "total_calls": 0, "stored": None, "error": ""}
             try:
                 data = bid.data(d)
-                how = cutters.reader(pb.cutter, d["file_name"], data)
-                if how == "pdf":
-                    tagged = R.tag_pdf(data, d["doc_id"], root)
-                else:
-                    from ..api import document_from_units
-
-                    tagged, _ = document_from_units(d["doc_id"], cutters.cut(how, data, d["file_name"]))
+                tagged = cutters.read_document(data, d["file_name"], d["doc_id"], root)
                 rows = R.plan_rows(tagged, votes, pb)
                 row.update(units=len(tagged.anchors), calls=rows, total_calls=sum(r["times"] for r in rows))
                 found = store.find(d["sha256"], U.VERSION, d["doc_id"], pb.key)

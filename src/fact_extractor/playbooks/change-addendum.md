@@ -2,7 +2,6 @@
 name: change-addendum
 description: An addendum from the buyer that changes an earlier buyer document: replaced, removed or added text, new dates, new terms.
 reads: an addendum to an RFP
-cutter: pdf
 authority: buyer
 role: change
 codes: [B, C, G, X, D, S, E, R]

@@ -30,6 +30,7 @@ const WORDS: Record<string, string> = {
   'type not confirmed': 'confirm the type',
   'issue date missing': 'add the issue date',
   'issue number missing': 'add the issue number',
+  'speakers not read yet': 'wait for the speakers to be read',
   'speakers not confirmed': 'confirm the speakers',
   'a speaker has no side': 'choose a side for every speaker',
   'previous version not chosen': 'choose the document it replaces',

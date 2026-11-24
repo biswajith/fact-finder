@@ -314,7 +314,13 @@ page.
 A bid is one opportunity with several documents: the RFP, addenda, call transcripts and your own
 deal notes. Each is read on its own, with the playbook for its type (`src/fact_extractor/playbooks/`),
 and then the facts are listed together, in the order the documents were *issued*, never the order
-they were uploaded. Design: [docs/multi-document-design.html](docs/multi-document-design.html);
+they were uploaded.
+
+A document of any type can come in any format: PDF, Word (`.docx`), a spreadsheet (`.xlsx`, `.csv`),
+JSON or text. The file's format decides only how its text is pulled out (`cutters.py`); what the
+document is, and how its content is organised, is for the model to say. A small model call proposes
+each document's type, number and date from its first words (with no API key, simple rules propose
+one), and you confirm it. Design: [docs/multi-document-design.html](docs/multi-document-design.html);
 how it was built: [docs/multi-document-build-plan.md](docs/multi-document-build-plan.md).
 
 **From the web:** open Documents, start a bid, drop the files in, check the type, issue number and
@@ -322,10 +328,13 @@ date proposed for each (addenda need both), name your team (call speakers on the
 proposed as "ours"), confirm each call's speakers, then extract. It shows the planned calls and
 asks before spending tokens. The bid then opens like any run, with a document and a level on every fact.
 
-Each speaker of a call is placed on a side: the buyer's, ours, or another party (an advisor, a partner,
-a subcontractor). The proposal comes from the team list, then a small model call that reads the call's
-attendee list and opening (when an API key is set), then the buyer's facts and the call system's
-affiliation. The header's organisation and title are shown beside each name, and you confirm every side.
+Code does not look for speaker labels or timestamps in a call, so a call can be a PDF, a meeting
+tool's export or JSON from a call system. A model call (`speakers.find_voices`) reads the call in
+batches of numbered lines and says who speaks each line; a name is kept only if the call writes it.
+Each speaker is then placed on a side: the buyer's, ours, or another party (an advisor, a partner, a
+subcontractor). The proposal comes from the team list, then a small model call that reads the call's
+opening (its attendee list, when there is one), then the buyer's facts, and you confirm every side.
+Finding the speakers needs an API key; until they are found the call shows "speakers not read yet".
 
 **From the CLI** (`--store` is the runs folder, default `runs`):
 
@@ -544,9 +553,10 @@ Their thresholds are untested defaults. Compare them with the hand labels in
 | `compare.py` | 13. Acceptance: score facts against a reference list |
 | `precision.py` | Precision: labelled samples, model grades, near-duplicates |
 | `stability.py` | Agreement between two runs on cited IDs, codes and fact IDs |
-| `bid.py`, `classify.py`, `cutters.py`, `playbooks/` | A bid of many documents: manifest, issue order, type proposal, one cutter and playbook per type |
+| `bid.py`, `classify.py`, `cutters.py`, `playbooks/` | A bid of many documents: manifest, issue order, type proposal, reading any file format, a playbook per type |
 | `relate.py`, `ladder.py`, `bidgroup.py`, `reissue.py` | What a later document does to an earlier one, the priority ladder, grouping and pair check across documents, reissued RFPs |
 | `bideval.py` | Score a built bid against a hand-made key of relations, groups and speaker sides |
+| `speakers.py` | Who speaks each line of a call (the WHO call), and which side each person is on |
 | `units.py` | The unit-label pipeline and its prompts: label votes, statements, contradiction check, facts |
 | `results.py` | Stored results on disk, found by PDF content; what a re-extraction changed |
 | `score.py` | Recall against a reference list by source ID |

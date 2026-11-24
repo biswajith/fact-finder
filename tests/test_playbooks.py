@@ -51,7 +51,6 @@ GOOD = """---
 name: x
 description: d
 reads: a thing
-cutter: pdf
 authority: buyer
 role: base
 codes: [B, D]
@@ -67,7 +66,6 @@ def test_header_parser_accepts_a_minimal_playbook():
 
 
 @pytest.mark.parametrize("old, new, what", [
-    ("cutter: pdf", "cutter: fax", "cutter"),
     ("calls: [LABEL]", "calls: [LABEL, GUESS]", "calls"),
     ("calls: [LABEL]", "calls: [LABEL, RELATE]", "relations"),
     ("calls: [LABEL]", "calls: [LABEL]\nrelations: [EATS]", "relations"),

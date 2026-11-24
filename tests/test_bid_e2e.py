@@ -14,7 +14,7 @@ import pytest
 from conftest import ScriptedClient, task_name
 
 from fact_extractor import bid as B
-from fact_extractor import classify, playbooks, results, units
+from fact_extractor import classify, cutters, playbooks, results, speakers, units
 from fact_extractor.web import runs
 from fact_extractor.web.workspace import Workspace
 
@@ -168,9 +168,37 @@ def classify_answer(req) -> str:
     return "call-transcript|-|2027-05-27" if "Dana Pike" in req.document else "rfp|-|-"
 
 
+def who(req) -> str:
+    """Who speaks each line of the Gong JSON, read as a model would: a `speakerId: sN` line opens that
+    party's turn (the party lines name them); the party lines themselves are no one's."""
+    import re
+
+    names = dict(re.findall(r"speakerId: (s\d); name: ([^;\n]+)", req.document))
+    lines = req.document.split("\nLINES\n", 1)[1].splitlines()
+    before = req.document.split("\nLINES\n", 1)[0]
+    last = (re.findall(r"\] speakerId: (s\d)$", before, re.M) or ["-"])[-1]
+    out = []
+    for ln in lines:
+        i, _, text = ln.partition("] ")
+        if m := re.fullmatch(r"speakerId: (s\d)", text):
+            last = m.group(1)
+        out.append(f"{i.lstrip('[')}|{'-' if 'name:' in text or last == '-' else names[last]}")
+    return "\n".join(out) + f"\nEND|{len(out)}\n"
+
+
+def sides(req) -> str:
+    """Each party's side from the affiliation the call system wrote next to its name."""
+    import re
+
+    aff = dict(re.findall(r"name: ([^;\n]+); affiliation: (\w+)", req.document))
+    people = re.findall(r"^([^|\n]+?) \| ", req.document.split("ATTENDEES", 1)[1].split("\n\n")[0], re.M)[1:]
+    out = [f"{p}|{'BUYER' if aff.get(p) == 'External' else 'OURS'}|-|-|affiliation" for p in people]
+    return "\n".join(out) + f"\nEND|{len(out)}\n"
+
+
 HANDLERS = {
     "LABEL": label_or_state, "STATE": label_or_state, "CHECK": lambda r: "END|0\n", "XREF": xref, "RELATE": relate,
-    "GROUP": group, "BRIEF": lambda r: "END|0\n", "CLASSIFY": classify_answer,
+    "GROUP": group, "BRIEF": lambda r: "END|0\n", "CLASSIFY": classify_answer, "WHO": who, "SPEAKERS": sides,
 }
 
 
@@ -207,10 +235,12 @@ async def build_bid(root, client: ScriptedClient, checker, name: str = "Ulster C
     files = [("Addendum 1.pdf", ADDENDUM_PDF), ("RFP-2027-04.pdf", RFP_PDF), ("capture call.json", CALL), ("deal notes.md", NOTES)]
     for file_name, data in files:
         doc = bid.add_document(data, file_name)
-        start = classify.first_page_text(data) if file_name.endswith(".pdf") else data.decode()
+        start = cutters.plain_text(data, file_name, classify.FIRST_WORDS, 5)
         got = await classify.by_model(file_name, start, client, rules=doc["proposed"])
         if got is not None:
             bid.set_proposal(doc["no"], got)
+        if playbooks.load(bid.document(doc["no"])["playbook"]).spoken:  # as the web does at upload
+            await speakers.read_voices(bid, doc["no"], client)
     with bid.lock:  # as the web's PATCH does
         m = bid.manifest()
         m["team"] = [{"name": "Tom Okafor"}, {"name": "Lena Voss"}]
@@ -219,7 +249,7 @@ async def build_bid(root, client: ScriptedClient, checker, name: str = "Ulster C
     bid.update_document(nos["RFP-2027-04"], confirmed=True, issue_date="2027-05-03")
     bid.update_document(nos["Addendum 1"], confirmed=True)
     bid.update_document(nos["deal notes"], confirmed=True)
-    call = bid.refresh_speakers(nos["capture call"])
+    call = await speakers.suggest(bid, nos["capture call"], client)
     bid.update_document(nos["capture call"], confirmed=True, speakers_confirmed=True, speakers=[
         {"id": s["id"], "side": s["proposed"]} for s in call["speakers"]])
     for d in B.issue_order(bid.manifest()):

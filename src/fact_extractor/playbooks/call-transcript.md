@@ -2,7 +2,6 @@
 name: call-transcript
 description: Recording or notes of a live call between buyer and bidder; speaker turns, timestamps, conversational wording.
 reads: a call transcript
-cutter: transcript             # sentences inside speaker turns
 authority: speaker
 role: context
 codes: [B, D, C, R, E, S, PRIORITY, DECIDER, BUDGET, QUESTION]

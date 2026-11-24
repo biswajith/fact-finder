@@ -139,20 +139,38 @@ class Bid:
                 "proposed": proposed, "playbook": proposed["playbook"],
                 "issue_number": proposed["issue_number"], "issue_date": proposed["issue_date"],
                 "confirmed": False, "previous": None, "speakers": [], "speakers_confirmed": False,
-                "run": "", "status": "uploaded", "error": "",
+                "voices": None, "run": "", "status": "uploaded", "error": "",
             }
             docs.append(doc)
-            if playbooks.load(doc["playbook"]).cutter == "transcript":
-                doc["speakers"] = self._propose(m, doc, data)
             self.save(m)
             return doc
 
-    def _propose(self, m: dict, doc: dict, data: bytes) -> list[dict]:
-        """The speakers of a transcript with their proposed sides; a side already chosen is kept."""
-        try:
-            info = cutters.cut_transcript(data, doc["file_name"])[1]
-        except ValueError:
-            return doc["speakers"]
+    def read(self, doc: dict):
+        """The tagged document of one document of the bid, whatever its file format."""
+        return cutters.read_document(self.data(doc), doc["file_name"], doc["doc_id"], self.root)
+
+    @staticmethod
+    def call_info(doc: dict) -> dict:
+        """The people who speak in a call, in order of first speech, from the voices the model found
+        (`speakers.find_voices`); none before they are found."""
+        names = list(dict.fromkeys((doc.get("voices") or {}).values()))
+        return {"speakers": [{"id": n, "name": n, "email": "", "title": "", "affiliation": "", "organisation": "",
+                              "note": ""} for n in names]}
+
+    def set_voices(self, no: int, voices: dict[str, str]) -> dict:
+        """Keep who speaks each unit (`{anchor id: name}`) and propose the speakers again. Does nothing
+        once the speakers are confirmed or the document is extracted."""
+        def go(m: dict, d: dict) -> None:
+            if d["speakers_confirmed"] or d["run"] or d["status"] in ("extracting", "extracted"):
+                return
+            d["voices"] = dict(voices)
+            d["speakers"] = self._propose(m, d)
+
+        return self._change(no, go)
+
+    def _propose(self, m: dict, doc: dict) -> list[dict]:
+        """The speakers of a call with their proposed sides; a side already chosen is kept."""
+        info = self.call_info(doc)
         have = {s["id"]: s.get("side", "") for s in doc["speakers"]}
         out = propose_speakers(info, m.get("team") or [], self.b_fact_texts(m), doc.get("speakers_model"))
         for s in out:
@@ -163,8 +181,8 @@ class Bid:
         """Propose the speakers' sides again (the team list or the buyer's facts may have changed).
         Does nothing once the speakers are confirmed."""
         def go(m: dict, d: dict) -> None:
-            if not d["speakers_confirmed"] and playbooks.load(d["playbook"]).cutter == "transcript":
-                d["speakers"] = self._propose(m, d, self.data(d))
+            if not d["speakers_confirmed"] and playbooks.load(d["playbook"]).spoken:
+                d["speakers"] = self._propose(m, d)
 
         return self._change(no, go)
 
@@ -172,10 +190,10 @@ class Bid:
         """Keep the model's answer about who is on which side (`speakers.by_model`) and propose the sides
         again with it. Does nothing once the speakers are confirmed or the document is extracted."""
         def go(m: dict, d: dict) -> None:
-            if d["speakers_confirmed"] or d["run"] or playbooks.load(d["playbook"]).cutter != "transcript":
+            if d["speakers_confirmed"] or d["run"] or not playbooks.load(d["playbook"]).spoken:
                 return
             d["speakers_model"] = answer
-            d["speakers"] = self._propose(m, d, self.data(d))
+            d["speakers"] = self._propose(m, d)
 
         return self._change(no, go)
 
@@ -198,8 +216,8 @@ class Bid:
                 return
             d["proposed"] = proposed
             d["playbook"], d["issue_number"], d["issue_date"] = proposed["playbook"], proposed["issue_number"], proposed["issue_date"]
-            if playbooks.load(d["playbook"]).cutter == "transcript" and not d["speakers"]:
-                d["speakers"] = self._propose(m, d, self.data(d))
+            if playbooks.load(d["playbook"]).spoken and not d["speakers"]:
+                d["speakers"] = self._propose(m, d)
 
         return self._change(no, go)
 
@@ -281,8 +299,8 @@ class Bid:
                         if given["acts_for"] not in ("buyer", "ours", ""):
                             raise ValueError("acts_for is buyer, ours or empty")
                         s["acts_for"] = given["acts_for"]
-            if playbooks.load(d["playbook"]).cutter == "transcript" and not d["speakers"]:
-                d["speakers"] = self._propose(m, d, self.data(d))
+            if playbooks.load(d["playbook"]).spoken and not d["speakers"]:
+                d["speakers"] = self._propose(m, d)
             if d["status"] in ("uploaded", "confirmed", "failed"):
                 d["status"] = "confirmed" if d["confirmed"] else "uploaded"
 
@@ -446,7 +464,7 @@ def doc_numbers(manifest: dict) -> dict[str, int]:
 
 def propose_speakers(info: dict, team: list[dict], b_fact_texts: list[str], model: dict | None = None) -> list[dict]:
     """A side for each speaker of a call. The team list wins; then the model's answer when it names the
-    buyer, us or another party; then the buyer's facts; then the call system's affiliation. Each entry:
+    buyer, us or another party; then the buyer's facts. Each entry:
     `{id, name, side, proposed, why, organisation, title, note, acts_for}`; `side` is left empty for the
     user to confirm. `model` is `speakers.by_model`'s answer, by speaker id."""
     ours = {str(t.get("name", "")).strip().casefold() for t in team} - {""}
@@ -462,16 +480,29 @@ def propose_speakers(info: dict, team: list[dict], b_fact_texts: list[str], mode
             proposed, why = said["side"], f"model: {said.get('reason', '')}".rstrip(": ")
         elif name and any(re.search(rf"(?<!\w){re.escape(name)}(?!\w)", t, re.I) for t in b_fact_texts):
             proposed, why = "buyer", "B fact"
-        elif s.get("affiliation") == "Internal":
-            proposed, why = "ours", "Gong affiliation"
-        elif s.get("affiliation") == "External":
-            proposed, why = "buyer", "Gong affiliation"
         out.append({
             "id": sid, "name": name, "side": "", "proposed": proposed, "why": why,
             "organisation": said.get("organisation") or s.get("organisation") or "",
             "title": s.get("title") or "", "note": s.get("note") or "", "acts_for": said.get("acts_for") or "",
         })
     return out
+
+
+def with_voices(tagged, doc: dict):
+    """`tagged` with each unit's speaker and side from the document's voices and confirmed speakers.
+    An adviser who acts for the buyer speaks for the buyer: their units count as the buyer's (level 2).
+    Another party's units name its organisation, so a reader sees whose words they are."""
+    voices = doc.get("voices") or {}
+    sides = {s["name"]: BUYER_ADVISER if s["side"] == "other" and s.get("acts_for") == "buyer" else s["side"]
+             for s in doc.get("speakers", [])}
+    shown = {s["name"]: f"{s['name']} ({s['organisation']})" for s in doc.get("speakers", [])
+             if s["side"] == "other" and s.get("organisation")}
+    anchors = {
+        i: dataclasses.replace(a, speaker=shown.get(voices[i], voices[i]), side=sides.get(voices[i], "unknown"))
+        if i in voices else a
+        for i, a in tagged.anchors.items()
+    }
+    return dataclasses.replace(tagged, anchors=anchors)
 
 
 def ready(doc: dict) -> list[str]:
@@ -484,8 +515,10 @@ def ready(doc: dict) -> list[str]:
         missing.append("issue date missing")
     if pb.role == "change" and not doc.get("issue_number"):
         missing.append("issue number missing")
-    if pb.cutter == "transcript":
-        if not doc.get("speakers_confirmed"):
+    if pb.spoken:
+        if doc.get("voices") is None:
+            missing.append("speakers not read yet")
+        elif not doc.get("speakers_confirmed"):
             missing.append("speakers not confirmed")
         if any(s.get("side") not in SIDES for s in doc.get("speakers", [])):
             missing.append("a speaker has no side")
@@ -629,8 +662,8 @@ async def extract_document(
     on_step: Step | None = None, cfg=None, relate_only: bool = False,
     only_incomplete: bool = False,
 ) -> results.Stored:
-    """Cut one confirmed document with its playbook's cutter, give each unit its side from the
-    confirmed speaker map, run the playbook, set each fact's level and flags, and store the result.
+    """Read one confirmed document (by its file format), give each unit of a call its speaker and side
+    from the voices and the confirmed speakers, run the playbook, set each fact's level and flags, and store the result.
     A playbook with RELATE then compares every unit with the earlier buyer documents of the bid and
     stores the answers as `relations.json`. A stored result for the same content, playbook and doc_id
     is reused without a model call. `relate_only=True` runs only RELATE again for a document that is
@@ -639,7 +672,6 @@ async def extract_document(
     `extract`, `relate` and `save`. On an error the manifest says `failed` with the message, and the
     error is raised."""
     from . import units as U
-    from .api import document_from_units
     from .web import runs
 
     def say(step: str, status: str, detail: str = "") -> None:
@@ -671,21 +703,9 @@ async def extract_document(
         mark(status="extracting", error="")
         data = bid.data(d)
         say("cut", "running")
-        how = cutters.reader(pb.cutter, d["file_name"], data)
-        if how == "pdf":
-            tagged = runs.tag_pdf(data, d["doc_id"], store.root)
-        else:
-            # an adviser who acts for the buyer speaks for the buyer: their units count as the buyer's (level 2)
-            sides = {s["name"]: BUYER_ADVISER if s["side"] == "other" and s.get("acts_for") == "buyer" else s["side"]
-                     for s in d["speakers"]}
-            # another party's units name its organisation, so a reader sees whose words they are
-            shown = {s["name"]: f"{s['name']} ({s['organisation']})" for s in d["speakers"]
-                     if s["side"] == "other" and s.get("organisation")}
-            cut = [
-                dataclasses.replace(u, side=sides.get(u.speaker, "unknown"), speaker=shown.get(u.speaker, u.speaker)) if u.speaker else u
-                for u in cutters.cut(how, data, d["file_name"])
-            ]
-            tagged, _ = document_from_units(d["doc_id"], cut)
+        tagged = cutters.read_document(data, d["file_name"], d["doc_id"], store.root)
+        if pb.spoken:
+            tagged = with_voices(tagged, d)
         if not tagged.anchors:
             raise ValueError("the document has no text")
         say("cut", "done", f"{len(tagged.anchors)} units")

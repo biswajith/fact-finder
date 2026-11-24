@@ -38,15 +38,13 @@ def test_only_the_first_page_counts():
     assert classify.by_rules("a.pdf", pdf("Request for Proposals", "Addendum No. 2"))["playbook"] == "rfp"
 
 
-def test_a_transcript_notes_and_sheet():
-    txt = b"Date: 2026-08-12\n[00:00:04] Ann Lee: Hello there.\n[00:00:09] Bo Kim: Hi.\n[00:00:12] Ann Lee: Right.\n"
-    got = classify.by_rules("call.txt", txt)
-    assert (got["playbook"], got["issue_date"], got["issue_number"]) == ("call-transcript", "2026-08-12", None)
-    notes = b"# Deal\n\nCreated 2026-01-01. Exported from CRM on August 14, 2026.\n\nText.\n"
-    got = classify.by_rules("notes.md", notes)
-    assert (got["playbook"], got["issue_date"]) == ("deal-notes", "2026-08-14")
-    assert classify.by_rules("n.md", b"# Deal\n\nNo export line.\n")["issue_date"] is None
-    assert classify.by_rules("t.csv", b"Item,Response\nA,\n")["playbook"] == "fill-in-template"
+def test_the_rules_read_any_format_and_leave_the_rest_to_the_model():
+    txt = b"Date: 2026-08-12\n[00:00:04] Ann Lee: Hello there.\n[00:00:09] Bo Kim: Hi.\n"
+    assert classify.by_rules("call.txt", txt) == {"playbook": "rfp", "issue_number": None, "issue_date": "2026-08-12",
+                                                  "by": "rules", "checked": True}
+    assert classify.by_rules("a.md", b"# Addendum No. 4\n\nQuestions and answers.\n")["playbook"] == "qa-addendum"
+    assert classify.by_rules("t.csv", b"Item,Response\nA,\n")["playbook"] == "rfp"
+    assert classify.by_rules("n.md", b"# Deal\n\nNo date.\n")["issue_date"] is None
 
 
 def test_first_text_stops_at_the_word_limit():

@@ -295,20 +295,24 @@ def _web(args) -> int:
 
 
 def _suggest_speakers(bid, doc: dict) -> dict:
-    """For a call with unconfirmed speakers: ask the model who is on which side, when a key is set.
-    Any failure leaves the rules' proposal."""
+    """For a call with unconfirmed speakers, when a key is set: ask the model who speaks each line (once),
+    then who is on which side. Any failure leaves what was there."""
     from . import playbooks
     from .web import has_api_key
 
-    if doc["speakers"] and not doc["speakers_confirmed"] and playbooks.load(doc["playbook"]).cutter == "transcript" and has_api_key():
-        try:
-            from . import speakers
-            from .llm import OpenAIClient
+    if doc["speakers_confirmed"] or not playbooks.load(doc["playbook"]).spoken or not has_api_key():
+        return doc
+    try:
+        from . import speakers
+        from .llm import OpenAIClient
 
-            got = asyncio.run(speakers.suggest(bid, doc["no"], OpenAIClient()))
-            return got or doc
-        except Exception:
-            pass
+        client = OpenAIClient()
+        if not doc.get("voices"):
+            doc = asyncio.run(speakers.read_voices(bid, doc["no"], client)) or doc
+        if doc["speakers"]:
+            doc = asyncio.run(speakers.suggest(bid, doc["no"], client)) or doc
+    except Exception:
+        pass
     return doc
 
 
@@ -348,7 +352,9 @@ def _bid(args) -> int:
         return code
     if args.bid_cmd == "speakers":
         try:
-            doc = bid.refresh_speakers(args.no) if not bid.document(args.no)["speakers_confirmed"] else bid.document(args.no)
+            doc = bid.document(args.no)
+            if not doc["speakers_confirmed"]:
+                doc = _suggest_speakers(bid, doc) if not doc.get("voices") else bid.refresh_speakers(args.no)
             if args.sides:
                 given = []
                 for item in args.sides:

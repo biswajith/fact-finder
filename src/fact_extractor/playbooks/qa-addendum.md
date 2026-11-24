@@ -2,7 +2,6 @@
 name: qa-addendum
 description: A question-and-answer addendum from the buyer: bidders' questions with the buyer's answers.
 reads: a question-and-answer addendum to an RFP
-cutter: pdf
 authority: buyer
 role: change
 codes: [B, C, G, X, D, S, E, R]
