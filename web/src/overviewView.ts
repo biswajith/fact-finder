@@ -39,3 +39,9 @@ export function unverifiedNote(r: SummaryRow): string {
   const what = figures.length ? `figures not in the facts it cites (${figures.join(', ')})` : 'figures that could not be matched to its facts';
   return `The summary for this row had ${what}, so the facts it cites are shown instead.`;
 }
+
+/** Where a Key dates source is, as its chip shows it: "d3 · p. 8" in a bid, "p. 8" in a single document. */
+export function sourceChip(docNo: number, page: string, inBid: boolean): string {
+  const at = page ? `p. ${page}` : '';
+  return [inBid && docNo ? `d${docNo}` : '', at].filter(Boolean).join(' · ');
+}

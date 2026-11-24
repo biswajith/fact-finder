@@ -80,12 +80,14 @@
 .ov-when { display: flex; flex-direction: column; font-weight: 600; }
 .ov-time { font-weight: 400; font-size: 13px; color: var(--text-muted); }
 .ov-what { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; min-width: 0; }
-.ov-what .wrap-text, .ov-what .ov-open { flex: 1 1 200px; }
+.ov-what > .wrap-text, .ov-what > .ov-open { flex: 1 1 200px; }
 .ov-ev.past .ov-when { color: var(--text-muted); font-weight: 500; }
 .ov-ev.next { background: var(--accent-soft); border-radius: var(--radius); padding: 12px 14px; margin: 4px -14px; border-top-color: transparent; }
 .ov-ev.next + .ov-ev { border-top-color: transparent; }
 .ov-ev.next .ov-date { color: var(--accent); }
 .ov-nextpill { flex: none; }
+.ov-what > .ov-kv-items { flex: 1 1 200px; min-width: 0; }
+.ov-what .cite-group { flex: none; max-width: 50%; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 @container ov-card (max-width: 520px) { .ov-ev { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
 
 /* summary rows and card status */

@@ -4,11 +4,11 @@ import * as api from '../api';
 import { internalOnly, useBidDocs } from '../bidDocs';
 import { useAsync } from '../hooks';
 import { useRun } from '../store';
-import type { CalendarDate, Fact, Overview, OverviewCounts, OverviewEntry, OverviewResponse, SummaryRow, SummarySection, ViewName } from '../types';
-import { CATEGORY_COLORS, ErrorBox, Loading, PageChip, ViewSwitch, formatTime } from './common';
+import type { Fact, Overview, OverviewCounts, OverviewEntry, OverviewResponse, SummaryRow, SummarySection, ViewName } from '../types';
+import { CATEGORY_COLORS, ErrorBox, Loading, PageChip, ViewSwitch, firstPage, formatTime } from './common';
 import { PageCites } from './CitationChip';
 import { emptyFilters } from '../factsQuery';
-import { openConflictCount, unverifiedNote } from '../overviewView';
+import { openConflictCount, sourceChip, unverifiedNote } from '../overviewView';
 import { AwardObligations } from './overview/AwardView';
 import { CollapseProvider, ExpandCollapseAll, Section } from './overview/Collapsible';
 import { PageHeader } from './shell/PageHeader';
@@ -95,6 +95,7 @@ const BEHIND: Record<string, (o: Overview) => { heading: string; entries: Overvi
   gates: (o) => [{ heading: 'To be allowed to bid', entries: o.gates }, { heading: 'What gets a proposal rejected', entries: o.disqualifiers }],
   scoring: (o) => [{ heading: '', entries: o.scoring }],
   questions: (o) => [{ heading: 'The RFP contradicts itself', entries: o.contradictions }, { heading: 'Unclear, ask the buyer', entries: o.unclear }],
+  dates: (o) => [{ heading: '', entries: o.dates }],
 };
 
 /** An item shown on a line of its own starts like a line: "it may" -> "It may" (display only). */
@@ -200,7 +201,7 @@ function SummaryCard({ def, s, o, open, view, byCategory }: {
       {s?.error && <div className="ov-error" role="alert">{s.error}</div>}
       {summarised ? (
         <>
-          <Rows rows={rows} />
+          {def.key === 'dates' ? <DateRows rows={rows} /> : <Rows rows={rows} />}
           <div className="ov-foot">
             {parts.length > 0 && (
               <button type="button" aria-expanded={behindOpen} onClick={() => setBehindOpen(!behindOpen)}>
@@ -305,50 +306,74 @@ const parseDate = (s: string): number | null => {
   return Number.isNaN(t) ? null : t;
 };
 
-function KeyDates({ dated, undated, open }: {
-  dated: CalendarDate[]; undated: { text: string; page: string }[]; open: OpenByText;
-}) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const times = dated.map((d) => parseDate(d.date));
-  const nextIdx = times.findIndex((t) => t !== null && t >= today.getTime());
-  const n = dated.length + undated.length;
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** "2024-06-10" -> "Mon 10 Jun 2024". */
+const dayLabel = (iso: string) => {
+  const t = parseDate(iso);
+  if (t === null) return iso;
+  const d = new Date(t);
+  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+};
+
+/** A Key dates row's sources: one chip per document and page ("d3 · p. 8" in a bid), each opening its first fact. */
+function DateCites({ ids }: { ids: string[] }) {
+  const { factById, openFact } = useRun();
+  const docs = useBidDocs();
+  const by = new Map<string, { ids: string[]; title?: string }>();
+  for (const id of ids) {
+    const f = factById.get(id);
+    if (!f) continue;
+    const label = sourceChip(f.doc_no ?? 0, firstPage(f), docs.inBid) || 'fact';
+    const g = by.get(label) ?? { ids: [], title: f.doc_no ? docs.byNo.get(f.doc_no)?.file_name : undefined };
+    g.ids.push(id);
+    by.set(label, g);
+  }
+  if (by.size === 0) return null;
   return (
-    <Section id="dates" className="ov-dates" title="Key dates" color="var(--cat-D)" count={n}>
-      {n === 0 && <div className="ov-none">No dates found.</div>}
-      {dated.length > 0 && (
-        <ol className="ov-timeline">
-          {dated.map((d, i) => {
-            const t = times[i];
-            const past = t !== null && t < today.getTime();
-            const next = i === nextIdx;
-            const go = open(d.text);
-            return (
-              <li key={i} className={`ov-ev${past ? ' past' : ''}${next ? ' next' : ''}`} aria-current={next ? 'date' : undefined}>
-                <div className="ov-when">
-                  <span className="ov-date">{d.label}</span>
-                  {d.time && <span className="ov-time">{d.time}</span>}
-                </div>
-                <div className="ov-what">
-                  {next && <span className="pill info ov-nextpill">Next</span>}
-                  {go ? (
-                    <button type="button" className="ov-open wrap-text" aria-label={`Open fact: ${d.text}`} onClick={go}>{d.text}</button>
-                  ) : (
-                    <span className="wrap-text">{d.text}</span>
-                  )}
-                  <PageChip page={d.page} />
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-      {undated.length > 0 && (
-        <details className="ov-details">
-          <summary>No fixed date ({undated.length})</summary>
-          <Entries entries={undated.map((u) => ({ ...u, children: [] }))} open={open} />
-        </details>
-      )}
-    </Section>
+    <span className="cite-group">
+      {[...by].map(([label, g]) => (
+        <button key={label} type="button" className="cite" aria-label={`Open fact ${g.ids[0]}`}
+          title={[g.title, ...g.ids.map((id) => factById.get(id)?.text ?? id)].filter(Boolean).join('\n')} onClick={() => openFact(g.ids[0])}>
+          {label}{g.ids.length > 1 ? ` ·${g.ids.length}` : ''}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/** The Key dates summary as a timeline: one row per event, the next one marked, undated ones last. */
+function DateRows({ rows }: { rows: SummaryRow[] }) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const times = rows.map((r) => parseDate(r.row));
+  const nextIdx = times.findIndex((t) => t !== null && t >= today.getTime());
+  return (
+    <ol className="ov-timeline">
+      {rows.map((r, i) => {
+        const t = times[i];
+        const past = t !== null && t < today.getTime();
+        const next = i === nextIdx;
+        return (
+          <li key={i} className={`ov-ev${past ? ' past' : ''}${next ? ' next' : ''}${r.unverified ? ' unverified' : ''}`} aria-current={next ? 'date' : undefined}>
+            <div className="ov-when">
+              <span className="ov-date">{r.row ? dayLabel(r.row) : 'No fixed date'}</span>
+              {r.time && <span className="ov-time">{r.time}</span>}
+            </div>
+            <div className="ov-what">
+              {next && <span className="pill info ov-nextpill">Next</span>}
+              {r.unverified && (
+                <span className="ov-unverified" role="note">
+                  <span className="pill warn">Not verified</span>
+                  <span>{unverifiedNote(r)}</span>
+                </span>
+              )}
+              <RowText text={r.text} empty="Nothing to show" />
+              <DateCites ids={r.fact_ids} />
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -384,8 +409,10 @@ function OverviewBody({ ov, view }: {
   const data: OverviewResponse | null = ov.data;
   if (!data) return null;
   const { overview: o, counts } = data;
-  const cards: CardDef[] = secs.map((s) => ({ key: s.key, title: s.title, code: s.codes[0] ?? 'B' }));
-  const ids = ['dates', ...cards.map((d) => d.key)];
+  // Key dates first, then the sections in their own order.
+  const ordered = [...secs.filter((s) => s.key === 'dates'), ...secs.filter((s) => s.key !== 'dates')];
+  const cards: CardDef[] = ordered.map((s) => ({ key: s.key, title: s.title, code: s.codes[0] ?? 'B' }));
+  const ids = cards.map((d) => d.key);
   const tiles = <StatTiles counts={counts} view={view} viewFactIds={viewFactIds} />;
   if (view === 'After award') {
     return (
@@ -420,7 +447,6 @@ function OverviewBody({ ov, view }: {
       <CollapseProvider defaultOpen={OPEN_BY_DEFAULT}>
         <ExpandCollapseAll ids={ids} />
         <div className="ov-stack">
-          <KeyDates dated={o.calendar.dated} undated={o.calendar.undated} open={open} />
           {cards.map((d) => (
             <SummaryCard key={d.key} def={d} s={secs.find((x) => x.key === d.key)} o={o} open={open} view={view} byCategory={data.by_category} />
           ))}

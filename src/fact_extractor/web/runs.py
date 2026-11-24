@@ -372,7 +372,7 @@ def items(records: list[dict]) -> list[Item]:
     return out
 
 
-# --- Overview screen: buyer, gates, clarifications, scoring, calendar -----------------
+# --- Overview screen: buyer, gates, clarifications, scoring, dates -----------------
 
 
 def _entries(records: list[dict]) -> list[dict]:
@@ -423,26 +423,6 @@ def _when(text: str) -> tuple[str, str, str]:
     return days[0], f"{when:%a} {when.day} {when:%b %Y}", times[0] if times and len(days) == 1 else ""
 
 
-def calendar(records: list[dict]) -> dict:
-    """Date facts in time order. A fact goes under the first calendar date it names; one
-    with no date of its own ("30 days after award") is kept apart, in document order."""
-    dated, undated = [], []
-    seen: set[str] = set()
-    for it in items(document_order([r for r in records if r["category"] == "D"])):
-        for f in ([it.first] if it.kind == "same" else it.facts):
-            day, label, time = _when(f["text"])
-            page = it.pages() if it.kind == "same" else page_labels(f)
-            if not day:
-                undated.append({"text": f["text"], "page": page})
-                continue
-            if f["text"] in seen:
-                continue
-            seen.add(f["text"])
-            dated.append({"date": day, "label": label, "time": time, "text": f["text"], "page": page})
-    dated.sort(key=lambda d: (d["date"], d["time"] or "99:99"))
-    return {"dated": dated, "undated": undated}
-
-
 def timeline(records: list[dict]) -> list[dict]:
     """The chosen facts as timeline rows, dated ones in time order, then the undated ones in the order
     given. Dates and times are read from the stored text, never supplied by the caller."""
@@ -477,7 +457,7 @@ def overview(records: list[dict]) -> dict:
         "unclear": _entries([r for r in records if "unclear" in r["flags"] and r["category"] != "Q"]),
         # The lists of criteria first, then the single statements about how scoring works.
         "scoring": sorted(_entries(of("E")), key=lambda e: not e["children"]),
-        "calendar": calendar(records),
+        "dates": _entries(of("D")),  # the facts behind the Key dates summary
     }
 
 

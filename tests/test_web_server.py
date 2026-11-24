@@ -148,13 +148,13 @@ async def test_summaries_generate_and_background_rebuild(c, app):
     by = lambda r, key: [x for x in r["sections"] if x["key"] == key][0]
     s = (await get()).json()
     assert s["updating"] is False and [x["key"] for x in s["sections"]] == [
-        "buyer", "submission", "gates", "scoring", "questions", "contract", "requirements"]
+        "buyer", "submission", "gates", "scoring", "questions", "contract", "requirements", "dates"]
     assert set(s["sections"][0]) == {"key", "title", "codes", "rows", "source", "generated_at", "stale", "updating",
                                      "fact_count", "uncovered", "error"}
     assert s["sections"][1]["source"] is None and s["sections"][1]["rows"] == []
     r = await c.post("/api/summaries/generate", params=p, json={"sections": ["submission"]})
     assert r.status_code == 200 and r.json()["updating"] is True
-    assert (await c.post("/api/summaries/generate", params=p, json={"sections": ["dates"]})).status_code == 400
+    assert (await c.post("/api/summaries/generate", params=p, json={"sections": ["nope"]})).status_code == 400
     await app.state.summaries.wait_idle()
     sub = by((await get()).json(), "submission")
     assert sub["source"] == "app" and sub["generated_at"] and not sub["stale"] and len(sub["rows"]) == 6

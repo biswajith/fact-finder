@@ -61,8 +61,8 @@ SUBMISSION_ROWS = [
 ]
 
 
-def test_sections_are_the_extraction_ones_plus_two_web_only_ones():
-    assert [s.key for s in S.SECTIONS] == ["buyer", "submission", "gates", "scoring", "questions", "contract", "requirements"]
+def test_sections_are_the_extraction_ones_plus_three_web_only_ones():
+    assert [s.key for s in S.SECTIONS] == ["buyer", "submission", "gates", "scoring", "questions", "contract", "requirements", "dates"]
     assert S.BY_KEY["submission"] is units.SECTION["submission"]
     assert [s.key for s in units.SECTIONS] == ["buyer", "submission", "gates", "scoring", "questions"]  # pipeline untouched
     assert S.CONTRACT.codes == ("C",) and S.REQUIREMENTS.codes == ("R",)
@@ -326,3 +326,49 @@ async def test_rows_that_fail_the_figure_check_say_why(ws):
     assert got[0]["text"] == "Bids due March 3" and "$50,000" not in got[0]["text"]  # the cited fact is shown instead
     assert got[1]["unverified"] == ["it cites no facts"] and got[1]["text"] == ""
     assert all("unverified" not in r for r in got[2:] if r["checked"] or not r["text"])
+
+
+DATE_FACTS = [
+    {"fact_id": "a", "text": "Questions due 2027-03-01 at 2 pm"},
+    {"fact_id": "b", "text": "Proposals due 2027-03-20"},
+    {"fact_id": "c", "text": "Award 30 days after presentations"},
+]
+
+
+def test_parse_dates_gives_one_checked_row_per_event_in_time_order():
+    raw = ("2027-03-20||Proposals due|2\n"
+           "|  |Award 30 days after presentations|3\n"
+           "2027-03-01|14:00|Questions due|1, 1\n"
+           "2027-03-09|9:30|Site visit|1\n"            # the date and time are in no cited fact
+           "March 2027||Kick-off|\n"                    # not a calendar date, cites nothing
+           "2027-03-02||not stated|1\n"
+           "END|5")
+    rows = S.parse_dates(raw, DATE_FACTS)
+    assert [(r["row"], r["time"], r["text"], r["fact_ids"], r["checked"]) for r in rows] == [
+        ("2027-03-01", "14:00", "Questions due", ["a"], True),
+        ("2027-03-09", "09:30", "Site visit", ["a"], False),
+        ("2027-03-20", "", "Proposals due", ["b"], True),
+        ("", "", "Award 30 days after presentations", ["c"], True),  # undated last
+        ("", "", "Kick-off", [], False),
+    ]
+
+
+async def test_key_dates_are_written_by_the_model_and_an_unchecked_row_shows_its_facts(tmp_path):
+    facts = [fact("f_x", "D", "Questions due 2027-03-01 at 2 pm", [cite("p2.1", 2, "Questions by 2027-03-01, 2 pm.")]),
+             fact("f_y", "D", "Proposals due 2027-03-20", [cite("p4.1", 4, "Proposals by 2027-03-20.")])]
+    ws = Workspace(make_run(tmp_path, facts=facts) / "facts.json")
+    model = Scripted(lambda s, u: "2027-03-01|14:00|Questions due|1\n2027-03-25||Proposals due|2\nEND|2")
+    svc = S.SummaryService(model)
+    assert sec(svc, ws, "dates")["rows"] == [] and svc.generate(ws, ["dates"]) == ["dates"]
+    await settle(svc)
+    d = sec(svc, ws, "dates")
+    assert model.calls[0][0] == S.dates_system() and not d["stale"]
+    assert [(r["row"], r["time"], r["text"], r["checked"]) for r in d["rows"]] == [
+        ("2027-03-01", "14:00", "Questions due", True),
+        ("2027-03-20", "", "Proposals due 2027-03-20", False),  # 25 is in no fact: the fact and its own date
+    ]
+    assert d["rows"][1]["unverified"] == ["2027-03-25"]
+    ws.edit("f_y", {"text": "Proposals due 2027-03-27"})  # a changed date rebuilds the section
+    svc.notify_change(ws)
+    await settle(svc)
+    assert len(model.calls) == 2 and "2027-03-27" in model.calls[1][1]

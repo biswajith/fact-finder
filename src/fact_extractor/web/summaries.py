@@ -1,7 +1,8 @@
 """One summary per section, in rows: what a bid manager must know, with the facts behind each row.
 
 The sections are the extraction's (units.SECTIONS: buyer, submission, gates, scoring, questions)
-and two more written only here (contract, requirements). A row summary written at extraction
+and three more written only here (key dates, contract, requirements). Key dates has no fixed
+rows: the model writes one row per event, each with its date and time. A row summary written at extraction
 time is the section's first version ("extraction"); the section stores a hash of its input, so a
 changed, deleted or added fact, or a customer decision, makes it stale, and a stale section that
 has rows is rebuilt in the background, one at a time. A section with no rows is built only when
@@ -13,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Protocol
@@ -21,7 +23,7 @@ from .. import units
 from ..normalize import missing_values
 from ..units import Section
 from . import ModelUnavailable, model_name, require_api_key
-from .runs import buyer_rows
+from .runs import _when, buyer_rows
 from .workspace import State, Workspace, now
 
 CONTRACT = Section("contract", "Contract terms and risks", ("C",), "the contract terms and risks of an RFP", (
@@ -40,7 +42,9 @@ REQUIREMENTS = Section("requirements", "Requirements", ("R",), "what an RFP requ
     ("Staffing and key personnel", "the people, roles, qualifications and locations the vendor must provide."),
     ("Other requirements", "any other duty the vendor must meet that does not fit the rows above."),
 ))
-SECTIONS: tuple[Section, ...] = (*units.SECTIONS, CONTRACT, REQUIREMENTS)
+# Key dates has no fixed rows: one row per event, which the model finds in the date facts.
+DATES = Section("dates", "Key dates", ("D",), "the key dates of an RFP", ())
+SECTIONS: tuple[Section, ...] = (*units.SECTIONS, CONTRACT, REQUIREMENTS, DATES)
 BY_KEY = {s.key: s for s in SECTIONS}
 
 
@@ -121,6 +125,69 @@ KEEP_FIGURES = ("When a row cannot hold every item in under 60 words, keep the f
 def brief_system(spec: Section) -> str:
     """The extraction's summary prompt (units.py, unchanged for the pipeline), plus the web's rule on figures."""
     return units.brief_system(spec) + "\n" + KEEP_FIGURES
+
+
+def dates_system() -> str:
+    """The Key dates prompt: one line per event, in time order, each citing the facts it rests on."""
+    return """You list the key dates of an RFP for a bid manager planning a bid.
+
+INPUT
+Numbered facts about dates and deadlines, from the RFP and possibly from the bidder's own notes and call
+records. Use nothing else: no outside knowledge, no guesses.
+
+OUTPUT
+One line per event, earliest first, in this form:
+date|time|event|fact numbers
+- date is the calendar date as YYYY-MM-DD, only when the facts give the day, month and year. An event
+  set for a week, a period or a window starting on a given day takes that day, and the event says so
+  in words that read without the date, such as "during the week starting that day". Leave it empty when the facts give no day, such as a step set a
+  number of days after another step, or a month alone.
+- time is HH:MM on a 24-hour clock when the facts give one, otherwise empty.
+- event says what happens or is due, in plain words, under 25 words, with names and figures copied
+  exactly. Start it with a capital letter. Do not repeat the date or time in it. Never use the | character.
+- fact numbers is a comma-separated list of every fact the line rests on.
+Write each event once: when several facts state the same event, write one line and cite them all.
+Facts giving the same date for what is plausibly the same occasion are one event, even when they word
+it differently or come from different documents. A rule tied to an event's date or time, such as what
+happens to anything received after it, belongs in that event's line, not a line of its own. Two
+lines with the same date and time are wrong unless they are clearly different occasions; two
+different events on the same day get a line each. A fact that names several events supports each of
+their lines.
+When the facts disagree about the date or time of one event, write a line for each value, each citing
+only the facts that give it, and say in the event that the sources disagree.
+After the last line write: END|<number of lines>"""
+
+
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+TIME_RE = re.compile(r"^([01]?\d|2[0-3]):[0-5]\d$")
+
+
+def parse_dates(text: str, facts: list[dict]) -> list[dict]:
+    """The Key dates rows: {row: YYYY-MM-DD or "", time, text, fact_ids, checked}, dated ones in time
+    order and then the undated ones as written. A row is `checked` when it cites facts and its date,
+    time and every figure in its text are in those facts; the screen shows the cited facts for a row
+    that is not, so a date the model made up is never shown as the RFP's."""
+    rows = []
+    for line in text.splitlines():
+        p = [x.strip() for x in line.split("|")]
+        if len(p) < 3 or p[0].upper() == "END":
+            continue
+        day, time, event = p[0], p[1], " ".join(p[2].split())
+        if not event or units.NOT_STATED.search(event):
+            continue
+        day = day if DATE_RE.match(day) else ""
+        time = time.zfill(5) if TIME_RE.match(time) else ""
+        cited = []
+        for x in re.split(r"\D+", p[3] if len(p) > 3 else ""):
+            if x and 1 <= int(x) <= len(facts) and facts[int(x) - 1] not in cited:
+                cited.append(facts[int(x) - 1])
+        sources = [f["text"] for f in cited] + [f.get("source_text", "") for f in cited]
+        claim = " ".join(x for x in (day, time, event) if x)
+        rows.append({
+            "row": day, "time": time, "text": event, "fact_ids": [f["fact_id"] for f in cited],
+            "checked": bool(cited) and not missing_values(claim, sources),
+        })
+    return sorted(rows, key=lambda r: (r["row"] or "9999", r["time"] or "99:99"))  # stable: undated keep their order
 
 
 def _readable(value: str) -> str:
@@ -217,7 +284,13 @@ class SummaryService:
                     # The model's wording failed the figure check: runs.buyer_rows already shows the cited facts
                     # instead (or nothing); say so, and why, from the wording that was not shown.
                     if b.get("text") and not r["checked"] and str(b["text"]).strip().lower() != "not stated":
-                        r["unverified"] = unverified(state, {"text": b["text"], "fact_ids": r["fact_ids"]})
+                        said = " ".join(x for x in (b.get("row") if spec is DATES else "", b.get("time"), b["text"]) if x)
+                        r["unverified"] = unverified(state, {"text": said, "fact_ids": r["fact_ids"]})
+                if spec is DATES:
+                    for r, b in zip(rows, cur["rows"]):
+                        r["time"] = b.get("time") or ""
+                        if not r["checked"]:  # the shown text is the cited facts: so is the date
+                            r["row"], _, r["time"] = _when(r["text"])
                 cited = {i for r in rows for i in r["fact_ids"]}
             out.append({
                 "key": spec.key, "title": spec.title, "codes": list(spec.codes), "rows": rows,
@@ -289,8 +362,12 @@ class SummaryService:
         digest = input_hash(facts, decided)
         names = tuple(n for n, _ in spec.rows)
         try:
-            raw = await self.model.complete(brief_system(spec), user_message(facts, decided)) if facts else ""
-            rows = units.parse_brief(raw, facts, names)
+            if spec is DATES:
+                raw = await self.model.complete(dates_system(), user_message(facts, decided)) if facts else ""
+                rows = parse_dates(raw, facts)
+            else:
+                raw = await self.model.complete(brief_system(spec), user_message(facts, decided)) if facts else ""
+                rows = units.parse_brief(raw, facts, names)
             result = {"rows": rows, "generated_at": now(), "input_hash": digest, "error": None}
         except Exception as e:  # a failed call must not kill the rebuild loop
             msg = str(e) if isinstance(e, ModelUnavailable) else f"{type(e).__name__}: {e}"

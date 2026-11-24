@@ -297,10 +297,8 @@ def test_overview_sections():
     assert [e["text"] for e in o["unclear"]] == ["Pay the stated wage"]
     assert [e["text"] for e in o["submission"]] == ["Email one PDF to the buyer"]
     assert o["contradictions"][0]["text"] == "Due 2027-03-03 vs 2027-03-05"
-    cal = o["calendar"]
-    assert [(d["date"], d["time"]) for d in cal["dated"]] == [("2027-02-10", ""), ("2027-03-05", "14:00")]  # time order
-    assert cal["dated"][0]["label"] == "Wed 10 Feb 2027"
-    assert [u["text"] for u in cal["undated"]] == ["Award: 30 days after presentations"]
+    assert [e["text"] for e in o["dates"]] == [  # the facts behind the Key dates summary, in document order
+        "Proposals due: 2027-03-05 14:00 ET", "Questions due: 2027-02-10", "Award: 30 days after presentations"]
     assert "buyer" not in D.overview(recs) and len(D.overview(recs)["buyer_facts"]) == 2
 
 
@@ -346,8 +344,3 @@ def test_timeline_rows_come_from_the_stored_text_in_time_order():
     assert (a["date"], a["label"], a["time"], a["replaced"]) == ("2027-06-24", "Thu 24 Jun 2027", "14:00", True)
     assert (b["doc_no"], b["internal"], a["doc_no"], a["internal"]) == (2, True, 0, False)
     assert (u["date"], u["label"], u["time"]) == ("", "", "")
-
-
-def test_calendar_and_timeline_agree_on_the_label():
-    recs = D.normalize([fact("D", "Due 3 March 2027 at 09:30", [("p1.1", 1, "x")])])
-    assert D.calendar(recs)["dated"][0]["label"] == D.timeline(recs)[0]["label"]

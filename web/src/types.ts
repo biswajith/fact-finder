@@ -242,6 +242,8 @@ export interface SummaryRow {
   /** Set when the summary's wording failed the figure check and is not shown: the figures that were not in
    *  the facts it cites, or "it cites no facts". `text` is then the cited facts themselves (or empty). */
   unverified?: string[];
+  /** Key dates only: `row` is the date (YYYY-MM-DD, empty for no fixed date) and this its time (HH:MM or empty). */
+  time?: string;
 }
 
 export interface SummarySection {
@@ -303,13 +305,6 @@ export interface OverviewEntry {
   page: string;
   children: { text: string; page: string }[];
 }
-export interface CalendarDate {
-  date: string;
-  label: string;
-  time: string;
-  text: string;
-  page: string;
-}
 export interface Overview {
   buyer_facts: OverviewEntry[];
   gates: OverviewEntry[];
@@ -318,7 +313,8 @@ export interface Overview {
   contradictions: OverviewEntry[];
   unclear: OverviewEntry[];
   scoring: OverviewEntry[];
-  calendar: { dated: CalendarDate[]; undated: { text: string; page: string }[] };
+  /** The date facts behind the Key dates summary. */
+  dates: OverviewEntry[];
 }
 export interface OverviewCounts {
   needs_review: number;

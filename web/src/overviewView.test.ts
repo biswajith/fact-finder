@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupByCategory, openConflictCount, unverifiedNote } from './overviewView';
+import { groupByCategory, openConflictCount, sourceChip, unverifiedNote } from './overviewView';
 import type { Conflict, Fact, SummaryRow } from './types';
 
 const fact = (id: string, category: string) => ({ fact_id: id, category }) as unknown as Fact;
@@ -35,5 +35,14 @@ describe('unverifiedNote', () => {
   });
   it('says when the row cited no facts', () => {
     expect(unverifiedNote(row(['it cites no facts']))).toBe('The summary for this row cited no facts, so it is not shown.');
+  });
+});
+
+describe('sourceChip', () => {
+  it('names the document only in a bid', () => {
+    expect(sourceChip(3, '8', true)).toBe('d3 · p. 8');
+    expect(sourceChip(0, '8', true)).toBe('p. 8');
+    expect(sourceChip(3, '8', false)).toBe('p. 8');
+    expect(sourceChip(2, '', true)).toBe('d2');
   });
 });

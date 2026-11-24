@@ -96,7 +96,7 @@ async def test_overview_shape_counts_and_views(c):
     assert set(r) == {"overview", "counts", "by_category", "has_post_award", "views"}
     assert r["views"] == ["All", "Bid", "After award"] and r["has_post_award"] is True
     assert r["counts"] == {"needs_review": 0, "conflicts": 1, "risk": 1, "mandatory": 1, "unclear": 0}
-    assert r["by_category"]["D"] == 3 and set(r["overview"]) >= {"buyer_facts", "calendar", "gates", "scoring"} and not {"summary", "buyer"} & set(r["overview"])
+    assert r["by_category"]["D"] == 3 and set(r["overview"]) >= {"buyer_facts", "dates", "gates", "scoring"} and not {"summary", "buyer"} & set(r["overview"])
     after = (await c.get("/api/overview", params={"run": RUN, "view": "After award"})).json()
     assert after["by_category"] == {"O": 1} and after["has_post_award"] is True
     assert (await c.get("/api/overview", params={"run": RUN, "view": "x"})).status_code == 400
