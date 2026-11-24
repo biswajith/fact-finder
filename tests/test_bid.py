@@ -200,6 +200,15 @@ async def test_notes_are_level_4(bid, tmp_path):
     assert FAST.votes == 3 and {r.system for r in client.requests if task_name(r) == "LABEL"} == {playbooks.load("deal-notes").system()}
 
 
+async def test_deal_notes_in_a_pdf_are_read_as_a_pdf(bid, tmp_path):
+    d = add(bid, "deal.pdf", pdf("Deal notes", "Their budget is 90,000 dollars.", "Chase the reference."),
+            playbook="deal-notes", issue_date="2026-08-14")
+    client = ScriptedClient(label_handler(RULES))
+    saved = await B.extract_document(bid, d["no"], client, store=results.ResultStore(tmp_path), cfg=FAST)
+    assert "%PDF" not in "".join(r.document for r in client.requests)
+    assert {f["category"]: f["level"] for f in saved.facts()} == {"BUDGET": 4, "ACTION": 4}
+
+
 async def test_a_stored_result_is_reused_without_a_model_call(bid, tmp_path):
     d = add(bid, "deal.md", NOTES, issue_date="2026-08-14")
     store = results.ResultStore(tmp_path)

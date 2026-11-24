@@ -50,6 +50,17 @@ def form_of(name: str, data: bytes) -> str:
     return "notes"
 
 
+def reader(cutter: str, name: str, data: bytes) -> str:
+    """How to read this file under a playbook whose cutter is `cutter`. The file decides how it is read,
+    the playbook only what is extracted: a PDF is read as a PDF and a sheet as a sheet whatever the
+    document type; a text file is read the way the playbook says when that way reads text (a
+    transcript or notes), else by its own form."""
+    form = form_of(name, data)
+    if form in ("pdf", "sheet"):
+        return form
+    return cutter if cutter in ("transcript", "notes") else form
+
+
 def cut(form: str, data: bytes, name: str) -> list[SourceUnit]:
     """The units of a file of this form."""
     if form == "transcript":

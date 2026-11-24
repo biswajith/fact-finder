@@ -671,7 +671,8 @@ async def extract_document(
         mark(status="extracting", error="")
         data = bid.data(d)
         say("cut", "running")
-        if pb.cutter == "pdf":
+        how = cutters.reader(pb.cutter, d["file_name"], data)
+        if how == "pdf":
             tagged = runs.tag_pdf(data, d["doc_id"], store.root)
         else:
             # an adviser who acts for the buyer speaks for the buyer: their units count as the buyer's (level 2)
@@ -682,7 +683,7 @@ async def extract_document(
                      if s["side"] == "other" and s.get("organisation")}
             cut = [
                 dataclasses.replace(u, side=sides.get(u.speaker, "unknown"), speaker=shown.get(u.speaker, u.speaker)) if u.speaker else u
-                for u in cutters.cut(pb.cutter, data, d["file_name"])
+                for u in cutters.cut(how, data, d["file_name"])
             ]
             tagged, _ = document_from_units(d["doc_id"], cut)
         if not tagged.anchors:

@@ -875,12 +875,13 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                    "missing": B.ready(d), "units": 0, "calls": [], "total_calls": 0, "stored": None, "error": ""}
             try:
                 data = bid.data(d)
-                if pb.cutter == "pdf":
+                how = cutters.reader(pb.cutter, d["file_name"], data)
+                if how == "pdf":
                     tagged = R.tag_pdf(data, d["doc_id"], root)
                 else:
                     from ..api import document_from_units
 
-                    tagged, _ = document_from_units(d["doc_id"], cutters.cut(pb.cutter, data, d["file_name"]))
+                    tagged, _ = document_from_units(d["doc_id"], cutters.cut(how, data, d["file_name"]))
                 rows = R.plan_rows(tagged, votes, pb)
                 row.update(units=len(tagged.anchors), calls=rows, total_calls=sum(r["times"] for r in rows))
                 found = store.find(d["sha256"], U.VERSION, d["doc_id"], pb.key)

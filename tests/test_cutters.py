@@ -162,6 +162,16 @@ def test_xlsx_one_sheet_is_one_page():
         ("Year: 2027 | Fee: 36000", 1, "Pricing"), ("Clause: Term | Text: Three years", 2, "Terms")]
 
 
+def test_the_file_decides_how_it_is_read_and_the_playbook_only_how_text_is_read():
+    assert cutters.reader("notes", "deal.pdf", b"%PDF-1.7") == "pdf"
+    assert cutters.reader("notes", "crm.xlsx", b"PK") == "sheet"
+    assert cutters.reader("pdf", "requirements.xlsx", b"PK") == "sheet"
+    assert cutters.reader("pdf", "notes.md", b"# notes") == "notes"
+    assert cutters.reader("notes", "notes.md", b"# notes") == "notes"
+    assert cutters.reader("transcript", "call.txt", b"Dana: hi") == "transcript"
+    assert cutters.reader("sheet", "x.txt", b"hello") == "notes"
+
+
 # --- stored units ----------------------------------------------------------------------------
 
 
