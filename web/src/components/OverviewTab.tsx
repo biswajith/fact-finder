@@ -97,10 +97,13 @@ const BEHIND: Record<string, (o: Overview) => { heading: string; entries: Overvi
   questions: (o) => [{ heading: 'The RFP contradicts itself', entries: o.contradictions }, { heading: 'Unclear, ask the buyer', entries: o.unclear }],
 };
 
+/** An item shown on a line of its own starts like a line: "it may" -> "It may" (display only). */
+const asLine = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
 /** A row's text; a run of items joined by semicolons shows one item per line (display only). */
 function RowText({ text, empty }: { text: string; empty: string }) {
   if (!text) return <span className="wrap-text"><span className="ov-none">{empty}</span></span>;
-  const items = text.split(/;\s+/).filter(Boolean);
+  const items = text.split(/;\s+/).filter(Boolean).map(asLine);
   if (items.length < 2) return <span className="wrap-text">{text}</span>;
   return <ul className="ov-kv-items">{items.map((t, i) => <li key={i} className="wrap-text">{t}</li>)}</ul>;
 }

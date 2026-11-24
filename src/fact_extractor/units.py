@@ -204,7 +204,7 @@ Exactly these rows, in this order, one line each:
 {rows}
 {guide}
 text is plain words, under 60 words, with names, numbers, dates and addresses copied exactly. Never use the | character in it.
-Separate several items with semicolons. The screen shows each item on a line of its own, so each item is one sentence or phrase that reads complete by itself: use a semicolon only between items, never to join two parts of one sentence, and never start an item with a word such as it, they, and, may or must that leans on the item before it.
+Separate several items with semicolons. The screen shows each item on a line of its own, so each item is one sentence or phrase that reads complete by itself: use a semicolon only between items, never to join two parts of one sentence. Start every item with a capital letter, as a line starts, and name its subject (the City, proponents, the contractor) instead of it, they, and, may or must leaning on the item before.
 fact numbers is a comma-separated list of the facts the text rests on. Fact numbers go only here, never in text.
 When the facts say nothing for a row, write: Row|not stated|
 In a row that has something to say, leave out what the facts do not state; never add an item saying it is not stated.
