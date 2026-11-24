@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncIterator, Callable
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict
@@ -117,11 +117,15 @@ class ExtractIn(BaseModel):
 class BidIn(BaseModel):
     name: str = ""
     deal_id: str = ""
+    customer: str = ""
+    due: str | None = None
 
 
 class BidPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str | None = None
+    customer: str | None = None
+    due: str | None = None
     team: list[dict] | None = None
     precedence: list[str] | None = None
 
@@ -343,7 +347,9 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         pbs = [{"name": pb.name, "description": pb.description, "role": pb.role, "spoken": pb.spoken,
                 "level": pb.level, "visibility": pb.visibility, "calls": list(pb.calls), "votes": pb.votes}
                for pb in playbooks.all()]
-        return {**m, "documents": [entry(d) for d in m["documents"]], "order": [d["doc_id"] for d in B.issue_order(m)],
+        team = [{"name": t.get("name", ""), "role": t.get("role", "")} for t in m.get("team", [])]
+        return {**m, "customer": m.get("customer", ""), "due": m.get("due"), "team": team,
+                "documents": [entry(d) for d in m["documents"]], "order": [d["doc_id"] for d in B.issue_order(m)],
                 "playbooks": pbs, "run": f"{B.BIDS}/{bid.bid_id}" if (bid.folder / "facts.json").is_file() else ""}
 
     def bid_pdf(bid: B.Bid, d: dict) -> Path | None:
@@ -708,6 +714,14 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
 
 
     # --- bids: many documents, one fact list ---
+    def check_due(value: str | None) -> str | None:
+        """The due date as YYYY-MM-DD, or None for none; a 400 for anything else."""
+        if value in (None, ""):
+            return None
+        if not B.valid_date(value):
+            raise BadRequest("the due date must be YYYY-MM-DD")
+        return value
+
     @app.get("/api/bids")
     async def list_bids() -> list[dict]:
         return B.list_bids(root)
@@ -716,7 +730,8 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
     async def create_bid(body: BidIn) -> dict:
         if not body.name.strip():
             raise BadRequest("name is missing")
-        bid = B.create(root, body.name, body.deal_id.strip())
+        due = check_due(body.due)
+        bid = B.create(root, body.name, body.deal_id.strip(), body.customer, due)
         return bid_view(bid)
 
     @app.get("/api/bids/{bid_id}")
@@ -730,6 +745,9 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         fields = body.model_dump(exclude_unset=True)
         if "name" in fields and not (fields["name"] or "").strip():
             raise BadRequest("name must not be empty")
+        if "customer" in fields and not isinstance(fields["customer"], str):
+            raise BadRequest("customer must be text")
+        due = check_due(fields["due"]) if "due" in fields else None
         team = None
         if "team" in fields:
             team, seen = [], set()
@@ -737,9 +755,14 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                 name = t.get("name") if isinstance(t, dict) else None
                 if not isinstance(name, str):
                     raise BadRequest("every team member needs a name")
+                role = t.get("role", "")
+                if role is None:
+                    role = ""
+                if not isinstance(role, str):
+                    raise BadRequest("a team member's role must be text")
                 if name.strip() and name.strip().casefold() not in seen:
                     seen.add(name.strip().casefold())
-                    team.append({"name": name.strip()})
+                    team.append({"name": name.strip(), "role": role.strip()})
         with bid.lock:
             m = bid.manifest()
             if "precedence" in fields:
@@ -753,6 +776,10 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
                 rebuild = False
             if "name" in fields:
                 m["name"] = fields["name"].strip()
+            if "customer" in fields:
+                m["customer"] = (fields["customer"] or "").strip()
+            if "due" in fields:
+                m["due"] = due
             if team is not None:
                 m["team"] = team
             bid.save(m)
@@ -827,6 +854,19 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
         if not await suggest_speakers(bid, no, client):
             raise BadRequest("the model gave no answer; try again")
         return entry(bid.document(no))
+
+    @app.get("/api/bids/{bid_id}/documents/{no}/lines")
+    async def document_lines(bid_id: str, no: int, limit: int = Query(400, ge=1, le=5000)) -> dict:
+        """The lines of a call in order, each with who speaks it ("" for a line no one speaks)."""
+        bid = get_bid(bid_id)
+        d = one_document(bid.document, no)
+        if not playbooks.load(d["playbook"]).spoken:
+            raise BadRequest("only a call transcript has lines with speakers")
+        tagged = await asyncio.to_thread(bid.read, d)
+        voices = d.get("voices") or {}
+        units = list(tagged.anchors.values())
+        return {"lines": [{"id": a.id, "text": a.text, "speaker": voices.get(a.id, "")} for a in units[:limit]],
+                "total": len(units)}
 
     def one_document(fn, *args, **kw) -> dict:
         try:

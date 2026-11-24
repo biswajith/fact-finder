@@ -1,14 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRun } from '../../store';
 import { hashForPage, type PageName } from '../../nav';
-import { useTheme, type ThemeMode } from '../../theme';
 import { formatTime } from '../common';
 import { activeChanges } from '../ChangesTab';
 import type { BidFlow } from '../../bidFlow';
 
 interface Item { page: PageName; label: string; pill?: ReactNode }
 
-const bidOnly = (r: { run: string }) => r.run.startsWith('_bids/');
 const documentsWord = (n: number) => `${n} ${n === 1 ? 'document' : 'documents'}`;
 
 function RunSelect({ flow }: { flow: BidFlow }) {
@@ -28,7 +26,6 @@ function RunSelect({ flow }: { flow: BidFlow }) {
       goTo('documents');
       return;
     }
-    if (bidOnly({ run: value })) flow.selectBid(value.slice('_bids/'.length));
     selectRun(value);
   };
   const bidRuns = new Set(bids.filter((b) => b.run).map((b) => b.run));
@@ -48,21 +45,6 @@ function RunSelect({ flow }: { flow: BidFlow }) {
         ))}
       </select>
     </label>
-  );
-}
-
-const MODES: { mode: ThemeMode; label: string }[] = [
-  { mode: 'system', label: 'System' }, { mode: 'light', label: 'Light' }, { mode: 'dark', label: 'Dark' },
-];
-
-function ThemeSwitch() {
-  const { mode, setMode } = useTheme();
-  return (
-    <div className="theme-switch" role="group" aria-label="Theme">
-      {MODES.map((m) => (
-        <button key={m.mode} type="button" aria-pressed={mode === m.mode} onClick={() => setMode(m.mode)}>{m.label}</button>
-      ))}
-    </div>
   );
 }
 
@@ -124,7 +106,6 @@ export function Sidebar({ open, onNavigate, flow }: { open: boolean; onNavigate:
       </nav>
       <div className="sidebar-foot">
         {status && !status.has_key && <div className="no-key" role="status">No API key: chat and summaries are off</div>}
-        <ThemeSwitch />
       </div>
     </aside>
   );

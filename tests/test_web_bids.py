@@ -175,13 +175,68 @@ async def test_create_list_get_and_patch(c, root):
     assert {"name", "description", "role", "spoken"} <= set(made["playbooks"][0]) and "rfp" in [p["name"] for p in made["playbooks"]]
     assert (await c.post("/api/bids", json={"name": " "})).status_code == 400
     [row] = (await c.get("/api/bids")).json()
-    assert set(row) == {"bid_id", "name", "run", "documents", "facts", "modified"} and row["documents"] == 0
+    assert set(row) == {"bid_id", "name", "customer", "due", "run", "documents", "facts", "modified"} and row["documents"] == 0
     got = (await c.patch("/api/bids/ulster-county", json={"name": "Renamed", "team": [{"name": " Tom Okafor "}, {"name": "tom okafor"}]})).json()
-    assert got["name"] == "Renamed" and got["team"] == [{"name": "Tom Okafor"}]
+    assert got["name"] == "Renamed" and got["team"] == [{"name": "Tom Okafor", "role": ""}]
     assert (await c.patch("/api/bids/ulster-county", json={"name": ""})).status_code == 400
     assert (await c.patch("/api/bids/ulster-county", json={"team": [{"nom": "x"}]})).status_code == 400
     assert (await c.patch("/api/bids/ulster-county", json={"colour": "red"})).status_code == 400
     assert (await c.patch("/api/bids/ulster-county", json={"precedence": ["ghost"]})).status_code == 400
+
+
+async def test_a_bid_has_a_customer_a_due_date_and_a_team_with_roles(c, root):
+    plain = (await c.post("/api/bids", json={"name": "Plain"})).json()
+    assert (plain["customer"], plain["due"], plain["team"]) == ("", None, [])
+    made = (await c.post("/api/bids", json={"name": "Ulster", "customer": " Ulster County ", "due": "2026-09-02"})).json()
+    assert (made["customer"], made["due"]) == ("Ulster County", "2026-09-02")
+    rows = {r["bid_id"]: r for r in (await c.get("/api/bids")).json()}
+    assert (rows["ulster"]["customer"], rows["ulster"]["due"], rows["plain"]["due"]) == ("Ulster County", "2026-09-02", None)
+    for bad in ("09/02/2026", "2026-02-30", "soon"):
+        assert (await c.post("/api/bids", json={"name": "Bad", "due": bad})).status_code == 400
+        assert (await c.patch("/api/bids/ulster", json={"due": bad})).status_code == 400
+    assert (await c.get("/api/bids/ulster")).json()["due"] == "2026-09-02"  # a refused change leaves it
+    got = (await c.patch("/api/bids/ulster", json={"customer": "Albany", "due": "2026-10-01"})).json()
+    assert (got["customer"], got["due"]) == ("Albany", "2026-10-01")
+    assert (await c.patch("/api/bids/ulster", json={"due": None})).json()["due"] is None
+    team = [{"name": "Tom Okafor", "role": " Bid manager "}, {"name": "Priya Raman"}]
+    got = (await c.patch("/api/bids/ulster", json={"team": team})).json()
+    assert got["team"] == [{"name": "Tom Okafor", "role": "Bid manager"}, {"name": "Priya Raman", "role": ""}]
+    other = (await c.patch("/api/bids/ulster", json={"name": "Renamed"})).json()  # another field leaves the team as it was
+    assert other["team"] == got["team"] and other["customer"] == "Albany"
+    assert (await c.patch("/api/bids/ulster", json={"team": [{"name": "x", "role": 3}]})).status_code == 400
+
+
+async def test_an_old_manifest_without_the_new_fields_still_loads(c, root):
+    await c.post("/api/bids", json={"name": "Old"})
+    path = root / "_bids" / "old" / "bid.json"
+    m = json.loads(path.read_text())
+    for key in ("customer", "due"):
+        m.pop(key)
+    m["team"] = [{"name": "Tom Okafor"}]
+    path.write_text(json.dumps(m))
+    got = (await c.get("/api/bids/old")).json()
+    assert (got["customer"], got["due"], got["team"]) == ("", None, [{"name": "Tom Okafor", "role": ""}])
+    [row] = (await c.get("/api/bids")).json()
+    assert (row["customer"], row["due"]) == ("", None)
+
+
+async def test_the_lines_of_a_call_come_with_who_speaks_them(c):
+    await c.post("/api/bids", json={"name": "Ulster"})
+    await upload(c, "ulster", "call.json", CALL)
+    await upload(c, "ulster", "deal.md", NOTES)
+    r = await c.get("/api/bids/ulster/documents/1/lines")
+    assert r.status_code == 200
+    got = r.json()
+    # the header lines of the call (its title, its parties) are units no one speaks
+    assert got["total"] == 7 and len(got["lines"]) == 7 and all(x["id"] for x in got["lines"])
+    assert [(x["speaker"], x["text"]) for x in got["lines"] if x["text"][0] in "TW"] == [
+        ("Dana Pike", "The budget is fixed at 90,000 dollars."), ("Tom Okafor", "We plan a discount on the budget.")]
+    assert got["lines"][0]["speaker"] == ""
+    short = (await c.get("/api/bids/ulster/documents/1/lines", params={"limit": 1})).json()
+    assert len(short["lines"]) == 1 and short["total"] == 7
+    assert (await c.get("/api/bids/ulster/documents/2/lines")).status_code == 400  # deal notes are not spoken
+    assert (await c.get("/api/bids/ulster/documents/9/lines")).status_code == 404
+    assert (await c.get("/api/bids/nope/documents/1/lines")).status_code == 404
 
 
 @pytest.mark.parametrize("bid", ["nope", "../x", "UPPER", "a b", ".hidden", "-x", "x" * 90])

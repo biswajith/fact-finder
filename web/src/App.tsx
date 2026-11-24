@@ -6,7 +6,7 @@ import { DocumentsPage } from './components/bid/DocumentsPage';
 import { Workspace } from './components/shell/Workspace';
 import { useBidFlow, type BidFlow } from './bidFlow';
 import { errorText, RunProvider } from './store';
-import { ThemeProvider, useTheme } from './theme';
+import { ThemeProvider } from './theme';
 import type { RunInfo, Status } from './types';
 
 function readRunParam(): string | null {
@@ -18,15 +18,13 @@ function writeRunParam(run: string) {
   window.history.replaceState(null, '', u);
 }
 
-/** With no runs yet, the app is the Documents page: only "New bid" until a bid exists, then that bid's documents. */
+/** With no runs yet, the app is the Documents page: the list of bids, and the intake of the one opened. */
 function NoRuns({ status, flow, recheck }: { status: Status | null; flow: BidFlow; recheck: () => void }) {
-  const hasBid = !!flow.bid || (flow.bids?.length ?? 0) > 0;
   return (
     <main className="page">
-      {hasBid && !flow.creating && <div className="pg-note">This bid has no facts yet. Confirm its documents and extract them below.</div>}
       <DocumentsPage flow={flow} status={status} />
-      {!hasBid && (
-        <div className="pg-newbid-foot">
+      {!flow.showing && (flow.bids?.length ?? 0) === 0 && (
+        <div className="in-foot">
           {status && <span className="pg-note">Runs are kept in {status.runs_folder}.</span>}
           <Button variant="secondary" onPress={recheck}>Check again</Button>
         </div>
@@ -60,7 +58,7 @@ function Shell() {
     return r;
   }, []);
 
-  const flow = useBidFlow(status, run, refreshRuns, setRunState);
+  const flow = useBidFlow(status, refreshRuns, setRunState);
 
   useEffect(() => {
     if (run) writeRunParam(run);
@@ -83,9 +81,8 @@ function Shell() {
 }
 
 function Themed() {
-  const { resolved } = useTheme();
   return (
-    <Provider theme={defaultTheme} colorScheme={resolved} height="100%" UNSAFE_style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+    <Provider theme={defaultTheme} colorScheme="light" height="100%" UNSAFE_style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <ToastContainer />
       <Shell />
     </Provider>

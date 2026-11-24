@@ -1,7 +1,7 @@
 import { SseParser } from './sse';
 import { factsListQuery } from './factsQuery';
 import type {
-  Bid, BidDocument, BidDocumentPatch, BidPatch, BidPlan, BidSummary,
+  Bid, BidDocument, BidDocumentPatch, BidLines, BidPatch, BidPlan, BidSummary,
   ChatEvent, ChatMessage, ChatSession, ChatSessionDetail, CompareResponse, Conflict, CorrectionEntry, ExtractJob, Fact,
   FactPatch, FactsListFilters, FactsListResponse, FactsResponse, NewFact, OverviewResponse,
   Report, ResolveBody, RunInfo, RunsTableRow, Status, SummariesResponse, TimelineRow, ViewName,
@@ -106,7 +106,7 @@ export const getCompare = (a: string, b: string, signal?: AbortSignal) =>
 // ---- Bids ----
 
 export const getBids = () => request<BidSummary[]>('GET', '/bids');
-export const createBid = (name: string, deal_id?: string) => request<Bid>('POST', '/bids', { name, deal_id });
+export const createBid = (body: { name: string; deal_id?: string; customer?: string; due?: string | null }) => request<Bid>('POST', '/bids', body);
 export const getBid = (bid: string, signal?: AbortSignal) => request<Bid>('GET', `/bids/${enc(bid)}`, undefined, signal);
 export const patchBid = (bid: string, body: BidPatch) => request<Bid>('PATCH', `/bids/${enc(bid)}`, body);
 /** The raw file is the body; the server reads the type from the name. */
@@ -117,6 +117,9 @@ export const patchBidDocument = (bid: string, no: number, body: BidDocumentPatch
 /** Ask the model again who is on which side of a call; the document entry comes back. */
 export const suggestBidSpeakers = (bid: string, no: number) =>
   request<BidDocument>('POST', `/bids/${enc(bid)}/documents/${no}/speakers/suggest`, {});
+/** The lines of a call in order, with who speaks each. Only a call has them (else a 400). */
+export const getBidDocumentLines = (bid: string, no: number, limit?: number, signal?: AbortSignal) =>
+  request<BidLines>('GET', `/bids/${enc(bid)}/documents/${no}/lines${limit === undefined ? '' : `?${q({ limit })}`}`, undefined, signal);
 export const deleteBidDocument = (bid: string, no: number) =>
   request<{ ok: true }>('DELETE', `/bids/${enc(bid)}/documents/${no}`);
 export const planBid = (bid: string, votes?: number, signal?: AbortSignal) =>

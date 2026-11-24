@@ -488,12 +488,21 @@ export interface BidDocument {
   /** What is still needed before the document can be read, as the server words it. */
   missing: string[];
 }
+/** A person on our side of a bid; `role` is "" when none was given. */
+export interface BidTeamMember {
+  name: string;
+  role: string;
+}
 export interface Bid {
   bid_id: string;
   name: string;
   deal_id: string;
+  /** "" when not given. */
+  customer: string;
+  /** Proposal due date, YYYY-MM-DD, or null. */
+  due: string | null;
   created: string;
-  team: { name: string }[];
+  team: BidTeamMember[];
   precedence: string[] | null;
   documents: BidDocument[];
   /** doc_ids in issue order. */
@@ -505,6 +514,8 @@ export interface Bid {
 export interface BidSummary {
   bid_id: string;
   name: string;
+  customer: string;
+  due: string | null;
   run: string;
   documents: number;
   facts: number;
@@ -522,8 +533,20 @@ export interface BidDocumentPatch {
 }
 export interface BidPatch {
   name?: string;
-  team?: { name: string }[];
+  customer?: string;
+  due?: string | null;
+  team?: { name: string; role?: string }[];
   precedence?: string[] | null;
+}
+/** One line of a call (GET .../documents/{no}/lines): `speaker` is "" for a line no one speaks. */
+export interface BidLine {
+  id: string;
+  text: string;
+  speaker: string;
+}
+export interface BidLines {
+  lines: BidLine[];
+  total: number;
 }
 export interface PlanRow {
   call: string;

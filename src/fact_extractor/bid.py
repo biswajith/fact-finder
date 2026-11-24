@@ -377,8 +377,20 @@ def _pdf_pages(data: bytes) -> int:
         return 0
 
 
-def create(root: str | Path, name: str, deal_id: str = "") -> Bid:
-    """A new empty bid. Its ID is a lower-case slug of `name`, made unique among the bids."""
+def valid_date(value: str) -> bool:
+    """Whether `value` is a real calendar date written YYYY-MM-DD."""
+    try:
+        if not (isinstance(value, str) and _ISO.match(value)):
+            raise ValueError
+        _date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def create(root: str | Path, name: str, deal_id: str = "", customer: str = "", due: str | None = None) -> Bid:
+    """A new empty bid. Its ID is a lower-case slug of `name`, made unique among the bids. `customer` is
+    free text; `due` is the proposal due date as YYYY-MM-DD, or None."""
     base = slug(name)
     bid_id, n = base, 1
     while (Path(root) / BIDS / bid_id).exists():
@@ -387,14 +399,16 @@ def create(root: str | Path, name: str, deal_id: str = "") -> Bid:
     bid = Bid(root, bid_id)
     bid.save({
         "bid_id": bid_id, "name": name.strip() or bid_id, "deal_id": deal_id or bid_id, "created": _now(),
+        "customer": customer.strip(), "due": due or None,
         "team": [], "precedence": None, "documents": [],
     })
     return bid
 
 
 def list_bids(root: str | Path) -> list[dict]:
-    """Every bid under `root`, newest first: `{bid_id, name, run, documents, facts, modified}`.
-    `run` is the run path the web app opens, empty until the bid has a fact list."""
+    """Every bid under `root`, newest first: `{bid_id, name, customer, due, run, documents, facts, modified}`.
+    `run` is the run path the web app opens, empty until the bid has a fact list. `customer` and `due`
+    read as `""` and None for a bid made before they existed."""
     out = []
     for p in sorted((Path(root) / BIDS).glob("*/bid.json")):
         try:
@@ -410,7 +424,8 @@ def list_bids(root: str | Path) -> list[dict]:
                 pass
         mtime = max(p.stat().st_mtime, facts_path.stat().st_mtime if facts_path.is_file() else 0)
         out.append({
-            "bid_id": m["bid_id"], "name": m.get("name", ""), "run": f"{BIDS}/{m['bid_id']}" if facts_path.is_file() else "",
+            "bid_id": m["bid_id"], "name": m.get("name", ""), "customer": m.get("customer", ""), "due": m.get("due"),
+            "run": f"{BIDS}/{m['bid_id']}" if facts_path.is_file() else "",
             "documents": len(m.get("documents", [])), "facts": facts,
             "modified": datetime.fromtimestamp(mtime, timezone.utc).isoformat(timespec="seconds"), "_t": mtime,
         })

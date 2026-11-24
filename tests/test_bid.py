@@ -52,6 +52,22 @@ def test_create_makes_a_unique_slug_and_an_atomic_manifest(tmp_path):
     assert B.create(tmp_path, "***").bid_id == "bid"
 
 
+def test_create_keeps_the_customer_and_the_due_date(tmp_path):
+    a = B.create(tmp_path, "With", "d", " Ulster County ", "2026-09-02")
+    assert (a.manifest()["customer"], a.manifest()["due"]) == ("Ulster County", "2026-09-02")
+    b = B.create(tmp_path, "Without")
+    assert (b.manifest()["customer"], b.manifest()["due"]) == ("", None)
+    rows = {r["bid_id"]: r for r in B.list_bids(tmp_path)}
+    assert (rows["with"]["customer"], rows["with"]["due"], rows["without"]["customer"], rows["without"]["due"]) == (
+        "Ulster County", "2026-09-02", "", None)
+    m = b.manifest()
+    del m["customer"], m["due"]  # a manifest made before these fields
+    b.save(m)
+    old = {r["bid_id"]: r for r in B.list_bids(tmp_path)}["without"]
+    assert (old["customer"], old["due"]) == ("", None)
+    assert B.valid_date("2026-09-02") and not B.valid_date("2026-02-30") and not B.valid_date("9/2/2026")
+
+
 def test_add_stores_the_file_and_proposes(bid):
     data = pdf("ADDENDUM NO. 2", "Issued 2026-08-01")
     d = bid.add_document(data, "Addendum 2.pdf")
