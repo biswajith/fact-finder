@@ -81,6 +81,7 @@ export function cacheShare(input: number | null | undefined, cached: number | nu
 }
 
 const PURPOSE_LABEL: Record<string, string> = {
+  plan_explore: 'Look up before planning',
   plan_heavy: 'Write plan (steps)',
   plan_light: 'Write plan (one line)',
   loop: 'Tool round',

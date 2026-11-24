@@ -4,9 +4,10 @@ Three modes, each a baseline the others can be measured against:
 
 - direct: the plain tool loop. The model decides one round at a time.
 - light:  the model writes its steps in one line ("Plan: 1) ... 2) ...") and then follows them.
-- heavy:  a separate planning call (no tools) writes the steps as JSON; the loop then carries them
-          out with an `update_plan` tool to tick steps off or revise the rest, and a larger round
-          budget.
+- heavy:  the model first looks up what the plan depends on, with the tools that only read (tools
+          that change anything are refused), then proposes the steps with a `propose_plan` tool call,
+          with a few lines of what it found. The loop then carries them out with an `update_plan` tool
+          to tick steps off or revise the rest, and a larger round budget.
 
 Approval: in the modes listed in `Planning.approve` (light and heavy by default) the agent writes
 the plan, shows it, asks "Shall I go ahead?" and stops; it does nothing else in that turn. The
@@ -44,6 +45,7 @@ BORDERLINE = 0.10
 CLEAR_PROBABILITY = 0.6
 CLEAR_LEAD = 0.25
 MAX_STEPS = 10
+MAX_STEP_IDS = 4  # fact IDs one heavy step may name; the rest belong in the findings
 AWAITING = "awaiting_approval"
 
 
@@ -59,6 +61,8 @@ class Route:
     steps: list[dict] = field(default_factory=list)  # heavy mode: [{"step": str, "done": bool}]
     plan_text: str = ""  # light mode: the plan as the customer and the model read it
     plan_steps: list[dict] = field(default_factory=list)  # light mode: [{"step": str, "covers": [str]}], when the model gave them
+    findings: str = ""  # heavy mode: what the lookups before the plan found, for carrying the plan out
+    question: str = ""  # heavy mode: what the lookups showed must be asked instead of planned
     status: str = ""  # "", AWAITING, "approved", "cancelled"
     feedback: dict | None = None  # the judge's verdict on the customer's reply to the plan
     call: dict | None = None  # the Decisions call that chose the mode, for the session log (not stored on messages)
@@ -82,6 +86,10 @@ class Route:
             out["plan_text"] = self.plan_text
         if self.plan_steps:
             out["plan_steps"] = [{"step": s["step"], "covers": list(s.get("covers") or [])} for s in self.plan_steps]
+        if self.findings:
+            out["findings"] = self.findings
+        if self.question:
+            out["question"] = self.question
         if self.status:
             out["status"] = self.status
         if self.feedback:
@@ -91,7 +99,8 @@ class Route:
     @classmethod
     def from_record(cls, r: dict) -> Route:
         return cls(mode=r.get("mode", "direct"), source="plan", steps=[dict(s) for s in r.get("steps") or []],
-                   plan_text=r.get("plan_text") or "", plan_steps=[dict(s) for s in r.get("plan_steps") or []])
+                   plan_text=r.get("plan_text") or "", plan_steps=[dict(s) for s in r.get("plan_steps") or []],
+                   findings=r.get("findings") or "")
 
 
 @dataclass
@@ -348,6 +357,52 @@ REVISE_PROMPT = (
     "they asked for, changed as they said."
 )
 
+_PLAN_RULES = (
+    "Each step is one short action you will take with your tools (look something up, check, change, raise a "
+    "conflict), in words the customer can read, naming the facts it touches by ID: at most {max_ids} in a step, each "
+    "in its own square brackets like [f_0123456789], only IDs a tool returned; when a step covers more, name the "
+    "main ones and put the rest in findings. Do not plan again a "
+    "lookup whose result you already have. When a change would leave records of what someone said or decided (facts "
+    "from a call or from our notes) stating the old value, propose updating them in a step of its own that names "
+    "each of them, so the customer can approve that step or drop it; records the plan does not name stay as they "
+    "are. Whether to update records is never a reason to ask instead of planning. Use 2 to {max_steps} steps, in order. Plan only what the customer asked "
+    "for, and keep every rule of your instructions: a step that would pick between conflicting readings is a step "
+    "that raises a conflict. The last step is the answer to the customer. Ask instead of planning only when what you found "
+    "shows the message could mean different facts or changes, a wrong guess would change or report the wrong ones, "
+    "and neither the conversation nor the documents settle which: then give a question instead of steps, asking the "
+    "customer in plain words which they mean. Do not ask about what the customer already said plainly; asking for "
+    "all of something means all of it. In findings, write in a few lines what "
+    "you found that the steps rely on, with fact IDs, so the steps can be carried out without looking it up again."
+)
+
+EXPLORE_PROMPT = (
+    "Before you change anything, plan the work for the customer's latest message. First look up what the plan "
+    "depends on: which facts, sections and conflicts the work touches. In this step only the tools that read work "
+    "({read_tools}); a tool that changes facts, conflicts or summaries is refused. Lookups that do not depend on "
+    "each other belong in one round, and you have at most {rounds} rounds of lookups. Call propose_plan as soon as "
+    "you know enough to plan; you do not need to find the answer yet.\n"
+    + _PLAN_RULES
+)
+
+
+LAST_ROUND = ("No more lookups: call propose_plan now with what you found. Any other tool is refused in this "
+              "round.")
+
+PROPOSE_JSON_PROMPT = (
+    "Write your plan now from what you found. You cannot call tools in this step. Answer with JSON only, no other "
+    "text: {\"steps\": [\"...\"], \"findings\": \"...\"}, or {\"question\": \"...\"}.\n" + _PLAN_RULES
+)
+
+EXPLORE_REFUSED = ("Nothing can be changed while you plan. Put this change in the plan as a step; it runs once the "
+                   "plan is under way.")
+
+RECORD_NOT_IN_PLAN = (
+    "[{fact_id}] records what someone said or decided (a call or our notes), and the plan the customer saw does not "
+    "name it, so it stays as it is. Do not change it; say in your answer that it still states the old value."
+)
+
+PLANNING_OVER = "Planning is over: the customer can see the plan, and every tool works again."
+
 EXECUTE_PROMPT = (
     "Carry out this plan in order:\n{steps}\n"
     "Start with step 1, and do in one reply every step that does not need a result you have not seen yet. Mark "
@@ -371,6 +426,58 @@ NO_PLAN = "I could not write a plan for that. Could you say what you want done a
 
 def plan_prompt(tool_names: list[str]) -> str:
     return PLAN_PROMPT.format(tools=", ".join(tool_names), max_steps=MAX_STEPS)
+
+
+def explore_prompt(read_tools: list[str], rounds: int) -> str:
+    return EXPLORE_PROMPT.format(read_tools=", ".join(read_tools), rounds=rounds, max_steps=MAX_STEPS,
+                                 max_ids=MAX_STEP_IDS)
+
+
+def propose_json_prompt() -> str:
+    return PROPOSE_JSON_PROMPT.replace("{max_steps}", str(MAX_STEPS)).replace("{max_ids}", str(MAX_STEP_IDS))
+
+
+def parse_findings(text: str, key: str = "findings") -> str:
+    """The findings (or, with key="question", the question) of a plan written as JSON text; "" when none."""
+    start, end = text.find("{"), text.rfind("}")
+    try:
+        data = json.loads(text[start : end + 1]) if start != -1 and end > start else None
+    except ValueError:
+        return ""
+    found = data.get(key) if isinstance(data, dict) else None
+    return found.strip()[:2000] if isinstance(found, str) else ""
+
+
+_FACT_ID = re.compile(r"f_[0-9A-Za-z]+")
+_BRACKETS = re.compile(r"\[([^\[\]]*)\]")
+
+
+def named_ids(steps: list[dict]) -> set[str]:
+    """The fact IDs a plan's steps name."""
+    return {i for s in steps for i in _FACT_ID.findall(s["step"])}
+
+
+def step_id_problems(steps: list[str], known: set[str]) -> list[str]:
+    """What is wrong with the fact IDs the steps name, one line each: an ID no tool returned, IDs not each in
+    their own square brackets, or more than MAX_STEP_IDS facts in one step. [] when nothing is."""
+    problems = []
+    for n, step in enumerate(steps, start=1):
+        ids = list(dict.fromkeys(_FACT_ID.findall(step)))
+        unknown = [i for i in ids if i not in known]
+        if unknown:
+            problems.append(f"step {n} names {', '.join(unknown)}, which no tool returned; use only IDs from the tools")
+        odd = [g for g in _BRACKETS.findall(step) if _FACT_ID.search(g) and g.strip() not in known]
+        if odd and not unknown:
+            problems.append(f"step {n} writes [{odd[0]}]; put each fact ID alone in its own square brackets, like [f_0123456789]")
+        if len(ids) > MAX_STEP_IDS:
+            problems.append(f"step {n} names {len(ids)} facts; name at most {MAX_STEP_IDS} and put the rest in findings")
+    return problems
+
+
+def execute_prompt(steps: list[dict], findings: str = "") -> str:
+    """The plan to carry out, with what the lookups before it found."""
+    text = EXECUTE_PROMPT.format(steps=numbered(steps))
+    return f"{text}\n\nWhat you found while planning:\n{findings}" if findings else text
 
 
 _NUMBERED = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
@@ -429,7 +536,7 @@ def shown_plan(route: Route) -> str:
 
 
 def update_steps(steps: list[dict], done: Any, revise: Any) -> list[dict]:
-    """Mark 1-based step numbers done, then replace the steps not yet done with `revise` (if given)."""
+    """Mark 1-based step numbers done, then replace the steps not yet done with `revise` (if given and not empty)."""
     if done is not None:
         if not isinstance(done, list) or not all(isinstance(n, int) and not isinstance(n, bool) for n in done):
             raise ValueError("done must be a list of step numbers")
@@ -438,6 +545,8 @@ def update_steps(steps: list[dict], done: Any, revise: Any) -> list[dict]:
             raise ValueError(f"no step {bad[0]}; the plan has {len(steps)} steps")
         for n in done:
             steps[n - 1]["done"] = True
+    if revise == []:  # models send an empty list meaning "no revision" (seen live 2026-11-24); it must not drop every step left
+        revise = None
     if revise is not None:
         if not isinstance(revise, list) or not all(isinstance(s, str) and s.strip() for s in revise):
             raise ValueError("revise must be a list of step texts")

@@ -75,7 +75,7 @@ async def test_planning_turns_log_route_plan_feedback_and_decisions_calls(ws, sv
     assert kinds(first) == ["user_message", "route", "llm_call", "plan", "assistant_message", "turn_end"]
     route = first[1]
     assert route["mode"] == "heavy" and route["source"] == "router" and route["call"]["input_tokens"] == 10
-    assert first[2]["purpose"] == "plan_heavy" and first[2]["tools_allowed"] is False
+    assert first[2]["purpose"] == "plan_explore" and first[2]["tools_allowed"] is True  # lookups before the plan
     assert first[3]["status"] == P.AWAITING and len(first[3]["steps"]) == 3
     assert first[-1]["totals"]["decisions_calls"] == 1
     assert kinds(second)[:5] == ["user_message", "feedback", "route", "plan", "llm_call"]

@@ -291,7 +291,8 @@ Each event is one line `data: <json>` followed by a blank line.
 ```
 
 `plan` is sent only when planning is on (section 7.1): once when the mode is known, and
-again after each `update_plan` call. A light plan's event also carries `plan_text` and
+again after each `update_plan` call. A heavy plan's event can carry `findings`, what the
+lookups before the plan found. A light plan's event also carries `plan_text` and
 `plan_steps` (`[{"step", "covers": [topic]}]`). The plan and the approval question are
 also in the `text` deltas.
 
@@ -381,7 +382,7 @@ There are three modes, so each can be measured against the others:
 | --- | --- |
 | `direct` | The plain tool loop above: the model decides one round at a time. |
 | `light` | A planning call with no tools answers JSON only: `{"steps": [{"step", "covers": [topic]}]}`, 1 to 5 short steps, each with the topics it looks at. They are stored as `plan_steps`; the history and the approval judge read them as numbered lines (`Plan:` then `1. step (covers: a, b)`). A reply that is not JSON is kept as written text. |
-| `heavy` | A planning call with no tools writes the steps as JSON. The loop carries them out with an extra tool, `update_plan(done?, revise?)`, that ticks steps off or replaces the ones not yet done, and gets 16 tool rounds, not 8. |
+| `heavy` | Look first, then plan. For up to 4 rounds the agent looks up what the plan depends on. Every tool is offered, so the cached prefix stays the same, but only tools that read run: one that changes facts, conflicts or summaries returns an error asking for it to be a step instead. The agent then calls `propose_plan(steps, findings?)`: steps in words the customer can read, each naming at most 4 facts it touches, plus a few lines of what it found. A step that names an ID no tool returned, writes IDs other than one per pair of square brackets, or names more than 4 facts is sent back to the agent to fix. When the lookups show the message could mean different facts or changes and nothing settles which, the agent calls `propose_plan(question)` instead. The question is the reply, nothing waits for approval, and the customer's answer is routed like any new message (the plan record has `question`). A JSON plan written as text is accepted too. With no plan after the lookups, one call with no tools must write it as JSON. The loop carries the steps out with `update_plan(done?, revise?)`, which ticks steps off or replaces the ones not yet done, and gets 16 tool rounds, not 8. A step can be revised only after a lookup made while carrying the plan out. Facts from a call or from our notes record what someone said or decided: while a plan runs, `edit_fact` and `delete_fact` on such a fact are refused unless the plan the customer saw names it, so a change that reaches records gets a step of its own naming them. |
 
 **Which mode.** `FACT_EXTRACTOR_CHAT_PLANNING`: `auto` (default) asks the OpenAI Decisions
 API one `Choice` question (`direct` / `light` / `heavy`, judged by the work the message
@@ -393,14 +394,14 @@ more, a pick that holds at least 0.60 of the probability and leads every other m
 `FACT_EXTRACTOR_DECISIONS_MODEL` sets the Decisions model (default `gpt-6-luna`).
 
 **Approval.** `FACT_EXTRACTOR_CHAT_PLAN_APPROVAL`: `on` (default: light and heavy),
-`heavy`, or `off`. In a mode that needs approval the agent writes the plan with no tools,
-shows it, asks "Shall I go ahead? You can also tell me what to change.", and ends the turn
+`heavy`, or `off`. In a mode that needs approval the agent writes the plan (light: with no
+tools; heavy: after its read-only lookups, which are listed on the message), shows it, asks "Shall I go ahead? You can also tell me what to change.", and ends the turn
 having changed nothing. The customer's next message is judged by a second Decisions
 `Choice` question:
 
 | Verdict | What happens |
 | --- | --- |
-| `approve` | The stored plan runs (heavy: the stored steps with `update_plan`). |
+| `approve` | The stored plan runs (heavy: the stored steps with `update_plan`, and the stored `findings` in the prompt in place of the lookups, which the new turn does not see). |
 | `revise` | The plan is written again with the customer's changes and shown again. |
 | `cancel` | A fixed reply; no model call, nothing changed. |
 | `new_request` | The plan is dropped and the message is routed like any other. |
@@ -410,7 +411,7 @@ The near-cut-off rule of the router does not apply here. The chat panel offers t
 answers as buttons under a waiting plan (section 8), each of which sends an ordinary
 message that this judge reads.
 Without an approval mode, `light` plans inline in the loop and `heavy` shows its steps and
-carries them out in the same turn.
+carries them out in the same turn, with its lookups still in view.
 
 ### 7.1b Answer formats
 
@@ -431,7 +432,7 @@ session). Clearing the chat ends the session but keeps its folder. Each event ha
 | `feedback` | the plan shown, `verdict`, `source`, `confidence`, `probabilities` (per verdict), `note`, and `call` (the Decisions call: `model`, `input_tokens`, `seconds`, `error`, and `response`, the whole Decisions response with every label's probability and the request id) |
 | `route` | `mode`, `source`, `confidence`, `probabilities`, `note`, `call` as above |
 | `plan` | the plan record (`steps`, `plan_text` or `plan_steps`, `status`); again after each `update_plan` |
-| `llm_call` | `purpose` (`plan_heavy`, `plan_light`, `loop`, `final`, `compose`; a compose call also has `compose: true`, `effort` and, when it failed, `compose_error`), `round`, `messages`, `tools_offered`, `tools_allowed`, `tool_calls` (name and clipped arguments), `text_chars`, `input_tokens`, `cached_tokens`, `output_tokens`, `seconds`, `error` |
+| `llm_call` | `purpose` (`plan_explore` (heavy lookups before the plan, one per round), `plan_heavy` (the heavy plan written with no tools, when the lookups gave none), `plan_light`, `loop`, `final`, `compose`; a compose call also has `compose: true`, `effort` and, when it failed, `compose_error`), `round`, `messages`, `tools_offered`, `tools_allowed`, `tool_calls` (name and clipped arguments), `text_chars`, `input_tokens`, `cached_tokens`, `output_tokens`, `seconds`, `error` |
 | `tool` | `name`, `round`, `args`, `ok`, `summary`, `seconds` |
 | `consistency_check` | `fact_id`, `checked_against`, `findings` (fact ID and probability each), `conflicts_raised`, `skipped`, `call` (the Decisions call) |
 | `assistant_message` | `text`, `tools` (count), `conflict_ids`, `planning` |

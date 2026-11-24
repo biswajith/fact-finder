@@ -177,17 +177,19 @@ async def test_light_mode_without_approval_plans_inline_in_one_loop(ws, svc):
 
 async def test_heavy_mode_without_approval_plans_then_executes_with_update_plan(ws, svc):
     model = Tools(
-        [HEAVY_PLAN],  # planning call
+        [HEAVY_PLAN],  # planning: answered with the plan straight away, no lookups
         [call("search", query="deadline"), call("update_plan", "call_2", done=[1])],
         [call("update_plan", "call_3", done=[2], revise=["Answer with the one mismatch"])],
         ["One deadline does not match [f_d3]."],
     )
     events = await run(ws, svc, model, planning("heavy", approve=NO_APPROVAL), "Check every deadline")
-    assert model.tools[0] == [] and "update_plan" in model.tools[1]
+    assert model.tools[0] == model.tools[1] and "propose_plan" in model.tools[0] and "update_plan" in model.tools[1]
     assert "update_plan" not in [t["function"]["name"] for t in A.TOOL_SPECS]
-    assert "JSON only" in model.seen[0][-1]["content"]
+    assert "propose_plan" not in [t["function"]["name"] for t in A.TOOL_SPECS]
+    assert "Call propose_plan" in model.seen[0][-1]["content"]
     assert model.seen[1][-2] == {"role": "assistant", "content": SHOWN}
     assert model.seen[1][-1]["role"] == "system" and "1. Find the deadlines" in model.seen[1][-1]["content"]
+    assert model.seen[1][-1]["content"].startswith(P.PLANNING_OVER)
     assert events[0] == {"type": "text", "delta": SHOWN + "\n\n"}
     assert sum(1 for e in events if e["type"] == "plan") == 3  # the start, then after each update_plan
     final = events[-1]["message"]
@@ -218,12 +220,19 @@ async def test_plan_cannot_be_reworded_before_any_tool_result(ws, svc):
     assert "never to reword" in model.seen[0][-1]["content"]
 
 
+def test_an_empty_revise_keeps_the_steps_left():
+    steps = [{"step": "a", "done": False}, {"step": "b", "done": False}, {"step": "c", "done": False}]
+    assert P.update_steps(steps, [1], []) == [{"step": "a", "done": True}, {"step": "b", "done": False},
+                                              {"step": "c", "done": False}]
+
+
 async def test_heavy_mode_without_usable_steps_falls_back_to_light(ws, svc):
-    model = ScriptedChat(["I will just do it."], ["Answer."])
+    model = ScriptedChat(["I will just do it."], ["Still no plan."], ["Answer."])
     events = await run(ws, svc, model, planning("heavy", approve=NO_APPROVAL))
     final = events[-1]["message"]
     assert final["planning"]["mode"] == "light" and "ran light" in final["planning"]["note"]
-    assert model.seen[1][-1] == {"role": "system", "content": P.LIGHT_PROMPT}
+    assert "JSON only" in model.seen[1][-1]["content"]  # one more call, no tools, that must write the plan
+    assert model.seen[2][-1] == {"role": "system", "content": P.LIGHT_PROMPT}
 
 
 async def test_heavy_mode_gets_more_rounds(ws, svc):
@@ -309,8 +318,9 @@ async def test_revise_writes_the_plan_again_and_asks_again(ws, svc):
     await run(ws, svc, Tools([HEAVY_PLAN]), plan, "Check every deadline")
     model = Tools(['{"steps": ["Find the deadlines", "Answer"]}'])
     events = await run(ws, svc, model, plan, "skip the schedule check")
-    assert model.tools == [[]]
+    assert len(model.tools) == 1  # one planning call, nothing carried out
     assert [m["content"] for m in model.seen[0][-2:]][0] == P.REVISE_PROMPT
+    assert "Call propose_plan" in model.seen[0][-1]["content"]
     final = events[-1]["message"]
     assert final["text"] == f"Plan:\n1. Find the deadlines\n2. Answer\n\n{P.ASK_APPROVAL}"
     assert final["planning"]["status"] == P.AWAITING and final["planning"]["feedback"]["verdict"] == "revise"
@@ -382,11 +392,87 @@ async def test_planning_call_keeps_the_heavy_tool_list_but_refuses_tools(ws, svc
             async for item in super().stream(messages, tools):
                 yield item
 
-    model = Refusing([HEAVY_PLAN], ["Done."])
+    model = Refusing(["Let me think."], [HEAVY_PLAN], ["Done."])
     await run(ws, svc, model, planning("heavy", approve=NO_APPROVAL))
-    (plan_tools, plan_allowed), (loop_tools, loop_allowed) = model.calls
-    assert plan_tools == loop_tools and "update_plan" in plan_tools  # one prefix for both calls
-    assert (plan_allowed, loop_allowed) == (False, True)
+    (explore_tools, explore_allowed), (plan_tools, plan_allowed), (loop_tools, loop_allowed) = model.calls
+    assert explore_tools == plan_tools == loop_tools and "update_plan" in plan_tools  # one prefix for every call
+    assert (explore_allowed, plan_allowed, loop_allowed) == (True, False, True)
+
+
+# --- looking things up before the heavy plan ---------------------------------------------------------
+
+
+EXPLORED = [call("search", "x1", query="deadline"),
+            call("get_fact", "x2", fact_id="f_d1")]
+PROPOSE = call("propose_plan", "x4", steps=["Check [f_d1] against the schedule", "Answer"],
+               findings="[f_d1] says bids are due March 3; the schedule lists March 5.")
+
+
+async def test_heavy_plan_looks_things_up_and_refuses_changes_before_proposing(ws, svc):
+    model = Tools(EXPLORED, [call("edit_fact", "x3", fact_id="f_d1", text="Bids due March 5", reason="r")], [PROPOSE])
+    events = await run(ws, svc, model, planning("heavy"), "Check every deadline")
+    tools = [e for e in events if e["type"] == "tool"]
+    assert [(e["name"], e["ok"]) for e in tools] == [("search", True), ("get_fact", True), ("edit_fact", False),
+                                                     ("propose_plan", True)]
+    assert "while you plan" in tools[2]["label"] and ws.state().get("f_d1")["text"] == "Bids due March 3"
+    assert not [e for e in events if e["type"] == "changed"]
+    final = events[-1]["message"]
+    assert final["text"] == f"Plan:\n1. Check [f_d1] against the schedule\n2. Answer\n\n{P.ASK_APPROVAL}"
+    assert final["planning"]["status"] == P.AWAITING and "March 5" in final["planning"]["findings"]
+    assert [t["name"] for t in final["tools"]] == ["search", "get_fact", "edit_fact", "propose_plan"]
+    # each lookup result is in view of the next planning call
+    assert [m["tool_call_id"] for m in model.seen[2] if m["role"] == "tool"] == ["x1", "x2", "x3"]
+
+    model = Tools([call("update_plan", done=[1])], ["They differ."])
+    events = await run(ws, svc, model, planning("heavy"), "ok")
+    execute = model.seen[0][-1]["content"]
+    assert "1. Check [f_d1] against the schedule" in execute
+    assert "What you found while planning:\n[f_d1] says bids are due March 3" in execute
+    assert events[-1]["message"]["planning"]["findings"] == final["planning"]["findings"]
+
+
+async def test_heavy_plan_in_one_turn_keeps_the_lookups_in_view(ws, svc):
+    model = Tools(EXPLORED, [PROPOSE], [call("update_plan", done=[1])], ["They differ."])
+    events = await run(ws, svc, model, planning("heavy", approve=NO_APPROVAL), "Check every deadline")
+    run_call = model.seen[2]
+    assert [m["tool_call_id"] for m in run_call if m["role"] == "tool"] == ["x1", "x2", "x4"]
+    assert run_call[-1]["content"].startswith(P.PLANNING_OVER)
+    assert "What you found" not in run_call[-1]["content"]  # the lookups themselves are in view
+    final = events[-1]["message"]
+    assert final["text"].startswith("Plan:\n1. Check [f_d1]") and final["text"].endswith("They differ.")
+    assert [s["done"] for s in final["planning"]["steps"]] == [True, False]
+
+
+async def test_heavy_plan_lookups_are_capped_then_only_propose_plan_runs(ws, svc):
+    lookups = [[call("search", f"s{i}", query="x")] for i in range(A.EXPLORE_ROUNDS)]
+    model = Tools(*lookups, [call("search", "s9", query="y"), PROPOSE])
+    events = await run(ws, svc, model, planning("heavy"), "Check every deadline")
+    tools = [e for e in events if e["type"] == "tool"]
+    assert [e["ok"] for e in tools] == [True] * A.EXPLORE_ROUNDS + [False, True]
+    assert "No more lookups" in tools[-2]["label"]
+    assert model.seen[-1][-1] == {"role": "system", "content": P.LAST_ROUND}
+    assert events[-1]["message"]["planning"]["steps"][0]["step"] == "Check [f_d1] against the schedule"
+
+
+async def test_heavy_plan_without_propose_is_written_as_json_with_findings(ws, svc):
+    lookups = [[call("search", f"s{i}", query="x")] for i in range(A.EXPLORE_ROUNDS + 1)]
+    plan = '{"steps": ["Check [f_d1]", "Answer"], "findings": "[f_d1] is the only deadline."}'
+    model = Tools(*lookups, [plan])
+    events = await run(ws, svc, model, planning("heavy"), "Check every deadline")
+    assert sum(1 for e in events if e["type"] == "tool") == A.EXPLORE_ROUNDS + 1
+    assert "JSON only" in model.seen[-1][-1]["content"] and "findings" in model.seen[-1][-1]["content"]
+    final = events[-1]["message"]["planning"]
+    assert [s["step"] for s in final["steps"]] == ["Check [f_d1]", "Answer"]
+    assert final["findings"] == "[f_d1] is the only deadline."
+
+
+async def test_propose_plan_is_an_error_once_the_plan_is_set(ws, svc):
+    model = Tools([HEAVY_PLAN], [call("propose_plan", steps=["Something else"])], ["Done."])
+    events = await run(ws, svc, model, planning("heavy", approve=NO_APPROVAL), "Check every deadline")
+    tool = next(e for e in events if e["type"] == "tool")
+    assert tool["ok"] is False and "update_plan" in tool["label"]
+    assert [s["step"] for s in events[-1]["message"]["planning"]["steps"]] == [
+        "Find the deadlines", "Check each against the schedule", "Answer"]
 
 
 async def test_router_trusts_clear_probabilities_when_confidence_is_just_under_the_cut_off():
@@ -415,3 +501,95 @@ async def test_decisions_calls_keep_the_whole_response_and_every_label_probabili
     fb = await P.DecisionsRouter(client=FakeDecisions(verdict("approve"))).judge("c", "plan", "yes")
     assert set(fb.record()["probabilities"]) == set(P.VERDICTS)
     assert fb.call["response"]["answers"]["q"]["confidence"] == 0.9
+
+
+async def test_planning_can_end_with_a_question_instead_of_a_plan(ws, svc):
+    ask = call("propose_plan", "q1", question="Which limit do you mean: the general liability per occurrence or the auto liability?")
+    model = Tools([call("search", "s1", query="liability")], [ask])
+    events = await run(ws, svc, model, planning("heavy"), "The liability limit should be $2M")
+    final = events[-1]["message"]
+    assert final["text"].startswith("Which limit do you mean")
+    assert final["planning"]["question"].startswith("Which limit") and "status" not in final["planning"]
+    assert "asked the customer" in final["planning"]["note"] and not final["planning"].get("steps")
+    assert P.pending_plan(ws.chat()) is None  # the answer is routed like any new message, not judged as approval
+
+    model = Tools([HEAVY_PLAN])  # the customer's answer gets a plan of its own
+    events = await run(ws, svc, model, planning("heavy"), "the per occurrence one")
+    assert events[-1]["message"]["planning"]["status"] == P.AWAITING
+
+
+async def test_planning_question_in_one_turn_runs_nothing(ws, svc):
+    model = Tools([call("propose_plan", question="Which deadline do you mean?")])
+    events = await run(ws, svc, model, planning("heavy", approve=NO_APPROVAL), "Move the deadline")
+    assert len(model.seen) == 1 and events[-1]["message"]["text"] == "Which deadline do you mean?"
+
+
+async def test_json_plan_fallback_can_ask_a_question(ws, svc):
+    lookups = [[call("search", f"s{i}", query="x")] for i in range(A.EXPLORE_ROUNDS + 1)]
+    model = Tools(*lookups, ['{"question": "Which of the two dates?"}'])
+    events = await run(ws, svc, model, planning("heavy"), "Fix the date")
+    assert events[-1]["message"]["text"] == "Which of the two dates?"
+
+
+def test_step_id_problems():
+    known = {"f_d1", "f_d2", "f_d3", "f_d4", "f_d5"}
+    assert P.step_id_problems(["Check [f_d1] and [f_d2]", "Answer"], known) == []
+    assert "f_zz9, which no tool returned" in P.step_id_problems(["Check [f_zz9]"], known)[0]
+    assert "[f_d1, f_d2]" in P.step_id_problems(["Check [f_d1, f_d2]"], known)[0]
+    assert "[q:f_d1]" in P.step_id_problems(["Check [q:f_d1]"], known)[0]
+    many = P.step_id_problems(["Read " + " ".join(f"[{i}]" for i in sorted(known))], known)
+    assert many == [f"step 1 names 5 facts; name at most {P.MAX_STEP_IDS} and put the rest in findings"]
+
+
+async def test_propose_plan_with_bad_ids_goes_back_to_the_model(ws, svc):
+    bad = call("propose_plan", "p1", steps=["Check [f_nope] and [f_d1, f_d2]", "Answer"])
+    model = Tools([bad], [PROPOSE])
+    events = await run(ws, svc, model, planning("heavy"), "Check every deadline")
+    tools = [e for e in events if e["type"] == "tool"]
+    assert [e["ok"] for e in tools] == [False, True]
+    assert "f_nope, which no tool returned" in tools[0]["label"]
+    assert events[-1]["message"]["planning"]["steps"][0]["step"] == "Check [f_d1] against the schedule"
+
+
+def records_ws(tmp_path):
+    """A bid with one RFP fact, one fact from our notes and one from a call, all stating the same date."""
+    from test_web_agent import bid_fact
+    from fact_extractor.web.workspace import Workspace
+
+    folder = tmp_path / "runs" / "_bids" / "b1"
+    folder.mkdir(parents=True)
+    facts = [bid_fact("f_rfp", 1, 1, "Proposals are due June 10", 1, "Schedule", cat="D"),
+             bid_fact("f_note", 3, 1, "We plan to submit by June 10", 1, "Plan", cat="D"),
+             bid_fact("f_call", 4, 1, "The buyer said proposals are due June 10", 1, "Call", cat="D", side="buyer")]
+    (folder / "facts.json").write_text(json.dumps(facts))
+    (folder / "bid.json").write_text(json.dumps({"bid_id": "b1", "documents": [
+        {"no": 1, "playbook": "rfp", "file_name": "rfp.pdf"}, {"no": 3, "playbook": "deal-notes", "file_name": "n.md"},
+        {"no": 4, "playbook": "call-transcript", "file_name": "call.json"}]}))
+    return Workspace(folder / "facts.json")
+
+
+def test_facts_from_calls_and_our_notes_are_records(tmp_path):
+    rws = records_ws(tmp_path)
+    assert [A.is_record(rws, rws.state().get(i)) for i in ("f_rfp", "f_note", "f_call")] == [False, True, True]
+
+
+async def test_an_approved_plan_may_change_only_the_records_it_names(tmp_path, svc):
+    rws = records_ws(tmp_path)
+    plan = planning("heavy")
+    steps = ["Change the due date in [f_rfp] to June 17", "Change our plan in [f_note] to June 17", "Answer"]
+    await run(rws, svc, Tools([call("propose_plan", "p1", steps=steps)]), plan, "Proposals are now due June 17")
+    edits = [call("edit_fact", f"e{n}", fact_id=fid, text=f"due June 17 ({fid})", values_removed=True, reason="r")
+             for n, fid in enumerate(("f_rfp", "f_note", "f_call"))]
+    events = await run(rws, svc, Tools(edits, ["Done."]), plan, "yes")
+    assert [e["ok"] for e in events if e["type"] == "tool"] == [True, True, False]
+    refused = [e for e in events if e["type"] == "tool" and not e["ok"]][0]
+    assert "[f_call] records what someone said" in refused["label"]
+    assert rws.state().get("f_note")["text"] == "due June 17 (f_note)"
+    assert rws.state().get("f_call")["text"] == "The buyer said proposals are due June 10"
+
+
+async def test_records_outside_a_plan_are_left_to_the_rules(tmp_path, svc):
+    rws = records_ws(tmp_path)  # direct mode: the customer named the record, nothing in code stands in the way
+    model = Tools([call("edit_fact", fact_id="f_call", text="The buyer said June 17", values_removed=True, reason="r")], ["ok"])
+    events = await run(rws, svc, model, planning("direct", approve=NO_APPROVAL), "Fix the call fact [f_call] to June 17")
+    assert next(e for e in events if e["type"] == "tool")["ok"] is True
