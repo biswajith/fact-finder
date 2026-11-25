@@ -21,12 +21,12 @@ will edit or delete and the conflicts it will resolve. While the plan runs, a ch
 is refused. Whether the agent stops for a yes is then decided from that list, not from the mode:
 "never" shows the plan and carries it out, "always" stops on every plan, and "risky" stops only when
 the plan would change a record of what someone said (a fact from a call or our notes), change more
-than one fact, or resolve a conflict. FACT_EXTRACTOR_CHAT_PLANNING=plan runs every message this way,
-with FACT_EXTRACTOR_CHAT_PLAN_APPROVAL risky (the default there), always or never.
+than one fact, or resolve a conflict. FACT_EXTRACTOR_CHAT_PLANNING=plan, the default, runs every
+message this way, with FACT_EXTRACTOR_CHAT_PLAN_APPROVAL risky (the default there), always or never.
 
 Which mode a message gets comes from a Router: `DecisionsRouter` asks the OpenAI Decisions API one
 Choice question, `FixedRouter` forces a mode (for baselines and tests). The same Decisions client
-judges feedback. `planning_from_env` reads FACT_EXTRACTOR_CHAT_PLANNING (auto, direct or off, light,
+judges feedback. `planning_from_env` reads FACT_EXTRACTOR_CHAT_PLANNING (plan, auto, direct or off, light,
 heavy) and FACT_EXTRACTOR_CHAT_PLAN_APPROVAL (on, heavy, off).
 
 No FastAPI import here, and the Decisions client is imported only when first used.
@@ -56,6 +56,9 @@ CLEAR_LEAD = 0.25
 MAX_STEPS = 10
 MAX_STEP_IDS = 4  # fact IDs one heavy step may name; the rest belong in the findings
 AWAITING = "awaiting_approval"
+# What FACT_EXTRACTOR_CHAT_PLANNING means when it is not set. Measured 2026-11-25 on evals/chat/durham.yaml, five
+# runs a case: plan passed 144 of 170 at one customer message a case; auto, the default before, passed 126.
+DEFAULT_PLANNING = "plan"
 ASKS = ("risky", "always", "never")  # when a plan that lists its changes waits for a yes
 CHANGE_OPS = ("edit", "delete", "resolve")  # the changes a plan must list; adding a fact or raising a conflict needs no entry
 
@@ -364,16 +367,17 @@ class DecisionsRouter:
 
 
 def planning_from_env() -> Planning:
-    mode = os.environ.get("FACT_EXTRACTOR_CHAT_PLANNING", "auto").strip().lower()
+    mode = os.environ.get("FACT_EXTRACTOR_CHAT_PLANNING", "").strip().lower() or DEFAULT_PLANNING
     decisions = DecisionsRouter()
     approval = os.environ.get("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL", "").strip().lower()
     if mode == "plan":  # every message: look, plan with the changes listed, carry out; asking decided from the changes
-        ask = approval or "risky"
+        # the values of the older modes still mean what they said: on waits for every plan, off for none
+        ask = {"": "risky", "on": "always", "heavy": "always", "off": "never"}.get(approval, approval)
         if ask not in ASKS:
             raise ValueError(f"with FACT_EXTRACTOR_CHAT_PLANNING=plan, FACT_EXTRACTOR_CHAT_PLAN_APPROVAL must be "
                              f"{', '.join(ASKS)}, not {approval!r}")
         return Planning(FixedRouter("heavy"), decisions, (), ask)
-    router: Router = decisions if mode in ("", "auto") else FixedRouter("direct" if mode == "off" else mode)
+    router: Router = decisions if mode == "auto" else FixedRouter("direct" if mode == "off" else mode)
     approval = approval or "on"
     approve = {"on": ("light", "heavy"), "": ("light", "heavy"), "heavy": ("heavy",), "off": ()}.get(approval)
     if approve is None:

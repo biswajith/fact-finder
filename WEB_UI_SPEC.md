@@ -375,8 +375,10 @@ and reported in the stream with `ok: false`.
 
 ### 7.1 Planning
 
-`planning.py` decides, per customer message, whether the agent plans before it acts.
-There are three modes, so each can be measured against the others:
+`planning.py` decides, per customer message, how the agent plans before it acts. By default
+(`FACT_EXTRACTOR_CHAT_PLANNING=plan`) every message gets a plan that lists its changes, described
+under "A plan for every message" below; it runs on the `heavy` path of this table. The three older
+modes stay, so each can be measured against the others (`fact-extractor chat-eval`):
 
 | Mode | What happens |
 | --- | --- |
@@ -384,7 +386,7 @@ There are three modes, so each can be measured against the others:
 | `light` | A planning call with no tools answers JSON only: `{"steps": [{"step", "covers": [topic]}]}`, 1 to 5 short steps, each with the topics it looks at. They are stored as `plan_steps`; the history and the approval judge read them as numbered lines (`Plan:` then `1. step (covers: a, b)`). A reply that is not JSON is kept as written text. |
 | `heavy` | Look first, then plan. For up to 4 rounds the agent looks up what the plan depends on. Every tool is offered, so the cached prefix stays the same, but only tools that read run: one that changes facts, conflicts or summaries returns an error asking for it to be a step instead. The agent then calls `propose_plan(steps, findings?)`: steps in words the customer can read, each naming at most 4 facts it touches, plus a few lines of what it found. A step that names an ID no tool returned, writes IDs other than one per pair of square brackets, or names more than 4 facts is sent back to the agent to fix. When the lookups show the message could mean different facts or changes and nothing settles which, the agent calls `propose_plan(question)` instead. The question is the reply, nothing waits for approval, and the customer's answer is routed like any new message (the plan record has `question`). A JSON plan written as text is accepted too. With no plan after the lookups, one call with no tools must write it as JSON. The loop carries the steps out with `update_plan(done?, revise?)`, which ticks steps off or replaces the ones not yet done, and gets 16 tool rounds, not 8. A step can be revised only after a lookup made while carrying the plan out. Facts from a call or from our notes record what someone said or decided: while a plan runs, `edit_fact` and `delete_fact` on such a fact are refused unless the plan the customer saw names it, so a change that reaches records gets a step of its own naming them. |
 
-**Which mode.** `FACT_EXTRACTOR_CHAT_PLANNING`: `auto` (default) asks the OpenAI Decisions
+**Which mode.** `FACT_EXTRACTOR_CHAT_PLANNING`: `plan` (default) uses no router. `auto` asks the OpenAI Decisions
 API one `Choice` question (`direct` / `light` / `heavy`, judged by the work the message
 needs) over the last 6 chat messages, the workspace counts and the new message. A pick
 below confidence 0.6 runs `light`, except just under the cut-off: at confidence 0.5 or
@@ -393,8 +395,8 @@ more, a pick that holds at least 0.60 of the probability and leads every other m
 `light` and `heavy` force one mode for every message (the baselines).
 `FACT_EXTRACTOR_DECISIONS_MODEL` sets the Decisions model (default `gpt-6-luna`).
 
-**Approval.** `FACT_EXTRACTOR_CHAT_PLAN_APPROVAL`: `on` (default: light and heavy),
-`heavy`, or `off`. In a mode that needs approval the agent writes the plan (light: with no
+**Approval in the older modes.** `FACT_EXTRACTOR_CHAT_PLAN_APPROVAL`: `on` (default there:
+light and heavy), `heavy`, or `off`. In a mode that needs approval the agent writes the plan (light: with no
 tools; heavy: after its read-only lookups, which are listed on the message), shows it, asks "Shall I go ahead? You can also tell me what to change.", and ends the turn
 having changed nothing. The customer's next message is judged by a second Decisions
 `Choice` question:
@@ -413,7 +415,7 @@ message that this judge reads.
 Without an approval mode, `light` plans inline in the loop and `heavy` shows its steps and
 carries them out in the same turn, with its lookups still in view.
 
-**A plan for every message (`FACT_EXTRACTOR_CHAT_PLANNING=plan`).** No router: every
+**A plan for every message (`FACT_EXTRACTOR_CHAT_PLANNING=plan`, the default).** No router: every
 message takes the heavy path (look, propose a plan, carry it out), and the plan also lists
 its changes: `propose_plan(steps, findings?, changes)`, where `changes` is
 `[{"op": "edit" | "delete" | "resolve", "id": fact or conflict ID}]`, empty for a plan that
@@ -430,9 +432,9 @@ Whether such a plan waits for a yes is decided from its list, by
 
 | Value | The plan waits when |
 | --- | --- |
-| `risky` (default with `plan`) | it changes a record of what someone said, changes more than one fact, or resolves a conflict |
-| `always` | every plan |
-| `never` | never: the plan is shown and carried out in the same turn |
+| `risky` (default) | it changes a record of what someone said, changes more than one fact, or resolves a conflict |
+| `always` (or `on`, `heavy`) | every plan |
+| `never` (or `off`) | never: the plan is shown and carried out in the same turn |
 
 A plan that waits has `status: awaiting_approval` and `ask_reason` (why) on its record; the
 customer's reply is judged as above. `fact-extractor chat-eval` compares this path with the

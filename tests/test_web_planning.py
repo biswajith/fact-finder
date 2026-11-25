@@ -109,7 +109,7 @@ async def test_judge_needs_a_confident_answer_to_approve():
 
 
 def test_planning_from_env(monkeypatch):
-    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_PLANNING", raising=False)
+    monkeypatch.setenv("FACT_EXTRACTOR_CHAT_PLANNING", "auto")
     monkeypatch.delenv("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL", raising=False)
     p = P.planning_from_env()
     assert isinstance(p.router, P.DecisionsRouter) and p.judge is p.router and p.approve == ("light", "heavy")
@@ -718,8 +718,15 @@ def test_planning_from_env_plan_mode(monkeypatch):
     assert plan.ask == "risky" and plan.listed and isinstance(plan.router, P.FixedRouter) and plan.router.mode == "heavy"
     monkeypatch.setenv("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL", "never")
     assert P.planning_from_env().ask == "never"
-    monkeypatch.setenv("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL", "on")
+    for old, ask in (("on", "always"), ("heavy", "always"), ("off", "never")):  # the older modes' values keep their meaning
+        monkeypatch.setenv("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL", old)
+        assert P.planning_from_env().ask == ask
+    monkeypatch.setenv("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL", "sometimes")
     with pytest.raises(ValueError, match="risky, always, never"):
         P.planning_from_env()
+    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL")
+    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_PLANNING")  # not set: every message gets a plan, asking when it is risky
+    default = P.planning_from_env()
+    assert default.ask == "risky" and isinstance(default.router, P.FixedRouter) and default.router.mode == "heavy"
     monkeypatch.setenv("FACT_EXTRACTOR_CHAT_PLANNING", "auto")
     assert P.planning_from_env().ask == "mode" and P.planning_from_env().approve == ("light", "heavy")
