@@ -593,3 +593,133 @@ async def test_records_outside_a_plan_are_left_to_the_rules(tmp_path, svc):
     model = Tools([call("edit_fact", fact_id="f_call", text="The buyer said June 17", values_removed=True, reason="r")], ["ok"])
     events = await run(rws, svc, model, planning("direct", approve=NO_APPROVAL), "Fix the call fact [f_call] to June 17")
     assert next(e for e in events if e["type"] == "tool")["ok"] is True
+
+
+# --- a plan that lists its changes; asking decided from them ---------------------------------------------
+
+
+def listed(ask, verdict="approve"):
+    return P.Planning(P.FixedRouter("heavy"), P.FixedJudge(verdict), (), ask)
+
+
+def edit(cid, fid):
+    return call("edit_fact", cid, fact_id=fid, text=f"due June 17 ({fid})", values_removed=True, reason="r")
+
+
+def test_risky_asks_for_records_several_facts_and_conflicts():
+    rfp, note = {"op": "edit", "id": "f_rfp"}, {"op": "edit", "id": "f_note", "record": True}
+    assert P.why_ask("risky", []) == "" and P.why_ask("risky", [rfp]) == "" and P.why_ask("never", [rfp, note]) == ""
+    assert P.why_ask("risky", [note]) == "it changes a record of what someone said"
+    assert P.why_ask("risky", [rfp, {"op": "delete", "id": "f_x"}]) == "it changes 2 facts"
+    assert P.why_ask("risky", [{"op": "resolve", "id": "k_1"}]) == "it resolves a conflict"
+    assert P.why_ask("always", []) == "every plan waits"
+    with pytest.raises(ValueError, match="unknown ask setting"):
+        P.Planning(P.FixedRouter("heavy"), None, (), "sometimes")
+
+
+async def test_a_listed_plan_runs_at_once_and_only_its_listed_changes_run(tmp_path, svc):
+    rws = records_ws(tmp_path)
+    propose = call("propose_plan", "p1", steps=["Change the due date in [f_rfp]", "Answer"], changes=[{"op": "edit", "id": "f_rfp"}])
+    model = Tools([propose], [edit("e1", "f_rfp"), edit("e2", "f_note")], ["Done."])
+    events = await run(rws, svc, model, listed("risky"), "The RFP due date is June 17")
+    assert "In changes, list every fact" in model.seen[0][-1]["content"] and "changes" in str(A.LISTED_TOOL_SPECS[-1])
+    assert [e["ok"] for e in events if e["type"] == "tool"] == [True, True, False]
+    refused = [e for e in events if e["type"] == "tool" and not e["ok"]][0]
+    assert "[f_note] is not in the changes the plan lists" in refused["label"]
+    record = events[-1]["message"]["planning"]
+    assert record["changes"] == [{"op": "edit", "id": "f_rfp"}] and "status" not in record and "ask_reason" not in record
+    assert rws.state().get("f_rfp")["text"] == "due June 17 (f_rfp)" and "June 17" not in rws.state().get("f_note")["text"]
+
+
+async def test_a_plan_that_changes_nothing_never_waits_under_risky(tmp_path, svc):
+    rws = records_ws(tmp_path)
+    model = Tools([call("propose_plan", "p1", steps=["Read [f_rfp]", "Answer"], changes=[])], ["It is June 10."])
+    events = await run(rws, svc, model, listed("risky"), "When is it due?")
+    final = events[-1]["message"]
+    assert final["text"].endswith("It is June 10.") and final["planning"]["changes"] == [] and "status" not in final["planning"]
+    again = tmp_path / "again"
+    again.mkdir()
+    waits = await run(records_ws(again), svc, Tools([call("propose_plan", "p1", steps=["Read [f_rfp]", "Answer"], changes=[])]),
+                      listed("always"), "When is it due?")
+    assert waits[-1]["message"]["planning"]["status"] == P.AWAITING
+
+
+async def test_a_plan_that_changes_a_record_waits_then_runs_what_it_listed(tmp_path, svc):
+    rws = records_ws(tmp_path)
+    plan = listed("risky")
+    propose = call("propose_plan", "p1", steps=["Change [f_rfp]", "Change our note [f_note]", "Answer"],
+                   changes=[{"op": "edit", "id": "f_rfp"}, {"op": "edit", "id": "f_note"}])
+    first = await run(rws, svc, Tools([propose]), plan, "Proposals are now due June 17, update our note too")
+    record = first[-1]["message"]["planning"]
+    assert record["status"] == P.AWAITING and first[-1]["message"]["text"].endswith(P.ASK_APPROVAL)
+    assert record["ask_reason"] == "it changes a record of what someone said; it changes 2 facts"
+    assert record["changes"][1] == {"op": "edit", "id": "f_note", "record": True}
+    assert "June 17" not in rws.state().get("f_rfp")["text"]  # nothing ran
+    events = await run(rws, svc, Tools([edit("e1", "f_rfp"), edit("e2", "f_note"), edit("e3", "f_call")], ["Done."]), plan, "yes")
+    assert [e["ok"] for e in events if e["type"] == "tool"] == [True, True, False]
+    assert rws.state().get("f_note")["text"] == "due June 17 (f_note)"
+    other = tmp_path / "never"
+    other.mkdir()
+    never = records_ws(other)
+    model = Tools([propose], [edit("e2", "f_note")], ["Done."])
+    events = await run(never, svc, model, listed("never"), "Proposals are now due June 17, update our note too")
+    assert events[-1]["message"]["planning"].get("status") is None and never.state().get("f_note")["text"] == "due June 17 (f_note)"
+
+
+async def test_a_listed_plan_must_give_its_changes_and_real_ids(tmp_path, svc):
+    rws = records_ws(tmp_path)
+    steps = ["Change [f_rfp]", "Answer"]
+    model = Tools([call("propose_plan", "p1", steps=steps)],
+                  [call("propose_plan", "p2", steps=steps, changes=[{"op": "edit", "id": "f_nope"}])],
+                  [call("propose_plan", "p3", steps=steps, changes=[{"op": "edit", "id": "f_rfp"}])], ["Done."])
+    events = await run(rws, svc, model, listed("never"), "Fix the RFP date")
+    tools = [e for e in events if e["type"] == "tool"]
+    assert [e["ok"] for e in tools] == [False, False, True]
+    assert "give changes" in tools[0]["label"] and "no fact f_nope" in tools[1]["label"]
+
+
+async def test_a_plan_written_as_text_keeps_the_changes_that_are_right(tmp_path, svc):
+    rws = records_ws(tmp_path)
+    plan = '{"steps": ["Change [f_rfp]", "Answer"], "changes": [{"op": "edit", "id": "f_rfp"}, {"op": "edit", "id": "f_nope"}, "x"]}'
+    events = await run(rws, svc, Tools([plan], ["Done."]), listed("never"), "Fix the RFP date")
+    assert events[-1]["message"]["planning"]["changes"] == [{"op": "edit", "id": "f_rfp"}]
+
+
+async def test_editing_a_fact_in_an_open_conflict_is_sent_back_once(ws, svc):
+    assert A._open_conflict(A.Ctx(ws, svc, []), "f_d1") is not None  # f_d1 and f_d2 disagree
+    steps = ["Change [f_d1] to March 5", "Answer"]
+    propose = [call("propose_plan", f"p{n}", steps=steps, changes=[{"op": "edit", "id": "f_d1"}]) for n in (1, 2)]
+    model = Tools([propose[0]], [propose[1]], [call("edit_fact", "e1", fact_id="f_d1", text="Bids due March 5", values_removed=True)], ["Done."])
+    events = await run(ws, svc, model, listed("never"), "Bids are due March 5")
+    tools = [e for e in events if e["type"] == "tool"]
+    assert [e["ok"] for e in tools] == [False, True, True]
+    assert "is part of open conflict" in tools[0]["label"] and "resolve_conflict" in tools[0]["label"]
+    assert ws.state().get("f_d1")["text"] == "Bids due March 5"
+
+
+async def test_resolving_a_conflict_must_be_listed(ws, svc):
+    cid = A._open_conflict(A.Ctx(ws, svc, []), "f_d1")["id"]
+    propose = call("propose_plan", "p1", steps=["Read [f_d1]", "Answer"], changes=[])
+    model = Tools([propose], [call("resolve_conflict", "r1", conflict_id=cid, option=0)], ["Left open."])
+    events = await run(ws, svc, model, listed("never"), "What about the due date?")
+    refused = [e for e in events if e["type"] == "tool"][-1]
+    assert not refused["ok"] and "is not in the changes the plan lists" in refused["label"]
+    ws.clear_chat()
+    ask = await run(ws, svc, Tools([call("propose_plan", "p1", steps=["Resolve it", "Answer"], changes=[{"op": "resolve", "id": cid}])]),
+                    listed("risky"), "Go with March 3")
+    assert ask[-1]["message"]["planning"]["ask_reason"] == "it resolves a conflict"
+
+
+def test_planning_from_env_plan_mode(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("FACT_EXTRACTOR_CHAT_PLANNING", "plan")
+    monkeypatch.delenv("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL", raising=False)
+    plan = P.planning_from_env()
+    assert plan.ask == "risky" and plan.listed and isinstance(plan.router, P.FixedRouter) and plan.router.mode == "heavy"
+    monkeypatch.setenv("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL", "never")
+    assert P.planning_from_env().ask == "never"
+    monkeypatch.setenv("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL", "on")
+    with pytest.raises(ValueError, match="risky, always, never"):
+        P.planning_from_env()
+    monkeypatch.setenv("FACT_EXTRACTOR_CHAT_PLANNING", "auto")
+    assert P.planning_from_env().ask == "mode" and P.planning_from_env().approve == ("light", "heavy")

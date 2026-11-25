@@ -164,6 +164,28 @@ cases:
         - {doc: 2, text: "Price to the RFP", lacks: ['Price to the RFP.s 40']}
         - {doc: 2, text: "Pricing assumptions are 180-day validity", lacks: ['40 Meter to Cash users priced']}
 
+  - id: records-due-time
+    kind: records
+    say: "The extraction has the proposal due time wrong: the RFP says proposals were due at 3:00 pm ET, not 2:00 pm."
+    expect:
+      edits:
+        - {doc: 3, text: "Proponents must email proposals by", has: ['3(:00)?\s*p\.?m']}
+        - {doc: 3, text: "Proposals due: 2024-06-10 at", has: ['3(:00)?\s*p\.?m']}
+
+  - id: records-termination
+    kind: records
+    say: "Correction to the RFP fact on termination: the City may terminate on sixty (60) days written notice, not thirty."
+    expect:
+      edits:
+        - {doc: 3, text: "may terminate any resulting contract", has: ['60|sixty'], lacks: ['thirty|30']}
+
+  - id: records-one-asked
+    kind: records
+    say: "Fix the call fact that says each presentation will last three hours in person at City Hall: it is four hours."
+    expect:
+      edits:
+        - {doc: 1, text: "Each presentation will last three hours", has: ['four|4'], lacks: ['three']}
+
   # --- conflicts ------------------------------------------------------------------------------------
   - id: conflict-choice-stated
     kind: conflict
@@ -179,6 +201,24 @@ cases:
       asks: true
       resolves: {min: 1, max: 2, conflict: {doc: 3, text: "Meter to Cash (Utility Billing / CIS)"}}
 
+  - id: conflict-termination-stated
+    kind: conflict
+    say: "On the conflict between the call and the RFP about termination for convenience: keep the RFP fact."
+    expect:
+      resolves: {min: 1, max: 1, conflict: {doc: 1, text: "thirty-day termination for convenience is tough"}}
+
+  - id: conflict-kronos-stated
+    kind: conflict
+    say: "The Kronos conflict between the call and the RFP: rely on the call, Kronos is being retired."
+    expect:
+      resolves: {min: 1, max: 1, conflict: {doc: 1, text: "Kronos is being retired."}}
+
+  - id: conflict-all-no-choice
+    kind: conflict
+    say: "Resolve all the open conflicts."
+    expect:
+      asks: true
+
   # --- messages that could mean different facts -----------------------------------------------------
   - id: ambiguous-user-count
     kind: ambiguous
@@ -189,5 +229,23 @@ cases:
   - id: ambiguous-duplicate
     kind: ambiguous
     say: "Remove the duplicate about Lauren."
+    expect:
+      asks: true
+
+  - id: ambiguous-renee
+    kind: ambiguous
+    say: "Delete the fact about Renee."
+    expect:
+      asks: true
+
+  - id: ambiguous-date
+    kind: ambiguous
+    say: "The date is wrong, it should be the 25th."
+    expect:
+      asks: true
+
+  - id: ambiguous-ninety
+    kind: ambiguous
+    say: "Change the 90 days to 120."
     expect:
       asks: true

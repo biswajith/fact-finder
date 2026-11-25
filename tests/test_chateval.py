@@ -154,7 +154,7 @@ async def test_run_plays_every_case_in_every_mode_on_a_copy_of_the_bid(tmp_path)
     assert json.loads((out / "results.json").read_text())[0]["changes"][0]["fact_id"] == "f_d1"
     assert (out / "logs" / "fix-date.direct.1").is_dir()
     text = E.report(results)
-    assert "direct      2/2" in text and "WHAT FAILED" not in text and "fix-date" in text
+    assert "direct          2/2" in text and "WHAT FAILED" not in text and "fix-date" in text
     assert "2 cases for bid b" in E.listing(store, cases)
 
 

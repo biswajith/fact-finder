@@ -3,7 +3,8 @@
 A cases file (YAML, see evals/chat/durham.yaml) lists customer messages with what should be true when
 the conversation ends: which facts were edited, deleted or added, which conflicts were resolved,
 whether the agent had to ask first, and what the last reply must say. Every case runs once per mode
-(direct, light, heavy forced, and auto, where the router picks) on its own copy of the bid, so no
+(direct, light, heavy forced; auto, where the router picks; and the plan modes, where every message
+gets a plan that lists its changes) on its own copy of the bid, so no
 case sees another's changes and the stored bid is never touched.
 
 The runner plays the customer. A plan that waits for approval gets "Yes, go ahead."; a question gets
@@ -34,7 +35,10 @@ from typing import Any, Callable
 from .web import planning as P
 from .web.workspace import Workspace, live_entries
 
-MODES = ("direct", "light", "heavy", "auto")
+MODES = ("direct", "light", "heavy", "auto", "plan", "plan-never", "plan-always")
+# The plan modes: every message is looked up, planned with its changes listed, and carried out. They differ in
+# when the plan waits for a yes: by what it would change (plan), never, or always (planning.py, `Planning.ask`).
+PLAN_ASKS = {"plan": "risky", "plan-never": "never", "plan-always": "always"}
 APPROVE = "Yes, go ahead."
 INSIST = "Do what I asked, as I wrote it."
 MAX_MESSAGES = 5  # customer messages in one conversation, the first included
@@ -165,6 +169,8 @@ def planning_for(mode: str, approval: str = "on") -> P.Planning:
         raise ValueError(f"unknown mode {mode!r}; modes: {', '.join(MODES)}")
     approve = {"on": ("light", "heavy"), "heavy": ("heavy",), "off": ()}[approval]
     decisions = P.DecisionsRouter()
+    if mode in PLAN_ASKS:
+        return P.Planning(P.FixedRouter("heavy"), decisions, (), PLAN_ASKS[mode])
     return P.Planning(decisions if mode == "auto" else P.FixedRouter(mode), decisions, approve)
 
 
@@ -387,22 +393,22 @@ def report(results: list[Result]) -> str:
     """Three tables: each mode's totals, passes by kind of case, and every case by mode."""
     modes = [m for m in MODES if any(r.mode == m for r in results)]
     by_mode = {m: [r for r in results if r.mode == m] for m in modes}
-    lines = ["BY MODE", f"{'mode':8}{'passed':>9}{'messages':>10}{'plans':>7}{'questions':>11}{'calls':>7}{'seconds':>9}{'dollars':>10}",
-             "        (messages, calls and seconds are the median per case; plans, questions and dollars are totals)"]
+    lines = ["BY MODE", f"{'mode':12}{'passed':>9}{'messages':>10}{'plans':>7}{'questions':>11}{'calls':>7}{'seconds':>9}{'dollars':>10}",
+             "            (messages, calls and seconds are the median per case; plans, questions and dollars are totals)"]
     for m, rs in by_mode.items():
-        lines.append(f"{m:8}{sum(r.passed for r in rs):>5}/{len(rs):<3}{_median([r.messages for r in rs]):>10}"
+        lines.append(f"{m:12}{sum(r.passed for r in rs):>5}/{len(rs):<3}{_median([r.messages for r in rs]):>10}"
                      f"{sum(r.plans_waited for r in rs):>7}{sum(r.questions for r in rs):>11}"
                      f"{_median([r.llm_calls for r in rs]):>7}{_median([r.seconds for r in rs]):>9}"
                      f"{sum(r.cost_usd for r in rs):>10.4f}")
 
     kinds = list(dict.fromkeys(r.kind for r in results))
-    lines += ["", "PASSED BY KIND", f"{'kind':12}" + "".join(f"{m:>9}" for m in modes)]
+    lines += ["", "PASSED BY KIND", f"{'kind':12}" + "".join(f"{m:>13}" for m in modes)]
     for k in kinds:
         cells = []
         for m in modes:
             rs = [r for r in by_mode[m] if r.kind == k]
             cells.append(f"{sum(r.passed for r in rs)}/{len(rs)}")
-        lines.append(f"{k:12}" + "".join(f"{c:>9}" for c in cells))
+        lines.append(f"{k:12}" + "".join(f"{c:>13}" for c in cells))
 
     lines += ["", "BY CASE (pass or FAIL, then customer messages; auto also shows the mode the router picked)",
               f"{'case':30}" + "".join(f"{m:>16}" for m in modes)]
