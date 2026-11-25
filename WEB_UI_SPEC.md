@@ -432,9 +432,14 @@ Whether such a plan waits for a yes is decided from its list, by
 
 | Value | The plan waits when |
 | --- | --- |
-| `risky` (default) | it changes a record of what someone said, changes more than one fact, or resolves a conflict |
+| `risky` (default) | it changes a record of what someone said, changes more than one fact, resolves a conflict, or makes any change while `assumed` is not empty |
 | `always` (or `on`, `heavy`) | every plan |
 | `never` (or `off`) | never: the plan is shown and carried out in the same turn |
+
+`propose_plan` also takes `assumed`: one sentence on what the plan takes for granted that
+the customer did not say (which fact, document or value they meant), empty when nothing
+is. It is stored on the plan record, and a plan that waits shows it as "I am assuming: ..."
+between the steps and the question.
 
 A plan that waits has `status: awaiting_approval` and `ask_reason` (why) on its record; the
 customer's reply is judged as above. `fact-extractor chat-eval` compares this path with the
