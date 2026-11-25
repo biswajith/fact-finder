@@ -730,3 +730,25 @@ def test_planning_from_env_plan_mode(monkeypatch):
     assert default.ask == "risky" and isinstance(default.router, P.FixedRouter) and default.router.mode == "heavy"
     monkeypatch.setenv("FACT_EXTRACTOR_CHAT_PLANNING", "auto")
     assert P.planning_from_env().ask == "mode" and P.planning_from_env().approve == ("light", "heavy")
+
+
+async def test_a_change_that_rests_on_a_guess_waits_and_says_what_was_assumed(tmp_path, svc):
+    assert P.why_ask("risky", [{"op": "edit", "id": "f_rfp"}], "the RFP date is meant") == "it rests on a guess about what was meant"
+    assert P.why_ask("risky", [], "the RFP date is meant") == ""  # nothing changes: answer, do not ask
+    assert P.why_ask("never", [{"op": "edit", "id": "f_rfp"}], "a guess") == ""
+    rws = records_ws(tmp_path)
+    propose = call("propose_plan", "p1", steps=["Change the date in [f_rfp]", "Answer"], changes=[{"op": "edit", "id": "f_rfp"}],
+                   assumed="You  mean the RFP's due date, not the date in our note.")
+    first = await run(rws, svc, Tools([propose]), listed("risky"), "Change the date to June 17")
+    final = first[-1]["message"]
+    assert final["planning"]["status"] == P.AWAITING and final["planning"]["ask_reason"] == "it rests on a guess about what was meant"
+    assert final["planning"]["assumed"] == "You mean the RFP's due date, not the date in our note."
+    assert final["text"] == ("Plan:\n1. Change the date in [f_rfp]\n2. Answer\n\n"
+                             "I am assuming: You mean the RFP's due date, not the date in our note.\n\n" + P.ASK_APPROVAL)
+    events = await run(rws, svc, Tools([edit("e1", "f_rfp")], ["Done."]), listed("risky"), "yes")
+    assert rws.state().get("f_rfp")["text"] == "due June 17 (f_rfp)" and events[-1]["message"]["planning"]["status"] == "approved"
+
+
+def test_the_rules_put_information_where_the_customer_says():
+    assert "a note they ask for on a fact is an edit of that fact's note, not a new fact" in A.SYSTEM_PROMPT
+    assert "unless the customer asks for it as a note on this fact" in A.BY_NAME["edit_fact"].description

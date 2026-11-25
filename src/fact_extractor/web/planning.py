@@ -63,10 +63,11 @@ ASKS = ("risky", "always", "never")  # when a plan that lists its changes waits 
 CHANGE_OPS = ("edit", "delete", "resolve")  # the changes a plan must list; adding a fact or raising a conflict needs no entry
 
 
-def why_ask(ask: str, changes: list[dict]) -> str:
+def why_ask(ask: str, changes: list[dict], assumed: str = "") -> str:
     """Why a plan with these listed changes waits for the customer under `ask`; "" when it does not.
-    "risky" waits for a change to a record of what someone said, for more than one fact changed, and
-    for a conflict resolved: where a wrong guess rewrites something the customer did not mean."""
+    "risky" waits for a change to a record of what someone said, for more than one fact changed, for
+    a conflict resolved, and for any change that rests on something the agent assumed: where a wrong
+    guess rewrites something the customer did not mean. A plan that changes nothing never waits."""
     if ask == "always":
         return "every plan waits"
     if ask != "risky":
@@ -79,6 +80,8 @@ def why_ask(ask: str, changes: list[dict]) -> str:
         reasons.append(f"it changes {len(facts)} facts")
     if any(c.get("op") == "resolve" for c in changes):
         reasons.append("it resolves a conflict")
+    if assumed.strip() and changes:
+        reasons.append("it rests on a guess about what was meant")
     return "; ".join(reasons)
 
 
@@ -103,6 +106,7 @@ class Route:
     question: str = ""  # heavy mode: what the lookups showed must be asked instead of planned
     changes: list[dict] | None = None  # a plan that lists its changes: [{"op", "id", "record"?}]; None when it does not
     ask_reason: str = ""  # why a plan that lists its changes waits for a yes
+    assumed: str = ""  # what such a plan takes for granted that the customer did not say
     status: str = ""  # "", AWAITING, "approved", "cancelled"
     feedback: dict | None = None  # the judge's verdict on the customer's reply to the plan
     call: dict | None = None  # the Decisions call that chose the mode, for the session log (not stored on messages)
@@ -134,6 +138,8 @@ class Route:
             out["changes"] = [dict(c) for c in self.changes]
         if self.ask_reason:
             out["ask_reason"] = self.ask_reason
+        if self.assumed:
+            out["assumed"] = self.assumed
         if self.status:
             out["status"] = self.status
         if self.feedback:
@@ -144,7 +150,7 @@ class Route:
     def from_record(cls, r: dict) -> Route:
         return cls(mode=r.get("mode", "direct"), source="plan", steps=[dict(s) for s in r.get("steps") or []],
                    plan_text=r.get("plan_text") or "", plan_steps=[dict(s) for s in r.get("plan_steps") or []],
-                   findings=r.get("findings") or "",
+                   findings=r.get("findings") or "", assumed=r.get("assumed") or "",
                    changes=[dict(c) for c in r["changes"]] if isinstance(r.get("changes"), list) else None)
 
 
@@ -224,9 +230,9 @@ class Planning:
         """Whether the mode alone means the plan waits. A plan that lists its changes is judged once it is written."""
         return not self.listed and mode in self.approve and self.judge is not None
 
-    def why_ask(self, changes: list[dict]) -> str:
+    def why_ask(self, changes: list[dict], assumed: str = "") -> str:
         """Why a plan that lists these changes waits for a yes; "" when it is carried out at once."""
-        return why_ask(self.ask, changes) if self.listed and self.judge is not None else ""
+        return why_ask(self.ask, changes, assumed) if self.listed and self.judge is not None else ""
 
 
 # --- the Decisions API -------------------------------------------------------------------------------
@@ -448,7 +454,10 @@ CHANGES_RULE = (
     "conflict you will resolve (op resolve, with the conflict ID), and nothing you will only read. Only what the list "
     "names can be changed while the plan runs, so leave nothing out that a step changes, and put nothing in it that "
     "the customer did not ask to change. Adding a fact and raising a conflict need no entry. A plan that changes "
-    "nothing has an empty list."
+    "nothing has an empty list. In assumed, say in one sentence what the plan takes for granted that the customer "
+    "did not say and nothing you found settles: which fact, which document or which value they meant, when more "
+    "than one would fit their words. Leave assumed empty when the customer named what to change, or when only one "
+    "fact fits what they said; the customer is shown it and asked before a change that rests on it."
 )
 
 EXPLORE_PROMPT = (
@@ -508,6 +517,13 @@ APPROVED_LIGHT_PROMPT = (
 )
 
 ASK_APPROVAL = "Shall I go ahead? You can also tell me what to change."
+ASSUMING = "I am assuming: {assumed}"
+
+
+def ask_text(route: Route) -> str:
+    """The plan as shown when it waits: its steps, what it assumed (if anything), and the question."""
+    parts = [shown_plan(route), ASSUMING.format(assumed=route.assumed) if route.assumed else "", ASK_APPROVAL]
+    return "\n\n".join(p for p in parts if p)
 CANCELLED = "All right, I will not do that. Nothing was changed."
 NO_PLAN = "I could not write a plan for that. Could you say what you want done another way?"
 
@@ -523,7 +539,7 @@ def explore_prompt(read_tools: list[str], rounds: int, listed: bool = False) -> 
 
 
 _JSON_SHAPE = '{"steps": ["..."], "findings": "..."}'
-_JSON_SHAPE_LISTED = '{"steps": ["..."], "findings": "...", "changes": [{"op": "edit", "id": "..."}]}'
+_JSON_SHAPE_LISTED = '{"steps": ["..."], "findings": "...", "changes": [{"op": "edit", "id": "..."}], "assumed": ""}'
 
 
 def propose_json_prompt(listed: bool = False) -> str:
