@@ -1,0 +1,193 @@
+# Chat cases for the Durham bid (the call, our deal notes and the RFP), for `fact-extractor chat-eval`.
+#
+# Each case is one customer message and what should be true when the conversation ends. The runner
+# plays the customer: it approves a plan that waits ("Yes, go ahead."), and answers a question once
+# with `if_asked` (default: "Do what I asked, as I wrote it."; a case that expects a question stops
+# there unless it gives `if_asked`; there a plan that waits counts as asking and is not approved).
+#
+# A fact is named by its document number and a piece of its text, which must match exactly one fact:
+#   {doc: 3, text: "prices valid for 180 days"}
+#
+# expect:
+#   answer:    patterns (regular expressions, case ignored) the last reply must contain
+#   edits:     facts that must be edited; `has` / `lacks` are patterns for the fact's text and note
+#   deletes:   facts that must be deleted
+#   may_edit:  facts that may be edited or deleted without failing the case
+#   adds:      {min, max, has}: facts added, and patterns one of them must contain
+#   resolves:  {min, max}: conflicts resolved; `conflict` names one by a fact it holds
+#   asks:      true: the agent must ask, raise a conflict or show a plan that waits before it changes any fact
+# Always checked: no fact is edited or deleted unless `edits`, `deletes` or `may_edit` names it, and
+# nothing is added or resolved unless `adds` or `resolves` allows it.
+
+bid: durham
+
+cases:
+  # --- lookups: one or two facts, nothing changes ---------------------------------------------------
+  - id: lookup-price-validity
+    kind: lookup
+    say: "How long do our prices have to stay valid?"
+    expect:
+      answer: ["180"]
+
+  - id: lookup-due
+    kind: lookup
+    say: "When was the proposal due, and how did it have to be sent?"
+    expect:
+      answer: ['2(:00)?\s*p\.?m', "email"]
+
+  - id: lookup-termination
+    kind: lookup
+    say: "What does the contract say about termination for convenience?"
+    expect:
+      answer: ['30|thirty']
+
+  - id: lookup-users
+    kind: lookup
+    say: "How many Meter to Cash users should we price?"
+    expect:
+      answer: ["40", '60|sixty']
+
+  - id: lookup-call-speaker
+    kind: lookup
+    say: "What did Renee say on the call about when payroll should go live?"
+    expect:
+      answer: ["January"]
+
+  - id: lookup-not-stated
+    kind: lookup
+    say: "What is the current livable wage rate?"
+    expect:
+      answer: ['17\.60', 'out of date|reset|not (given|provided|stated)|do(es)? not (give|state|say)']
+
+  # --- reviews: many facts, nothing changes ---------------------------------------------------------
+  - id: review-call-vs-rfp
+    kind: review
+    say: "Go through the briefing call and tell me everywhere it differs from the RFP."
+    expect:
+      answer: ['60|sixty', 'September|09-16|9/16']
+
+  - id: review-pricing
+    kind: review
+    say: "What should we consider before we finalize our price?"
+    expect:
+      answer: ["180", "40"]
+
+  - id: review-presentation-dates
+    kind: review
+    say: "List every date and deadline the call and our notes give for the presentation stage."
+    expect:
+      answer: ['September 16|09-16|9/16', 'one week before']
+
+  - id: review-mandatory-risk
+    kind: review
+    say: "Which mandatory requirements are we at risk of not meeting, and why?"
+    expect:
+      answer: ['municipalit', 'Pine Hollow|Lakemont']
+
+  - id: review-open-conflicts
+    kind: review
+    say: "Which conflicts are still open, and what does each side say?"
+    expect:
+      answer: ['Meter to Cash', 'terminat']
+
+  # --- one correction the customer names ------------------------------------------------------------
+  - id: fix-value-not-records
+    kind: change
+    say: "The RFP fact on the livable wage is wrong: the $17.60 rate runs through June 30, 2024, not 2023."
+    expect:
+      edits:
+        - {doc: 3, text: "stated livable wage rate is $17.60", has: ["2024"]}
+      may_edit:
+        - {doc: 3, text: "will reset the livable wage rate"}
+
+  - id: fix-note
+    kind: change
+    say: "Add a note to the RFP's 180-day price validity fact: Legal confirmed on 7/29 that we accept 180 days."
+    expect:
+      edits:
+        - {doc: 3, text: "prices valid for 180 days", has: ["Legal", "180"]}
+
+  - id: fix-delete-record
+    kind: change
+    say: "Delete the fact from the call that is only Nadia's question about how many staff work in the billing system. It is not a fact."
+    expect:
+      deletes:
+        - {doc: 1, text: "how many staff will work in the billing system"}
+
+  - id: fix-record-asked
+    kind: change
+    say: "In our notes, the estimated amount of $7,900,000 is out of date. Change that fact to $8,100,000."
+    expect:
+      edits:
+        - {doc: 2, text: "estimated implementation amount", has: ['8,100,000|8\.1'], lacks: ['7,900,000']}
+
+  - id: fix-two-notes
+    kind: change
+    say: "Add this note to both RFP facts that flag the Attachment A and B mix-up (the EBOP one and the Workforce Diversity one): Settled on the 7/24 call, Attachment A is EBOP."
+    expect:
+      edits:
+        - {doc: 3, text: "EBOP form is Attachment A in the submission instructions", has: ["7/24|call"]}
+        - {doc: 3, text: "Workforce Diversity Questionnaire is identified as an online form", has: ["7/24|call"]}
+
+  # --- new information: add it, leave what is there -------------------------------------------------
+  - id: new-wage
+    kind: new
+    say: "Marco emailed today: the current livable wage rate is $19.58 an hour."
+    expect:
+      adds: {min: 1, max: 1, has: ['19\.58']}
+
+  - id: new-cyber
+    kind: new
+    say: "The City has now put it in writing: cyber liability insurance of $5 million is required."
+    expect:
+      adds: {min: 1, max: 1, has: ['cyber']}
+
+  - id: new-three-things
+    kind: new
+    say: "Three things from Marco today: our presentation is Wednesday, September 18, 2024 at 9am; refined pricing is due September 11; and the livable wage is now $19.58 an hour."
+    expect:
+      adds: {min: 3, max: 3, has: ['September 18|09-18', 'September 11|09-11', '19\.58']}
+
+  # --- a changed value that records also state ------------------------------------------------------
+  - id: change-value-records-stay
+    kind: records
+    say: "The extraction has the contract term wrong: the RFP says 5 years with two one-year options, not 3."
+    expect:
+      edits:
+        - {doc: 3, text: "contract term is 3 years", has: ['5|five']}
+
+  - id: change-records-asked
+    kind: records
+    say: "The team's decision changed: we will price 60 Meter to Cash users, not 40. Update the facts from our notes to say so."
+    expect:
+      edits:
+        - {doc: 2, text: "Price to the RFP", lacks: ['Price to the RFP.s 40']}
+        - {doc: 2, text: "Pricing assumptions are 180-day validity", lacks: ['40 Meter to Cash users priced']}
+
+  # --- conflicts ------------------------------------------------------------------------------------
+  - id: conflict-choice-stated
+    kind: conflict
+    say: "On the presentation dates conflict between the call and the RFP: go with the call, the week of September 16."
+    expect:
+      resolves: {min: 1, max: 1, conflict: {doc: 3, text: "Presentation dates are TBD"}}
+
+  - id: conflict-no-choice
+    kind: conflict
+    say: "Sort out the conflict between the call and the RFP about the Meter to Cash user count."
+    if_asked: "Keep the RFP's 40."
+    expect:
+      asks: true
+      resolves: {min: 1, max: 2, conflict: {doc: 3, text: "Meter to Cash (Utility Billing / CIS)"}}
+
+  # --- messages that could mean different facts -----------------------------------------------------
+  - id: ambiguous-user-count
+    kind: ambiguous
+    say: "Update the user count to 75."
+    expect:
+      asks: true
+
+  - id: ambiguous-duplicate
+    kind: ambiguous
+    say: "Remove the duplicate about Lauren."
+    expect:
+      asks: true

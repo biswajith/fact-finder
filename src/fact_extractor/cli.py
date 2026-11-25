@@ -101,6 +101,16 @@ def main(argv: list[str] | None = None) -> int:
     web.add_argument("--runs", default="runs", help="folder that holds the runs (default: runs)")
     web.add_argument("--port", type=int, default=8765)
     web.add_argument("--reload", action="store_true", help="development: restart the server when its Python code changes")
+    ce = sub.add_parser("chat-eval", help="run chat cases against a bid in each planning mode and compare them (spends API tokens unless --list)")
+    ce.add_argument("cases", help="the cases file, YAML (evals/chat/durham.yaml)")
+    ce.add_argument("--store", default="runs", help="the folder runs and bids are kept in")
+    ce.add_argument("--modes", default="direct,light,heavy,auto", help="planning modes to run, comma separated")
+    ce.add_argument("--only", default="", help="only these case IDs or kinds, comma separated")
+    ce.add_argument("--approval", default="on", choices=["on", "heavy", "off"], help="which modes wait for the customer's approval of a plan")
+    ce.add_argument("--repeat", type=int, default=1, help="run each case this many times per mode")
+    ce.add_argument("--parallel", type=int, default=4, help="conversations at once")
+    ce.add_argument("--out", default=None, help="folder for results.json, report.txt and the session logs; defaults to runs/_chateval/<time>")
+    ce.add_argument("--list", action="store_true", help="show the cases and the facts they name; no model call")
     bd = sub.add_parser("bid", help="a bid: several documents about one opportunity, read one by one and listed together")
     bsub = bd.add_subparsers(dest="bid_cmd", required=True)
     b = bsub.add_parser("create", help="start an empty bid")
@@ -136,6 +146,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "bid":
         return _bid(args)
+    if args.cmd == "chat-eval":
+        return _chat_eval(args)
     if args.cmd == "web":
         return _web(args)
     if args.cmd == "golden":
@@ -249,6 +261,37 @@ def _score(args) -> int:
     if args.json:
         with open(args.json, "w") as f:
             json.dump(result, f, indent=2)
+    return 0
+
+
+def _chat_eval(args) -> int:
+    import asyncio
+    import time
+
+    from . import chateval
+
+    try:
+        if args.list:
+            print(chateval.listing(args.store, args.cases))
+            return 0
+        if not os.environ.get("OPENAI_API_KEY"):
+            print("OPENAI_API_KEY is not set (put it in .env or the environment)", file=sys.stderr)
+            return 1
+        modes = tuple(m.strip() for m in args.modes.split(",") if m.strip())
+        if bad := [m for m in modes if m not in chateval.MODES]:
+            print(f"unknown mode {bad[0]}; modes: {', '.join(chateval.MODES)}", file=sys.stderr)
+            return 2
+        out = args.out or os.path.join(args.store, "_chateval", time.strftime("%Y-%m-%d_%H%M%S"))
+        results = asyncio.run(chateval.run(
+            args.store, args.cases, modes, [x.strip() for x in args.only.split(",") if x.strip()] or None,
+            args.approval, args.repeat, args.parallel, out,
+            on_result=lambda r: print(f"{'pass' if r.passed else 'FAIL'} {r.case} [{r.mode}] {r.messages} messages, {r.seconds}s",
+                                      file=sys.stderr)))
+    except (chateval.CaseError, FileNotFoundError) as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    print(chateval.report(results))
+    print(f"\nResults, report and session logs: {out}")
     return 0
 
 
