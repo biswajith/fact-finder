@@ -413,6 +413,31 @@ message that this judge reads.
 Without an approval mode, `light` plans inline in the loop and `heavy` shows its steps and
 carries them out in the same turn, with its lookups still in view.
 
+**A plan for every message (`FACT_EXTRACTOR_CHAT_PLANNING=plan`).** No router: every
+message takes the heavy path (look, propose a plan, carry it out), and the plan also lists
+its changes: `propose_plan(steps, findings?, changes)`, where `changes` is
+`[{"op": "edit" | "delete" | "resolve", "id": fact or conflict ID}]`, empty for a plan that
+changes nothing. The list is checked (a missing list, or an ID no fact or conflict has,
+goes back to the agent) and stored on the plan record as `changes`, each entry marked
+`record: true` when the fact is from a call or from our notes. While the plan runs,
+`edit_fact`, `delete_fact`, `restore_fact` and `resolve_conflict` on anything the list does
+not name are refused; `add_fact` and `raise_conflict` need no entry. An edit of a fact that
+sits in an open conflict is sent back once, when it is listed and when it runs, pointing to
+`resolve_conflict`, since a customer who chose a side means the conflict.
+
+Whether such a plan waits for a yes is decided from its list, by
+`FACT_EXTRACTOR_CHAT_PLAN_APPROVAL`:
+
+| Value | The plan waits when |
+| --- | --- |
+| `risky` (default with `plan`) | it changes a record of what someone said, changes more than one fact, or resolves a conflict |
+| `always` | every plan |
+| `never` | never: the plan is shown and carried out in the same turn |
+
+A plan that waits has `status: awaiting_approval` and `ask_reason` (why) on its record; the
+customer's reply is judged as above. `fact-extractor chat-eval` compares this path with the
+modes (`plan`, `plan-never`, `plan-always`).
+
 ### 7.1b Answer formats
 
 The system prompt ends with a section "How to write the answer": line 1 answers in one sentence; then the model counts the items. One or two: sentences. Three or more that share details: a Markdown table, one row per item, last column "Source" with fact IDs (the prompt shows the shape). Three or more with one detail each, or parts or steps in order: a list, numbered when order matters. An outline, a set of requirements or terms is never a paragraph. The same rule, plus "name the source of anything not from the buyer's own document" and "give every row of a list or table you rely on", travels as a one-line reminder in the state message before each customer message, because the chat model runs without reasoning and did not apply a rule that sat only in the long prompt. The answer may also hold `[[source:FACT_ID]]` on its own line to show the wording a fact rests on (at most three), and `[[timeline:ID,ID,...]]` on its own line when the answer is mostly dates (2 to 12 IDs). The model only chooses facts; the frontend (`chatBlocks.ts`, `SourceSnippet`, `Timeline`) draws the quote, speaker, page and dates from the stored facts, and the timeline rows come from `GET /timeline`. Before an assistant message is stored, `agent.clean_blocks` gives a marker written inside a sentence a line of its own, and drops block lines naming facts the run does not have (a timeline keeps at most 12 known IDs and is dropped with fewer than two); the frontend splits such a marker onto its own line as well; streamed deltas are not changed, and the frontend holds back an unfinished `[[` line while streaming.
