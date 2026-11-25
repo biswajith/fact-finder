@@ -1,0 +1,238 @@
+<title>ingest_document design</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column, ~72ch, with wide tables and the pipeline strip allowed to scroll on their own. Palette borrowed from the web app's styles.css. */
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --border: #dde1e8; --text: #1b1f26; --muted: #5b6474;
+  --accent: #2563eb; --accent-soft: #e6eefc; --ok: #15803d; --warn: #a85a00; --danger: #c81e1e;
+  --code-bg: #eef1f5;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #14161a; --panel: #1c1f24; --border: #2f343c; --text: #e7e9ec; --muted: #9aa3b2;
+  --accent: #6ea8ff; --accent-soft: #1e2a40; --ok: #52d283; --warn: #f5b942; --danger: #ff8a8a;
+  --code-bg: #23272e; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #14161a; --panel: #1c1f24; --border: #2f343c; --text: #e7e9ec; --muted: #9aa3b2;
+  --accent: #6ea8ff; --accent-soft: #1e2a40; --ok: #52d283; --warn: #f5b942; --danger: #ff8a8a;
+  --code-bg: #23272e; color-scheme: dark }
+
+body { background: var(--bg); color: var(--text); font: 15px/1.6 var(--body); }
+.wrap { max-width: 76ch; margin: 0 auto; padding-block: 48px 80px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 40px; }
+section { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: 2rem; font-weight: 600; }
+h2 { font-size: 1.3rem; font-weight: 600; padding-top: 8px; border-top: 1px solid var(--border); padding-top: 24px; }
+h3 { font-size: 1.02rem; font-weight: 600; }
+p, ul, ol { margin: 0; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.08rem; color: var(--text); }
+.meta { color: var(--muted); font-size: 13px; }
+code { font: 0.88em var(--mono); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre { margin: 0; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;
+  overflow-x: auto; font: 13px/1.55 var(--mono); }
+pre code { background: none; padding: 0; font-size: inherit; }
+.scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: 0; }
+th { font: 600 12px/1.3 var(--body); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); background: var(--bg); }
+.pill { display: inline-block; font: 600 11px/1 var(--body); letter-spacing: .04em; text-transform: uppercase;
+  padding: 4px 7px; border-radius: 999px; white-space: nowrap; }
+.have { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.part { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.miss { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
+
+/* the pipeline: a real sequence, so the numbers mean something */
+.flow { display: grid; grid-template-columns: repeat(7, minmax(118px, 1fr)); gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.step { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 11px;
+  display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.step .n { font: 500 11px/1 var(--mono); color: var(--muted); }
+.step b { font: 600 14px/1.25 var(--display); }
+.step span { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.step.user { border-color: var(--accent); background: var(--accent-soft); }
+.step.user .n { color: var(--accent); }
+.legend { font-size: 12.5px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--accent); background: var(--accent-soft); vertical-align: -1px; margin-right: 4px; }
+
+.note { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; color: var(--text); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card p, .card li { font-size: 14px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+<header style="display:flex;flex-direction:column;gap:10px">
+  <div class="eyebrow">fact-extractor · design · 2026-11-23</div>
+  <h1>ingest_document: one call that takes a document into a bid</h1>
+  <p class="lede">A document comes into a bid that already has facts: an addendum, a Q&amp;A, a reissued RFP, a call, deal notes. One operation reads it, votes, compares it with what the bid already says, updates the fact list, and returns <em>what changed</em>. <code>inject_addendum</code> is this operation with the <code>change-addendum</code> playbook.</p>
+  <p class="meta">Status: proposal. Nothing built yet. Used by the agent (as a tool) and by the UI (as an API), both over one Python function.</p>
+</header>
+
+<section>
+  <h2>What already exists</h2>
+  <p>Most of the work is already in the bid pipeline. It is spread over three or four calls, the orchestration lives inside the web server, and nothing reports the result as a change.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Step</th><th>Where it is today</th><th>State</th></tr></thead>
+    <tbody>
+      <tr><td>Add the file, propose its type</td><td><code>Bid.add_document</code>, rules + <code>classify.by_model</code> in the upload route</td><td><span class="pill have">exists</span></td></tr>
+      <tr><td>Check it can be read</td><td><code>bid.ready()</code>: type confirmed, issue date and number for a change, speakers for a call, previous version for a reissue</td><td><span class="pill have">exists</span></td></tr>
+      <tr><td>Extract and vote</td><td><code>bid.extract_document</code>; the playbook's <code>calls:</code> and <code>votes:</code> decide what runs</td><td><span class="pill have">exists</span></td></tr>
+      <tr><td>Compare with existing facts</td><td>RELATE in <code>relate.py</code>; alignment in <code>reissue.py</code> for a reissue</td><td><span class="pill have">exists</span></td></tr>
+      <tr><td>Update existing facts</td><td><code>ladder.apply</code> (replaced, stale, conflicts), <code>bid.settle</code> (GROUP, pair check), <code>bid.build</code></td><td><span class="pill have">exists</span></td></tr>
+      <tr><td>Run it all in order</td><td><code>bid_work.go()</code> inside <code>web/server.py</code></td><td><span class="pill part">in the wrong place</span></td></tr>
+      <tr><td>Say what changed</td><td>Nothing. The caller has to read the whole state again.</td><td><span class="pill miss">missing</span></td></tr>
+      <tr><td>Agent can take in a document</td><td>Nothing. The agent has <code>add_fact</code> and <code>edit_fact</code> only.</td><td><span class="pill miss">missing</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>The flow</h2>
+  <div class="flow" role="list">
+    <div class="step" role="listitem"><div class="n">1</div><b>Add</b><span>store the file, propose playbook, issue date, number</span></div>
+    <div class="step user" role="listitem"><div class="n">2</div><b>Confirm</b><span>type and metadata; the model spend is agreed here</span></div>
+    <div class="step" role="listitem"><div class="n">3</div><b>Snapshot</b><span>record fact IDs, relations, conflicts, summary hashes</span></div>
+    <div class="step" role="listitem"><div class="n">4</div><b>Extract</b><span>LABEL, STATE, CHECK, XREF with the playbook's votes</span></div>
+    <div class="step" role="listitem"><div class="n">5</div><b>Compare</b><span>RELATE against earlier buyer documents, or align a reissue</span></div>
+    <div class="step" role="listitem"><div class="n">6</div><b>Update</b><span>ladder, GROUP, pair check, rebuild the fact list</span></div>
+    <div class="step" role="listitem"><div class="n">7</div><b>Report</b><span>diff against the snapshot: the change report</span></div>
+  </div>
+  <p class="legend"><i></i>the one step that waits on a person</p>
+  <ul>
+    <li><b>Step 2 is a gate, not a pause in the middle.</b> If the playbook, issue date, number, speakers or previous version is missing, the call returns what is missing and spends no tokens. Once the gate passes, steps 3 to 7 run without stopping.</li>
+    <li><b>Step 5 also re-relates documents that came in out of order.</b> If addendum 3 was loaded before addendum 2, the ladder still applies them in issue order, so the report can include facts from documents other than the one just added.</li>
+    <li><b>Step 7 is pure code.</b> It compares the state from step 3 with the state after step 6. It makes no model calls.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>"Update existing facts" means supersede, not rewrite</h2>
+  <p class="note">The ladder never changes a fact's text. An addendum that moves the due date adds a new fact and marks the old one <code>replaced_by</code> it. The user can undo that by rejecting the relation (<code>/api/relations/{rid}/reject</code>). This is what makes it safe to run the skill without someone watching every step, so it must stay.</p>
+  <p>What a document is allowed to do depends on its level, which comes from the playbook:</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Playbook</th><th>Level</th><th>Compare by</th><th>Effect on existing facts</th></tr></thead>
+    <tbody>
+      <tr><td><code>change-addendum</code></td><td>1</td><td>RELATE, all seven kinds</td><td>Later issue replaces or removes, unless the confirmed order of precedence says otherwise</td></tr>
+      <tr><td><code>qa-addendum</code></td><td>1</td><td>RELATE, all seven kinds</td><td>Same as above. Answers mostly CLARIFY, but an answer can still replace a value.</td></tr>
+      <tr><td><code>reissued-rfp</code></td><td>1</td><td>Text alignment with the previous version</td><td>Aligned facts carry over with the user's corrections; the rest are new or removed</td></tr>
+      <tr><td><code>call-transcript</code></td><td>2 buyer, 3 us</td><td>RELATE: confirms, clarifies, disagrees, adds</td><td>Never replaces. A disagreement becomes a conflict for the user.</td></tr>
+      <tr><td><code>deal-notes</code></td><td>4</td><td>RELATE: confirms, clarifies, disagrees, adds</td><td>Never replaces. A disagreement becomes a conflict for the user.</td></tr>
+      <tr><td><code>rfp</code>, <code>fill-in-template</code></td><td>1</td><td>None (a base document)</td><td>Adds facts only. The report lists them as new.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Where playbooks fit</h2>
+  <div class="grid2">
+    <div class="card"><h3>A playbook is the parameter</h3><p>It says how to read <em>one kind of document</em>: its codes, flags, the calls to run, the relation kinds, the level and the votes. It doesn't change.</p></div>
+    <div class="card"><h3>The skill is the orchestration</h3><p>It says what to do <em>to the bid</em> when a document arrives. One skill covers every document type because the playbook supplies everything specific to the type.</p></div>
+  </div>
+  <p>So there is no separate <code>inject_addendum</code>, <code>inject_transcript</code> and so on. There is <code>ingest_document(…, playbook=None)</code>, and the classifier picks the playbook when you don't give one. Keep the order of steps in code. If a later document type needs different steps after extraction, add a header key such as <code>after:</code> then, not now.</p>
+</section>
+
+<section>
+  <h2>Interface</h2>
+  <h3>Python: <code>src/fact_extractor/ingest.py</code></h3>
+  <p>No web import. The model client and the checker are passed in, the same way <code>relate.py</code> and <code>bidgroup.py</code> take them.</p>
+<pre><code>async def ingest_document(
+    bid: Bid, no: int, client, checker, *,
+    votes: int | None = None,
+    on_step: Step | None = None,
+) -> IngestResult            # the document is already added and confirmed (steps 1–2)
+
+def prepare(bid: Bid, data: bytes, file_name: str, *,
+            playbook=None, issue_date=None, issue_number=None,
+            previous=None) -> Prepared   # steps 1–2, no model call but the small classifier;
+                                         # Prepared.missing lists what bid.ready() still wants
+
+def what_changed(bid: Bid, since: int | str) -> ChangeReport
+                             # read-only: the report for one document, or everything after a date</code></pre>
+
+  <h3>The change report</h3>
+<pre><code>{
+  "document": {"no": 3, "file_name": "Addendum 2.pdf", "playbook": "change-addendum",
+               "issue_date": "2026-11-18", "issue_number": "2"},
+  "new":       [fact_id, …],                  // facts this document adds
+  "replaced":  [{"old": fact_id, "new": fact_id, "kind": "REPLACES", "relation_id": …}],
+  "removed":   [{"old": fact_id, "relation_id": …}],
+  "clarified": [{"fact": fact_id, "by": fact_id}],
+  "confirmed": [{"fact": fact_id, "by": fact_id}],
+  "stale":     [fact_id, …],                  // "section partly replaced"
+  "conflicts": [conflict_id, …],              // new or reopened
+  "knock_on":  [{"fact": fact_id, "because": fact_id}],   // pair check: facts the change leaves behind
+  "unresolved_refs": [ … ],                   // "Section 3.15 is replaced" with no target found
+  "summaries_out_of_date": ["key_dates", …],
+  "also_changed": [doc_no, …],                // earlier-loaded documents re-related in issue order
+  "failed": []                                // documents or steps that failed; the rest still applied
+}</code></pre>
+
+  <h3>REST</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Route</th><th>Does</th></tr></thead>
+    <tbody>
+      <tr><td><code>POST /api/bids/{id}/ingest</code></td><td>File + optional metadata. Runs <code>prepare</code>. If something is missing it returns <code>{missing, proposal}</code>. With <code>confirm: true</code> and nothing missing, it starts the job and returns <code>{job_id}</code>.</td></tr>
+      <tr><td><code>GET /api/extract/{job_id}</code></td><td>Unchanged, plus <code>report</code> when the job is done.</td></tr>
+      <tr><td><code>GET /api/bids/{id}/changes?since=d3</code></td><td><code>what_changed</code>. Also accepts a date.</td></tr>
+    </tbody>
+  </table></div>
+  <p>The intake wizard keeps its current routes. <code>/process</code> becomes a thin wrapper over the same module, so both paths behave the same.</p>
+
+  <h3>Agent tools</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Tool</th><th>Changes state</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><code>prepare_document</code></td><td>Adds an unconfirmed document</td><td>Takes a file the customer attached in chat. Returns the proposed type, dates and what is missing, so the agent can ask about them.</td></tr>
+      <tr><td><code>ingest_document</code></td><td>Yes</td><td>Only after the customer has agreed in this conversation, because it spends model calls. It returns at once, the interface shows progress (the same pattern as <code>generate_summary</code>), and the report comes back to the agent when the job ends.</td></tr>
+      <tr><td><code>what_changed</code></td><td>No</td><td>"What's different since addendum 2?" It works in light mode.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Build order</h2>
+  <ol>
+    <li><b>Move the orchestration out of the server.</b> Move <code>bid_work.go()</code> into <code>ingest.py</code> and have the server call it. No change in behaviour; the existing bid e2e tests must still pass.</li>
+    <li><b>Add the snapshot, the diff and <code>what_changed</code>.</b> Test with the scripted client on a base RFP plus one change addendum, including one that arrives out of issue order.</li>
+    <li><b>Add the REST routes</b> and the <code>report</code> field on the job.</li>
+    <li><b>Add the agent tools</b> and the confirmation rule for <code>ingest_document</code>.</li>
+    <li><b>Add a change-report panel in the UI</b> after a run. <code>changesView.ts</code> already has <code>wordDiff</code> for old-versus-new fact text.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>Open questions</h2>
+  <ul>
+    <li><b>Fact ID stability.</b> The diff assumes <code>bid.build</code> keeps an existing fact's ID when nothing about it changed. Check this before step 2 of the build. If IDs move, diff by source unit instead.</li>
+    <li><b>Preview before applying.</b> Should the agent be able to show the report <em>before</em> the ladder applies it? Today relations are applied and then reversible one by one. A preview would need the ladder to run on a copy, which is cheap because the ladder is pure code.</li>
+    <li><b>Files in chat.</b> The agent has no way to receive a file today. <code>prepare_document</code> needs the chat to accept an attachment and hand over its upload ID.</li>
+    <li><b>Cost.</b> Show an estimate of the model calls at the confirmation step: units × votes × calls, plus RELATE batches.</li>
+    <li><b>One job at a time.</b> The server refuses a second extraction while one runs. Two addenda dropped together should queue as one job in issue order, not fail.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Skills that build on this</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Skill</th><th>Uses</th><th>For the bid manager</th></tr></thead>
+    <tbody>
+      <tr><td><code>what_changed</code></td><td>The change report</td><td>"What's different since addendum 2?"</td></tr>
+      <tr><td><code>draft_buyer_questions</code></td><td>QUESTION facts, <code>unclear</code> flags, <code>unresolved_refs</code>, open conflicts</td><td>A clarification list to send before the Q&amp;A deadline</td></tr>
+      <tr><td><code>resolve_conflicts_sweep</code></td><td>Open conflicts, the confirmed order of precedence</td><td>Proposed resolutions, grouped; the user still makes each choice</td></tr>
+      <tr><td><code>reprocess_bid</code></td><td>The <code>reissue.py</code> alignment map</td><td>Re-run after a prompt or playbook change, keeping corrections</td></tr>
+      <tr><td><code>evaluate_rfp</code></td><td>goldset, extract, DeepEval</td><td>Developer-facing: the one-command chain in GOAL.md</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+</div>

@@ -57,11 +57,12 @@ def align(old: TaggedDocument, new: TaggedDocument) -> dict[str, str]:
 
 
 def _old_voted(rows: list[dict]) -> dict[str, units.Voted]:
-    return {r["id"]: units.Voted(r["label"], r.get("also"), list(r.get("flags") or []), list(r.get("votes") or [])) for r in rows}
+    return {r["id"]: units.Voted(r["label"], r.get("also"), list(r.get("flags") or []), list(r.get("votes") or []),
+                                r.get("key", ""), r.get("value", ""), list(r.get("key_votes") or [])) for r in rows}
 
 
 def _copy(v: units.Voted) -> units.Voted:
-    return units.Voted(v.label, v.also, list(v.flags), list(v.votes))
+    return units.Voted(v.label, v.also, list(v.flags), list(v.votes), v.key, v.value, list(v.key_votes))
 
 
 async def extract(

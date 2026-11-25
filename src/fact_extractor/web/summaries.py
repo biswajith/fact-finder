@@ -114,6 +114,12 @@ def decisions(state: State, facts: list[dict]) -> list[str]:
         choice = (r.get("text") or r.get("label") or "").strip()
         if choice:
             out.append(f"{c['title']} -> {choice}")
+    # A value the bid team set in place of what the documents say (workspace.set_value): the facts keep
+    # their wording, so the summary is told the value that now stands.
+    keys = {f.get("key") for f in facts if f.get("key")}
+    for v in state.values:
+        if v["status"] == "decided" and v["key"] in keys:
+            out.append(f"{v['thing']}, {v['attribute'].lower()} -> {v['value']}")
     return out
 
 
@@ -177,10 +183,7 @@ def parse_dates(text: str, facts: list[dict]) -> list[dict]:
             continue
         day = day if DATE_RE.match(day) else ""
         time = time.zfill(5) if TIME_RE.match(time) else ""
-        cited = []
-        for x in re.split(r"\D+", p[3] if len(p) > 3 else ""):
-            if x and 1 <= int(x) <= len(facts) and facts[int(x) - 1] not in cited:
-                cited.append(facts[int(x) - 1])
+        cited = [facts[n - 1] for n in units.fact_numbers(p[3] if len(p) > 3 else "", len(facts))]
         sources = [f["text"] for f in cited] + [f.get("source_text", "") for f in cited]
         claim = " ".join(x for x in (day, time, event) if x)
         rows.append({

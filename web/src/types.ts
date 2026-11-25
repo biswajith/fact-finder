@@ -215,7 +215,7 @@ export interface CorrectionEntry {
   id: string;
   at: string;
   source: 'chat' | 'ui';
-  op: 'edit' | 'delete' | 'add' | 'raise' | 'resolve' | 'undo' | 'reject_relation' | 'ungroup';
+  op: 'edit' | 'delete' | 'add' | 'raise' | 'resolve' | 'undo' | 'reject_relation' | 'ungroup' | 'set_value';
   fact_id: string | null;
   fields: Record<string, unknown> | null;
   reason: string | null;
@@ -229,7 +229,7 @@ export interface CorrectionEntry {
   conflict_title?: string | null;
   /** Choices: the chosen option's label, or "Your own answer: ...". */
   choice?: string | null;
-  /** `reject_relation` and `ungroup` entries: a line in words from the server. */
+  /** `reject_relation`, `ungroup` and `set_value` entries: a line in words from the server. */
   description?: string;
 }
 

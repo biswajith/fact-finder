@@ -456,3 +456,52 @@ def test_ungroup_clears_the_group_and_regroup_undoes_it(tmp_path):
         ws.ungroup("g_none")
     with pytest.raises(NotFound):
         ws.regroup("g_1")  # not ungrouped any more
+
+
+# --- keyed values ---------------------------------------------------------------------------
+
+
+def keyed(fid, key, value, level=1, doc="doc", **kw):
+    return {**fact(fid, "D", f"{key} is {value}", [cite(fid, 1, value)], **kw), "key": key, "value": value,
+            "level": level, "doc_id": doc}
+
+
+def test_each_key_has_one_current_value(tmp_path):
+    facts = [
+        keyed("f_1", "proposal.due", "2024-06-10"), keyed("f_2", "proposal.due", "2024-06-10 14:00 ET"),
+        keyed("f_3", "proposal.due", "2024-06-10 17:00 ET", level=4),      # our notes: outranked
+        keyed("f_4", "presentations.date", "TBD"), keyed("f_5", "presentations.date", "week of 2024-09-16", level=2),
+        keyed("f_6", "module.users", "40"), keyed("f_7", "module.users", "60", level=2),   # buyer against buyer
+        keyed("f_8", "buyer.contact", "Ann Lee"), keyed("f_9", "buyer.contact", "Raj Patel", level=4),  # no figures: listed
+        keyed("f_10", "accounts.count", "about 95k", level=2), keyed("f_11", "accounts.count", "95,000", level=4),
+    ]
+    st = Workspace(make_run(tmp_path, facts=facts) / "facts.json").state()
+    v = {x["key"]: x for x in st.values}
+    assert (v["proposal.due"]["value"], v["proposal.due"]["status"]) == ("2024-06-10 14:00 ET", "auto_resolved")
+    assert v["proposal.due"]["fact_ids"] == ["f_2", "f_1"] and v["proposal.due"]["other"][0]["why"] == "outranked"
+    assert (v["presentations.date"]["value"], v["presentations.date"]["other"][0]["why"]) == ("week of 2024-09-16", "placeholder")
+    assert (v["module.users"]["value"], v["module.users"]["status"]) == ("40", "needs_review")
+    assert (v["buyer.contact"]["status"], v["buyer.contact"]["other"][0]["why"]) == ("", "listed")
+    assert v["accounts.count"]["status"] == "" and len(v["accounts.count"]["fact_ids"]) == 2
+    now = {f["fact_id"]: f["value_now"] for f in st.facts}
+    assert now["f_2"] is None and now["f_1"] is None and now["f_3"]["value"] == "2024-06-10 14:00 ET"
+
+
+def test_set_value_is_one_change_that_every_fact_shows_and_undo_takes_back(tmp_path):
+    facts = [keyed("f_1", "contract.term", "3 years"), keyed("f_2", "contract.term", "three years", level=4)]
+    w = Workspace(make_run(tmp_path, facts=facts) / "facts.json")
+    got = w.set_value("Contract.Term", "5 years", "correction", "the RFP says 5", source="chat")
+    assert (got["value"], got["status"], got["earlier"][0]["value"]) == ("5 years", "decided", "3 years")
+    st = w.state()
+    assert [f["text"] for f in st.facts] == ["contract.term is 3 years", "contract.term is three years"]  # records stay
+    assert all(f["value_now"] == {"key": "contract.term", "value": "5 years", "status": "decided"} for f in st.facts)
+    assert w.set_value("contract.term", "5 years", "update").get("unchanged") and len(w.log()) == 1
+    with pytest.raises(NotFound):
+        w.set_value("contract.start", "2025-01-01")
+    with pytest.raises(BadRequest):
+        w.set_value("contract term", "5 years")
+    assert w.set_value("contract.start", "2025-01-01", new=True)["fact_ids"] == []
+    entry = next(c for c in w.corrections() if c["fields"].get("key") == "contract.term")
+    assert entry["description"] == "Set contract.term to 5 years"
+    w.undo(entry["id"])
+    assert w.state().value("contract.term")["value"] == "3 years" and w.state().facts[0]["value_now"] is None

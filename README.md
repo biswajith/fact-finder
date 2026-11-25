@@ -309,6 +309,25 @@ page.
 - Chat and summaries need `OPENAI_API_KEY`. Everything else works without it.
 - For frontend work: `npm --prefix web run dev` (port 5173, proxies `/api` to 8765).
 
+### Comparing the chat's planning modes
+
+`fact-extractor chat-eval` plays a file of customer messages against a bid in each planning
+mode (direct, light, heavy, and auto, where the router picks) and scores what came out:
+which facts were edited, deleted or added, which conflicts were resolved, whether the agent
+asked first when it had to, and what the reply says. Each conversation runs on its own copy
+of the bid, so the stored bid is never changed.
+
+```bash
+uv run fact-extractor chat-eval evals/chat/durham.yaml --list        # the cases and the facts they name; no model call
+uv run fact-extractor chat-eval evals/chat/durham.yaml --repeat 3    # every case, 3 times per mode (about $1 on gpt-6-luna)
+uv run fact-extractor chat-eval evals/chat/durham.yaml --only ambiguous,fix-note --modes direct,heavy
+```
+
+The report gives, per mode, the cases passed, the customer messages a case took, plans that
+waited for approval, questions asked, model calls, seconds and estimated dollars. Results
+and every conversation's session log go to `runs/_chateval/<time>/`. The cases file explains
+its format; `evals/chat/durham.yaml` needs the Durham bid in `runs/_bids/durham`.
+
 ## Many documents, one bid
 
 A bid is one opportunity with several documents: the RFP, addenda, call transcripts and your own

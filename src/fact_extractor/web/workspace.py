@@ -159,6 +159,10 @@ class State:
     conflicts: list[dict]  # open first
     live: list[dict] = field(default_factory=list)
     before: dict[str, dict] = field(default_factory=dict)  # edit entry ID -> the edited fields' values just before it
+    values: list[dict] = field(default_factory=list)  # the current value of every key (keyed.py), chat changes applied
+
+    def value(self, key: str) -> dict | None:
+        return next((v for v in self.values if v["key"] == key), None)
 
     def get(self, fact_id: str) -> dict | None:
         return next((f for f in self.facts if f["fact_id"] == fact_id), None)
@@ -341,6 +345,8 @@ def _resolve_raised(c: dict, entry: dict) -> None:
 def _describe(e: dict) -> str:
     """A line for the corrections list about an entry that has no fact of its own."""
     f = e.get("fields") or {}
+    if e.get("op") == "set_value":
+        return f"Set {f.get('key', '')} to {f.get('value', '')}"
     if e.get("op") == "reject_relation":
         return f"Rejected the relation {f.get('kind', '')}: {f.get('from', '')} to {f.get('to', '')}".replace("  ", " ")
     n = f.get("facts")
@@ -373,7 +379,45 @@ def _without_orphans(log: list[dict], live: list[dict]) -> list[dict]:
     return [e for e in live if e["id"] in live_ids]
 
 
-def replay(base: list[dict], log: list[dict], doc=None, derived: list[dict] | None = None) -> State:
+VALUE_KINDS = ("correction", "update", "decision")
+
+
+def current_values(facts: list[dict], live: list[dict], issued: dict[str, str] | None = None) -> list[dict]:
+    """The current value of every key: settled from the facts that state it (keyed.values), then every
+    live `set_value` entry applied in order. A set value stands over the documents with status
+    "decided"; what it replaced is kept in `earlier`. Each fact that states a key gets `value_now`
+    when its own value is no longer the current one, so a reader of the fact is told."""
+    from .. import keyed
+
+    values = {v["key"]: {**v, "earlier": [], "entry_id": None} for v in keyed.values(facts, issued)}
+    for e in live:
+        if e.get("op") != "set_value":
+            continue
+        f = e.get("fields") or {}
+        key = f.get("key")
+        v = values.get(key)
+        if v is None:
+            head, _, tail = str(key).rpartition(".")
+            v = values[key] = {"key": key, "thing": keyed.title(head), "attribute": keyed.title(tail), "value": "",
+                               "status": "", "reason": "", "fact_ids": [], "other": [], "earlier": [], "entry_id": None}
+        if v["value"]:
+            v["earlier"].append({"value": v["value"], "replaced_at": e.get("at"), "status": v["status"] or "from the documents"})
+        v.update(value=f.get("value", ""), status="decided", entry_id=e["id"],
+                 reason={"correction": "Corrected by the bid team", "update": "Newer information from the bid team or the buyer",
+                         "decision": "Decided by the bid team"}.get(f.get("kind"), "Set by the bid team")
+                 + (f": {e['reason']}" if e.get("reason") else "."))
+    by_key = values
+    for fact in facts:
+        v = by_key.get(fact.get("key") or "")
+        fact["value_now"] = None
+        settled = v is not None and v["status"] == "decided" and "tentative" in (fact.get("flags") or [])
+        if v is not None and fact.get("value") and (settled or not keyed.same(fact["value"], v["value"])):
+            fact["value_now"] = {"key": v["key"], "value": v["value"], "status": v["status"]}
+    return [values[k] for k in sorted(values)]
+
+
+def replay(base: list[dict], log: list[dict], doc=None, derived: list[dict] | None = None,
+           issued: dict[str, str] | None = None) -> State:
     """Effective facts and conflicts: the base records with the live log entries applied in order.
 
     An edit or delete that came from resolving a raised conflict only counts while that
@@ -446,7 +490,7 @@ def replay(base: list[dict], log: list[dict], doc=None, derived: list[dict] | No
     gone = {f["fact_id"] for f in ordered if f["deleted"]}
     shown = [c for c in conflicts.values() if not (c["kind"] == "source" and c["fact_ids"][0] in gone)]
     shown.sort(key=lambda c: c["status"] != "open")
-    return State(ordered, shown, live, before)
+    return State(ordered, shown, live, before, current_values(ordered, live, issued))
 
 
 # --- one run folder -------------------------------------------------------------------------
@@ -582,8 +626,18 @@ class Workspace:
                     doc = self.document()
                 if self.is_bid():
                     log = self._follow_reissues(log)
-                self._state, self._state_key = replay(run.records, log, doc, derived), key
+                self._state, self._state_key = replay(run.records, log, doc, derived, self._issued()), key
             return self._state
+
+    def _issued(self) -> dict[str, str]:
+        """Each document's issue date by doc_id, for ranking values inside a source level; {} outside a bid."""
+        if not self.is_bid():
+            return {}
+        try:
+            m = json.loads((self.facts_path.parent / "bid.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return {d["doc_id"]: d.get("issue_date") or "" for d in m.get("documents") or [] if isinstance(d, dict) and d.get("doc_id")}
 
     def _follow_reissues(self, log: list[dict]) -> list[dict]:
         """The log with the fact IDs of older versions of a reissued RFP sent through the bid's merged
@@ -616,6 +670,32 @@ class Workspace:
                 raise BadRequest("nothing to change")
             self._append([self._entry("edit", source, fact_id=fact_id, fields=clean, reason=reason or "")])
             return self._fact(fact_id)
+
+    def set_value(self, key: str, value: str, kind: str = "update", reason: str = "", source: str = "ui",
+                  new: bool = False) -> dict:
+        """Change the current value of a key: one entry, undone like any other. The facts that state the
+        key are not changed; each then says its own value is no longer the current one (`value_now`).
+        `new` allows a key no fact carries yet."""
+        from ..units import clean_key
+
+        with self.lock:
+            if kind not in VALUE_KINDS:
+                raise BadRequest(f"kind must be one of {', '.join(VALUE_KINDS)}")
+            if not isinstance(value, str) or not value.strip():
+                raise BadRequest("value must not be empty")
+            key = clean_key(str(key))
+            if not key:
+                raise BadRequest("key must be thing.attribute")
+            known = self.state().value(key)
+            if known is None and not new:
+                raise NotFound(f"no value has the key {key}")
+            # The same value again changes nothing, unless it settles a value that was not final or in dispute.
+            if (known is not None and known["value"].strip().lower() == value.strip().lower()
+                    and (kind == "correction" or known["status"] not in ("tentative", "needs_review"))):
+                return {**known, "unchanged": True}
+            self._append([self._entry("set_value", source, fields={"key": key, "value": value.strip(), "kind": kind},
+                                      reason=reason or "")])
+            return self.state().value(key)  # type: ignore[return-value]
 
     def delete(self, fact_id: str, reason: str = "", source: str = "ui") -> None:
         with self.lock:
@@ -750,7 +830,7 @@ class Workspace:
                     row["conflict_title"] = c["title"] if c else (e.get("fields") or {}).get("title") if e.get("op") == "raise" else None
                     if e.get("op") == "resolve":
                         row["choice"] = _choice(c, e.get("fields") or {})
-                if e.get("op") in ("reject_relation", "ungroup"):
+                if e.get("op") in ("reject_relation", "ungroup", "set_value"):
                     row["description"] = _describe(e)
                 out.append(row)
             return out

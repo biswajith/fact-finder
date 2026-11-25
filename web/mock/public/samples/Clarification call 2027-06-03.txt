@@ -1,0 +1,26 @@
+Clarification call - RFP 2027-04 Transit Hub CCTV
+June 3, 2027 - Microsoft Teams - transcript
+
+Dana Pike  00:00:02
+Thanks for joining. I have Kevin from IT on the line as well.
+
++1 518 555 0143  00:00:09
+Hi, Kevin here, I look after the camera network at the hub.
+
+Marco Ruiz  00:00:15
+Thanks Kevin. On the price form, are option years priced per camera or as a lump sum?
+
+Dana Pike  00:00:24
+Per camera. We will put that in writing in the next addendum.
+
++1 518 555 0143  00:00:33
+And the existing fibre stays. You would not need to pull new cable to the platforms.
+
+Tom Okafor  00:00:41
+That helps a lot. We will reflect it in the transition plan.
+
+Marco Ruiz  00:00:48
+One more: is there a cap on the monitoring rate in year two?
+
+Dana Pike  00:00:55
+No cap, but the council will compare it with year one.

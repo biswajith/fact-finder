@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chat Planning: What We Measured And What To Change</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Same palette as the other docs pages: cool paper, ink, teal for "the code decides", amber for "look here". */
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef1f5; --fg: #17202a; --muted: #5b6776; --line: #d9dee6;
+  --accent: #14667f; --accent-soft: #dcecf1; --warn: #9a5b00; --warn-soft: #fbeccd; --ok: #1d6b3f; --ok-soft: #dcf0e3;
+  --bad: #a3322b; --bad-soft: #f8dedb;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #11161c; --surface: #1a212a; --surface-2: #232c37; --fg: #e8edf3; --muted: #9aa7b6; --line: #2f3a47;
+  --accent: #6cc3dc; --accent-soft: #1c3640; --warn: #f0b861; --warn-soft: #3b2f17; --ok: #7fd3a2; --ok-soft: #1b3326;
+  --bad: #f09a92; --bad-soft: #40211f; color-scheme: dark; } }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 16px/1.65 var(--font-body); padding: 24px 16px 64px; }
+.wrap { max-width: 820px; margin: 0 auto; }
+h1, h2 { font-family: var(--font-head); font-weight: 600; line-height: 1.2; text-wrap: balance; margin: 0; }
+h1 { font-size: 1.9rem; }
+h2 { font-size: 1.35rem; margin-top: 48px; }
+p { margin: 12px 0; max-width: 68ch; }
+ul, ol { max-width: 68ch; padding-left: 22px; }
+li { margin: 6px 0; }
+code { font-family: var(--font-mono); font-size: 0.86em; background: var(--surface-2); padding: 1px 6px; border-radius: 4px; }
+.lede { font-size: 1.1rem; color: var(--muted); max-width: 62ch; }
+.meta { font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin-top: 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.num { font-family: var(--font-mono); font-size: 0.86rem; }
+td.low { background: var(--bad-soft); color: var(--bad); font-weight: 500; }
+td.top { background: var(--ok-soft); color: var(--ok); font-weight: 500; }
+tr.total td { font-weight: 600; border-top: 2px solid var(--line); }
+.tag { display: inline-block; font: 500 0.78rem var(--font-body); padding: 1px 9px; border-radius: 999px; white-space: nowrap; }
+.tag.run { background: var(--ok-soft); color: var(--ok); }
+.tag.ask { background: var(--warn-soft); color: var(--warn); }
+th.new, td.new { border-left: 2px solid var(--accent); }
+th small { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.note { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 16px 0; max-width: 68ch; }
+
+/* the turn, drawn as three boxes */
+.flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 10px; align-items: stretch; margin-top: 16px; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 0.92rem; }
+.box b { display: block; font-family: var(--font-head); margin-bottom: 4px; }
+.box.code { border-color: var(--accent); background: var(--accent-soft); }
+.arrow { align-self: center; color: var(--muted); font-size: 1.3rem; }
+.split { display: grid; gap: 8px; }
+@media (max-width: 640px) { .flow { grid-template-columns: 1fr; } .arrow { justify-self: center; transform: rotate(90deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Chat planning: what we measured and what to change</h1>
+<p class="lede">Today the chat treats "make a plan" and "ask the customer first" as one thing, and a router guesses which messages get it. The measurements say they are two things. The plan is what makes the agent accurate. Asking is a separate choice.</p>
+<p class="meta">2026-11-25. Numbers from <code>runs/_chateval/full-3x</code> and <code>runs/_chateval/plan-no-approval-3x</code>; run them again with <code>fact-extractor chat-eval evals/chat/durham.yaml --repeat 3</code>.</p>
+
+<h2>How it works today</h2>
+<p>A router reads the customer's message and picks a mode before anything is looked up:</p>
+<ul>
+  <li><b>Direct</b>: no plan. The agent acts one step at a time.</li>
+  <li><b>Light</b>: the agent writes a short plan from the message alone, without looking anything up.</li>
+  <li><b>Heavy</b>: the agent first looks things up without changing anything, then writes a plan that names the facts.</li>
+  <li><b>Auto</b> (the default): the router picks one of the three for each message.</li>
+</ul>
+<p>By default a light or heavy plan also stops and waits for "yes". So a message either gets no plan at all, or a plan and a stop. There is no "plan, then get on with it".</p>
+
+<h2>What we measured</h2>
+<p>25 messages on the Durham bid (the call, our deal notes, the RFP), each with what should be true at the end: which facts changed, which did not, whether the agent had to ask first. Each ran three times in each setup. The last two columns are the same light and heavy plans with the stop for approval turned off.</p>
+<div class="scroll">
+<table>
+<thead><tr><th>Kind of message</th><th class="num">Direct<small>no plan</small></th><th class="num">Light<small>plan, wait</small></th><th class="num">Heavy<small>plan, wait</small></th><th class="num">Auto<small>router picks</small></th><th class="num new">Light<small>plan, go</small></th><th class="num">Heavy<small>plan, go</small></th></tr></thead>
+<tbody>
+<tr><td>Lookup: one or two facts</td><td class="num">18/18</td><td class="num">16/18</td><td class="num">18/18</td><td class="num">18/18</td><td class="num new">18/18</td><td class="num">18/18</td></tr>
+<tr><td>Review: many facts, nothing changes</td><td class="num">15/15</td><td class="num">13/15</td><td class="num">13/15</td><td class="num">13/15</td><td class="num new">12/15</td><td class="num">14/15</td></tr>
+<tr><td>One correction the customer names</td><td class="num">13/15</td><td class="num">11/15</td><td class="num">14/15</td><td class="num low">9/15</td><td class="num new low">9/15</td><td class="num">14/15</td></tr>
+<tr><td>New information to add</td><td class="num">9/9</td><td class="num">8/9</td><td class="num">8/9</td><td class="num">9/9</td><td class="num new">9/9</td><td class="num">9/9</td></tr>
+<tr><td>A changed value that the call or notes also state</td><td class="num low">1/6</td><td class="num low">3/6</td><td class="num top">6/6</td><td class="num low">3/6</td><td class="num new low">3/6</td><td class="num">5/6</td></tr>
+<tr><td>Conflicts</td><td class="num low">3/6</td><td class="num">5/6</td><td class="num low">2/6</td><td class="num">6/6</td><td class="num new">6/6</td><td class="num">4/6</td></tr>
+<tr><td>Message that could mean different facts</td><td class="num">6/6</td><td class="num">6/6</td><td class="num">6/6</td><td class="num low">2/6</td><td class="num new">4/6</td><td class="num">4/6</td></tr>
+<tr class="total"><td>All 25 messages, three runs</td><td class="num">65/75</td><td class="num">62/75</td><td class="num">67/75</td><td class="num">60/75</td><td class="num new">61/75</td><td class="num top">68/75</td></tr>
+<tr><td>Customer messages per case (median)</td><td class="num">1</td><td class="num">2</td><td class="num">2</td><td class="num">1</td><td class="num new">1</td><td class="num">1</td></tr>
+<tr><td>Seconds per case (median)</td><td class="num">8.1</td><td class="num">9.2</td><td class="num">12.9</td><td class="num">8.5</td><td class="num new">6.9</td><td class="num">10.0</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>What the numbers say</h2>
+<ul>
+  <li><b>The plan is what helps, not the stop.</b> Heavy with the stop turned off passed 68 of 75 in one message per case. With the stop it passed 67 and needed two messages.</li>
+  <li><b>The plan has to come after a first look.</b> A plan written from the message alone (light) is the weakest setup, with or without the stop.</li>
+  <li><b>Planning every message is cheap.</b> On a simple lookup it adds about two seconds and two model calls over no plan.</li>
+  <li><b>No plan is risky on changes.</b> Direct rewrote facts from the call or our notes in 5 of 6 runs, and picked a side in a conflict nobody had chosen in 3 of 3.</li>
+  <li><b>The stop earns its place in a few spots.</b> Without it, ambiguous messages dropped from 6 of 6 to 4 of 6, and one record case slipped.</li>
+  <li><b>The router adds nothing.</b> Auto is the worst overall: it sent every record case to direct, where nothing guards them.</li>
+  <li><b>One bug is separate from all of this.</b> Told which side of a conflict to take, heavy rewrites the fact and leaves the conflict open.</li>
+</ul>
+<div class="note">How far to trust this: three runs per case is few, and single cases swing between runs. The pretend customer approves every plan without reading it. The 25 messages are on one bid.</div>
+
+<h2>The change: every message gets a plan</h2>
+<p>One path for every message, and no router. The agent reads the request, takes a first look with the tools that only read, writes a plan the customer can read, and carries it out. For a simple question the plan is one line.</p>
+<div class="flow">
+  <div class="box"><b>1. Look</b>The agent searches and reads what the request touches. Nothing can be changed yet.</div>
+  <div class="arrow">&rarr;</div>
+  <div class="box"><b>2. Plan</b>It writes the steps in plain words, naming the facts, and lists every change it intends to make. The customer sees it as a card.</div>
+  <div class="arrow">&rarr;</div>
+  <div class="box code"><b>3. Carry out</b>Code holds the agent to the plan: a change the plan did not list is refused.</div>
+</div>
+<p>If the first look shows the message could mean different facts, the agent asks a question instead of writing a plan. That exists today and stays.</p>
+
+<h2>Asking first is a separate setting</h2>
+<p>Whether the agent stops between step 2 and step 3 is a choice about trust, not about planning. Because the plan lists its changes, code can decide from the plan itself. The setting has three values:</p>
+<div class="scroll">
+<table>
+<thead><tr><th>Setting</th><th>The agent stops for "yes" when</th><th>What the measurements suggest</th></tr></thead>
+<tbody>
+<tr><td><b>Never</b></td><td>Never. The plan is shown and carried out.</td><td>68 of 75, one message. Weakest on ambiguous messages.</td></tr>
+<tr><td><b>When it matters</b> (proposed default)</td><td>The plan would change a fact from a call or our notes, change more than one fact, or resolve a conflict.</td><td>Not measured yet. Should keep one message for questions, added facts and single corrections.</td></tr>
+<tr><td><b>Always</b></td><td>Every plan.</td><td>67 of 75, two messages for everything, including questions.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Which changes count as "it matters" is the debatable part. The three listed are where the runs went wrong; the list is one place in the code and easy to change.</p>
+
+<h2>What goes away</h2>
+<ul>
+  <li>The router and its model call on every message.</li>
+  <li>Direct mode and light mode, and their prompts.</li>
+  <li>The rule that approval depends on the mode.</li>
+</ul>
+
+<h2>Steps</h2>
+<ol>
+  <li>Have the plan list its changes (which facts it will edit or delete, which conflicts it will resolve), and refuse any change it did not list. Today this check covers only facts from a call or our notes.</li>
+  <li>Add the "when it matters" setting, decided from the listed changes.</li>
+  <li>Fix the conflict bug: an edit to a fact in an open conflict is refused, and the agent is pointed to resolving the conflict.</li>
+  <li>Add three or four more test messages each for records, conflicts and ambiguous requests, and run each case five times.</li>
+  <li>Compare the new path at all three settings against today's modes.</li>
+  <li>If it wins, make it the only path and remove the router, direct and light.</li>
+</ol>
+
+<h2>Done means</h2>
+<ul>
+  <li>With "when it matters", the new path passes more cases than any setup in the table above (best today: 68 of 75).</li>
+  <li>It passes every record, conflict and ambiguous case.</li>
+  <li>Questions, added facts and single corrections take one message.</li>
+</ul>
+
+</div>
+</body>
+</html>

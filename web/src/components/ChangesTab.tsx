@@ -25,6 +25,7 @@ const OP_LABEL: Record<CorrectionEntry['op'], string> = {
   undo: 'Undo',
   reject_relation: 'Link rejected',
   ungroup: 'Ungrouped',
+  set_value: 'Value set',
 };
 
 /** The changes still in effect: not undone, and not the undo entries themselves. The sidebar pill and this page's header both count these. */
@@ -39,6 +40,7 @@ const ICON: Record<CorrectionEntry['op'], { icon: ReactNode; tone: string }> = {
   undo: { icon: <Undo size="S" />, tone: 'muted' },
   reject_relation: { icon: <LinkOff size="S" />, tone: 'muted' },
   ungroup: { icon: <Ungroup size="S" />, tone: 'muted' },
+  set_value: { icon: <Edit size="S" />, tone: 'accent' },
 };
 
 /** Where a fact comes from, in words: "Page 8", or a note when its citations could not be found. */

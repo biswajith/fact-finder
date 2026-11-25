@@ -511,6 +511,11 @@ def create_app(runs_folder: str | Path, chat_model: ChatModel | None = None,
     async def corrections(run: str) -> list[dict]:
         return ws_for(run).corrections()
 
+    @app.get("/api/values")
+    async def values(run: str) -> list[dict]:
+        """The current value of every key (keyed.py), with the bid team's changes applied."""
+        return ws_for(run).state().values
+
     @app.post("/api/corrections/{entry_id}/undo")
     async def undo(entry_id: str, run: str) -> dict:
         ws = ws_for(run)

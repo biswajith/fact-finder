@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from . import prompts, xref
 from .llm import CallFailed, LLMClient, RateLimited, Request
 from .models import CallRecord, CallSpec, TaggedDocument
-from .normalize import missing_values, values
+from .normalize import _STOP, missing_values, values, words
 from .playbooks import Playbook, definition, load
 from .validate import check_output
 
@@ -56,7 +56,12 @@ from .validate import check_output
 # units-5: a cross-reference call (XREF) finds the references; code verifies them (Q facts).
 # units-6: a date written without its year in the source ("5/10") supports the full date; a fact in
 #          the source's words drops markdown emphasis.
-VERSION = "units-6"
+# units-7: a fact of several units is stated from all of them, not its first unit alone; a summary
+#          takes a fact by its second category too, and the notes' buyer, decider and question facts.
+# units-8: a statement that drops an exception, preference, optional wording or list item keeps the source's words.
+# units-9: LABEL gives a unit that states a value its key and value (`thing.attribute=value`), voted like the
+#          label and shown the keys the bid's other documents use; keyed.py settles one current value per key.
+VERSION = "units-9"
 
 _RFP = load("rfp")  # the reading rules of an RFP: playbooks/rfp.md
 CODES = _RFP.codes
@@ -68,20 +73,47 @@ CONTINUATION_REACH = 3  # a continuation attaches to a coded unit at most this m
 SYSTEM = _RFP.system()
 
 
-def label_task(ids: list[str], pb: Playbook | None = None) -> str:
+# Keys every bid has. A value stated under one of these in the RFP, a call and the team's notes is found
+# again by the key alone, with no step that matches documents to each other.
+STANDARD_KEYS = (
+    "solicitation.number", "proposal.due", "questions.due", "answers.issued", "intent-to-bid.due",
+    "pre-proposal-meeting.date", "shortlist.notice-date", "presentations.date", "award.date",
+    "contract.start", "contract.term", "contract.renewal-term", "go-live.date", "proposal.validity-period",
+    "proposal.page-limit", "proposal.copies", "budget.amount", "payment.terms", "termination.notice-period",
+    "warranty.period", "retainage.rate", "liquidated-damages.amount", "performance-bond.amount",
+    "bid-bond.amount", "general-liability-insurance.limit", "professional-liability-insurance.limit",
+    "cyber-insurance.limit", "price.weight", "buyer.contact",
+)
+
+
+def key_rules(pb: Playbook | None = None, known: dict[str, str] | None = None) -> str:
+    """`known`: the keys the bid's other documents already use, each with a value it was given, so this
+    document names the same value the same way."""
+    noun = (pb or _RFP).noun
+    used = ""
+    if known:
+        used = ("\nThe other documents of this bid already use the keys below, each shown with a value it was given. "
+                "When the unit states that same value, or a different figure for it, use that key: "
+                + "; ".join(f"{k}={v}" for k, v in known.items()) + ".")
+    return f"""key=value is empty for most units. Fill it only when the unit states one value that another document, or another place in this one, could state differently: a date or deadline, an amount of money, a count, a duration, a rate or weight, a limit, or the person or organisation in a named role. A unit that states a rule, a description or a list gets none. When a unit states several such values, give the one the unit is mainly about. Units labelled {CONTINUES} or {NOTHING} get none.
+key names what the value is the value of, as thing.attribute, in lowercase English words joined by hyphens: first the thing, as {noun} names it and without the buyer's name, then what is measured or dated. Two statements of the same value must get the same key, whatever their wording and whoever makes them: name the value, not the sentence, and never put the value itself, a speaker or a source in the key. Use one of these keys when it fits: {", ".join(STANDARD_KEYS)}. Otherwise make one the same way. A value of one module, site, phase, lot or role takes that name as its thing, for example warehouse-module.users.
+value is the value alone with its unit of measure, as {noun} gives it but with every number in digits (sixty users is 60 users); a date as YYYY-MM-DD, with the time and time zone when given. When the unit says the value is not yet set, write what it says, for example TBD. Never use the | character in it.{used}"""
+
+
+def label_task(ids: list[str], pb: Playbook | None = None, keys: bool = True, known: dict[str, str] | None = None) -> str:
     flags = (pb or _RFP).flags
     return f"""TASK LABEL
 Write exactly one line for each of these {len(ids)} units, in this order:
 {", ".join(ids)}
 
-Line format: ID|LABEL|flags
+Line format: ID|LABEL|flags{"|key=value" if keys else ""}
 LABEL is one of:
 - a category code, when the unit states a point;
 - {CONTINUES} when the unit only continues, qualifies, or repeats the point of a unit shortly before it;
 - {NOTHING} when the unit states no point.
 A unit that makes two separate points of two categories gets both codes joined by +, the main one first, for example X+D. This is rare.
 flags is empty or a comma-separated list of: {", ".join(flags)}. Decide each flag for each unit on its own. Units labelled {CONTINUES} or {NOTHING} carry no flags.
-Read each unit with the units around it before you label it.
+{key_rules(pb, known) + chr(10) if keys else ""}Read each unit with the units around it before you label it.
 After the last line write: END|number of lines"""
 
 
@@ -148,14 +180,14 @@ After the last group write: END|number of groups. If there is none, write only: 
 class Section:
     key: str
     title: str
-    codes: tuple[str, ...]  # the facts the summary is written from
+    codes: tuple[str, ...]  # the facts the summary is written from, by their category or second category
     about: str
     rows: tuple[tuple[str, str], ...]  # (row name, what goes in it)
     unclear_too: bool = False  # also give it the facts flagged unclear, whatever their code
 
 
 SECTIONS = (
-    Section("buyer", "Buyer information", ("B",), "the buyer of an RFP", (
+    Section("buyer", "Buyer information", ("B", "PRIORITY", "BUDGET"), "the buyer of an RFP", (
         ("Buyer", "the organization and department buying."),
         ("Solicitation", "its name and number."),
         ("What they are buying", "the product or service, in one sentence."),
@@ -178,14 +210,14 @@ SECTIONS = (
         ("Before the deadline", "steps the bidder must have taken by then, such as a meeting or a registration."),
         ("Rejected if", "what causes a proposal or bidder to be rejected or disqualified."),
     )),
-    Section("scoring", "Scoring criteria", ("E",), "how proposals for an RFP are scored and the winner chosen", (
+    Section("scoring", "Scoring criteria", ("E", "DECIDER"), "how proposals for an RFP are scored and the winner chosen", (
         ("Method", "how the winner is chosen: best value, lowest price, points, pass or fail."),
         ("Criteria", "each scoring criterion, with its points or weight when the RFP gives one."),
         ("Price", "how price or cost is scored or weighed."),
         ("Stages", "shortlisting, presentations, interviews, or negotiations after the first evaluation."),
         ("Who decides", "who evaluates and who makes the award."),
     )),
-    Section("questions", "Clarifications", ("Q",), "points in an RFP to raise with the buyer", (
+    Section("questions", "Clarifications", ("Q", "QUESTION"), "points in an RFP to raise with the buyer", (
         ("Contradictions", "where the RFP disagrees with itself, each as one question to the buyer."),
         ("Unclear points", "what is vague, incomplete, or out of date, each as one question to the buyer."),
     ), unclear_too=True),
@@ -214,10 +246,29 @@ After the last row write: END|{len(sec.rows)}"""
 
 
 def section_facts(sec: Section, records: list[dict]) -> list[dict]:
+    """The facts a section is written from: those whose category or second category (`also`) is one of
+    its codes, and the unclear ones when the section takes them. A fact can be in several sections."""
     return [
         r for r in records
-        if r["category"] in sec.codes or (sec.unclear_too and "unclear" in r["flags"])
+        if r["category"] in sec.codes or r.get("also") in sec.codes or (sec.unclear_too and "unclear" in r["flags"])
     ]
+
+
+def fact_numbers(text: str, count: int) -> list[int]:
+    """The 1-based fact numbers a model cited, in order, each once. A range such as 3-5 cites every
+    number in it; anything else that is not a digit separates numbers. Numbers outside 1..count are dropped."""
+    out: list[int] = []
+    for a, b in re.findall(r"(\d+)(?:\s*[-–—]\s*(\d+))?", text):
+        lo, hi = int(a), int(b or a)
+        for n in range(lo, hi + 1) if lo <= hi else (lo, hi):
+            if 1 <= n <= count and n not in out:
+                out.append(n)
+    return out
+
+
+def row_name(text: str) -> str:
+    """A row name as the model wrote it, without the markup or numbering around it: "**1. Deadline:**" -> "deadline"."""
+    return re.sub(r"^[\s*_#>\-\d.)]*|[\s*_:]*$", "", text).lower()
 
 
 def brief_task(facts: list[dict]) -> str:
@@ -240,10 +291,10 @@ def parse_brief(text: str, facts: list[dict], rows: tuple[str, ...]) -> list[dic
     An item that only says something is not stated ("bonds not stated") rests on no fact and is
     dropped; a row left with no items is not stated."""
     parts: dict[str, tuple[list[str], list[dict]]] = {}
-    names = {r.lower(): r for r in rows}
+    names = {row_name(r): r for r in rows}
     for line in text.splitlines():
         p = [x.strip() for x in line.split("|")]
-        row = names.get(p[0].lower())
+        row = names.get(row_name(p[0]))
         if row is None or len(p) < 2:
             continue
         items = [t.strip() for t in " ".join(p[1].split()).split(";")]
@@ -252,9 +303,9 @@ def parse_brief(text: str, facts: list[dict], rows: tuple[str, ...]) -> list[dic
         if not body:
             continue
         bodies.append(body)
-        for x in re.split(r"\D+", p[2] if len(p) > 2 else ""):
-            if x and 1 <= int(x) <= len(facts) and facts[int(x) - 1] not in cited:
-                cited.append(facts[int(x) - 1])
+        for n in fact_numbers(p[2] if len(p) > 2 else "", len(facts)):
+            if facts[n - 1] not in cited:
+                cited.append(facts[n - 1])
     got: dict[str, dict] = {}
     for row, (bodies, cited) in parts.items():
         body = "; ".join(bodies)
@@ -359,6 +410,7 @@ class Config:
     warmup_timeout: float = 10.0  # wait at most this long for the first call to stream
     rate_limit_retries: int = 5
     backoff_base: float = 1.0
+    keys: bool = True  # LABEL also gives a unit that states a value its key and value
     statements: bool = True
     check: bool = True
     xref: bool = True  # the cross-reference call; its facts are checked in code
@@ -413,6 +465,31 @@ def parse_labels(text: str, ids: list[str], pb: Playbook | None = None) -> dict[
     return out
 
 
+_KEY_PART = re.compile(r"[^a-z0-9]+")
+
+
+def clean_key(text: str) -> str:
+    """A key as stored: `thing.attribute`, lowercase words joined by hyphens. "" when it is not one."""
+    parts = [_KEY_PART.sub("-", p.lower()).strip("-") for p in text.strip().strip("`").split(".")]
+    return ".".join(parts) if len(parts) >= 2 and all(parts) else ""
+
+
+def parse_keys(text: str, ids: list[str]) -> dict[str, tuple[str, str]]:
+    """(key, value) for the units a LABEL answer gave one: the fourth field of the line, `key=value`."""
+    want = set(ids)
+    out: dict[str, tuple[str, str]] = {}
+    for line in text.splitlines():
+        p = [x.strip() for x in line.split("|")]
+        uid = p[0].strip("[]")
+        if len(p) < 4 or uid not in want:
+            continue
+        name, sep, value = p[3].partition("=")
+        key, value = clean_key(name), " ".join(value.split())
+        if sep and key and value:
+            out[uid] = (key, value)
+    return out
+
+
 # "X: The City may reject...", "R, post-award: The City will verify...": a label written in
 # front of the statement. The label comes from the votes, never from here.
 _LEAKED_LABEL = re.compile(r"^[BCGXDSERQ](?:\s*[,+]\s*[A-Za-z-]+)*\s*:\s+(?=[A-Z0-9\"“(])")
@@ -457,6 +534,9 @@ class Voted:
     also: str | None
     flags: list[str]
     votes: list[str]
+    key: str = ""  # what the unit's value is the value of (`thing.attribute`), or "" when it states none
+    value: str = ""
+    key_votes: list[str] = field(default_factory=list)  # the key each labelling pass gave, "" for none
 
     @property
     def agreed(self) -> bool:
@@ -468,9 +548,24 @@ def _rank(label: str, pb: Playbook | None = None) -> int:
     return order.index(label) if label in order else len(order) + (CONTINUES, NOTHING, NO_ANSWER).index(label)
 
 
-def vote(passes: list[dict[str, Label]], units: list[str], pb: Playbook | None = None) -> dict[str, Voted]:
+def vote_key(got: list[tuple[str, str] | None]) -> tuple[str, str]:
+    """The key and value of one unit from what each pass gave it. A unit has a key when most passes gave
+    one; the key is the one most passes chose (the earliest pass on a tie), and the value is the one most
+    of those passes wrote (the longest on a tie, so a date keeps its time)."""
+    given = [g for g in got if g]
+    if len(given) * 2 <= len(got):
+        return "", ""
+    count = Counter(k for k, _ in given)
+    key = max(count, key=lambda k: (count[k], -[k2 for k2, _ in given].index(k)))
+    vals = Counter(v for k, v in given if k == key)
+    return key, max(vals, key=lambda v: (vals[v], len(v)))
+
+
+def vote(passes: list[dict[str, Label]], units: list[str], pb: Playbook | None = None,
+         keys: list[dict[str, tuple[str, str]]] | None = None) -> dict[str, Voted]:
     """Majority per unit on the main label. With no majority the unit is kept, under the
-    code that comes first in the playbook's precedence: a missed fact costs more than an extra one."""
+    code that comes first in the playbook's precedence: a missed fact costs more than an extra one.
+    `keys` holds each pass's (key, value) per unit; only a coded unit keeps one (vote_key)."""
     pb = pb or _RFP
     out: dict[str, Voted] = {}
     for u in units:
@@ -483,6 +578,10 @@ def vote(passes: list[dict[str, Label]], units: list[str], pb: Playbook | None =
         also = seconds[0][0] if seconds and seconds[0][1] * 2 > len(same) else None
         flags = [f for f in pb.flags if sum(f in g[1] for g in same) * 2 > len(same)]
         out[u] = Voted(main, also, flags if main in pb.codes else [], mains)
+        if keys and main in pb.codes:
+            given = [k.get(u) for k in keys]
+            out[u].key, out[u].value = vote_key(given)
+            out[u].key_votes = [g[0] if g else "" for g in given]
     return out
 
 
@@ -518,16 +617,89 @@ def fact_id(doc_id: str, unit_id: str) -> str:
 _MARKUP = re.compile(r"\*\*|__|`")
 
 
+def _says(text: str, other: str) -> bool:
+    """Whether `text` already says `other`: most of other's content words are in it."""
+    want = {w for w in words(other) if w not in _STOP}
+    return not want or len(want & set(words(text))) >= 0.6 * len(want)
+
+
+def _group_statement(g: Group, statements: dict[str, str]) -> str:
+    """One statement for every unit of the fact. A continuation unit has its own statement, asked to
+    state the whole point it makes with the unit before: when the text so far already says it, it adds
+    nothing; when it says what the text so far says, and more, it replaces it; otherwise it is added. So a fact made
+    of several units never shows the point of its first unit alone."""
+    text = ""
+    for u in g.ids:
+        s = statements.get(u)
+        if not s:
+            continue
+        if not text:
+            text = s
+        elif _says(text, s):
+            continue
+        elif _says(s, text):
+            text = s
+        else:
+            text = f"{text} {s}"
+    return text
+
+
+# Words that change what a rule means without a figure: an exception, a rule that holds either way, a
+# preference rather than a duty, an optional item. A statement that drops one the source has misstates the rule.
+_QUALIFIERS = {
+    "an exception": re.compile(r"\bunless\b|\bexcept\b|\bexcepting\b|\bother than\b", re.I),
+    "'regardless'": re.compile(r"\bregardless\b|\birrespective\b|\bwhether or not\b", re.I),
+    "a preference": re.compile(r"\bprefer\w*|\bideal\w*", re.I),
+    "'optional'": re.compile(r"\boptional\w*|\bif applicable\b|\bif any\b", re.I),
+}
+_MARKER = re.compile(r"(?:(?<=\s)|^)\(?([a-zA-Z]|\d{1,2})[.)]\s+(?=[A-Z])")
+
+
+def list_items(text: str) -> list[str]:
+    """The items of a list the text enumerates in order (1. 2. 3., a) b) c), (A) (B)), each without its
+    marker; empty when it enumerates fewer than two. Markers out of sequence ("U.S. Bank") are not items."""
+    cuts, want = [], None
+    for m in _MARKER.finditer(text):
+        k = m.group(1)
+        if want is None and k in ("1", "a", "A"):
+            cuts, want = [m], k
+        elif want is not None and k == want:
+            cuts.append(m)
+        else:
+            continue
+        want = str(int(k) + 1) if k.isdigit() else chr(ord(k) + 1)
+    if len(cuts) < 2:
+        return []
+    ends = [m.start() for m in cuts[1:]] + [len(text)]
+    return [text[m.end():e].strip() for m, e in zip(cuts, ends)]
+
+
+def dropped(statement: str, source: str) -> list[str]:
+    """What a statement leaves out of its source that the figure check cannot see: a qualifier the source
+    has (_QUALIFIERS), or an item of a list the source enumerates that the statement mostly does not say.
+    Empty when it keeps them all."""
+    out = [name for name, rx in _QUALIFIERS.items() if rx.search(source) and not rx.search(statement)]
+    said = set(words(statement))
+    for item in list_items(source):
+        want = {w for w in words(item) if w not in _STOP and len(w) > 2}
+        if len(want) >= 2 and len(want & said) < 0.4 * len(want):
+            out.append(f"list item: {item[:60]}")
+    return out
+
+
 def _statement(g: Group, doc: TaggedDocument, statements: dict[str, str]) -> tuple[str, str]:
-    """The fact's text and where it came from: the model's statement when every number in
-    it is in the fact's units, else the RFP's own words, without markdown emphasis (a note's
-    "**2024-05-13, SW.**" reads as "2024-05-13, SW."); the citation keeps the words as written.
+    """The fact's text and where it came from: the statement of all its units (_group_statement) when
+    every number in it is in the fact's units and it drops no qualifier or list item (dropped), else the
+    RFP's own words, so a bid manager and writer never read a rule without its exception or a list short
+    of an item. The RFP's words lose markdown emphasis (a note's "**2024-05-13, SW.**" reads as
+    "2024-05-13, SW."); the citation keeps the words as written. A fact whose
+    main unit has no statement keeps the RFP's words, so a continuation never stands for the whole fact.
     """
     source = _MARKUP.sub("", " ".join(doc.anchors[i].text for i in g.ids))
-    s = statements.get(g.main)
+    s = _group_statement(g, statements) if statements.get(g.main) else ""
     if s:
         texts = [doc.anchors[i].text for i in g.ids] + [doc.anchors[i].section for i in g.ids]
-        if not missing_values(s, texts):
+        if not missing_values(s, texts) and not dropped(s, source):
             return s, "model"
     return source, "rfp"
 
@@ -555,6 +727,7 @@ def to_records(
             "note": "",
             "status": "valid",
             "votes": v.votes, "agreement": f"{tally[v.label]}/{len(v.votes)}",
+            "key": v.key, "value": v.value, "key_votes": v.key_votes,
             "source_call": "LABEL", "playbook": pb.name,
             "problems": [], "conflicts": [],
         })
@@ -684,7 +857,7 @@ async def extract(
     doc: TaggedDocument, client: LLMClient, *, deal_id: str, cfg: Config | None = None, run_id: str | None = None,
     playbook: Playbook | None = None, hold_section_refs: bool = False,
     only: list[str] | None = None, carried: dict[str, Voted] | None = None,
-    statements: dict[str, str] | None = None,
+    statements: dict[str, str] | None = None, known_keys: dict[str, str] | None = None,
 ) -> RunResult:
     """`hold_section_refs`: a reference to a section that has no target in this document is not
     written as a Q fact but returned on `RunResult.held_refs`, for a document that points at
@@ -693,7 +866,9 @@ async def extract(
     `only` (a reissue): LABEL and STATE are asked about these unit IDs alone; the votes of the
     other units are `carried`, and `statements` holds the statements already written for their
     coded units. CHECK and XREF still read the whole document. With none of the three given
-    every unit is labelled and stated."""
+    every unit is labelled and stated.
+
+    `known_keys`: the keys the bid's other documents use, each with one value (see key_rules)."""
     pb = playbook or _RFP
     cfg = cfg or Config()
     run_id = run_id or f"run_{datetime.now(timezone.utc):%Y_%m_%d}_{uuid.uuid4().hex[:6]}"
@@ -708,11 +883,14 @@ async def extract(
         state_parts = chunk_ids(doc, only, cfg.units_per_state_call) if cfg.statements and "STATE" in pb.calls else []
     t0 = time.monotonic()
 
+    key_passes: list[dict[str, tuple[str, str]]] = [{} for _ in range(cfg.votes)]
+
     async def label(vote_no: int, k: int, ids: list[str], started: asyncio.Event | None = None) -> dict[str, Label]:
         text = await run.call(
-            f"LABEL{k}#{vote_no}", "label", label_task(ids, pb), cfg.label_max_output_tokens, started=started,
+            f"LABEL{k}#{vote_no}", "label", label_task(ids, pb, cfg.keys, known_keys), cfg.label_max_output_tokens, started=started,
             covered=lambda t: len(parse_labels(t, ids, pb)), expected=len(ids),
         )
+        key_passes[vote_no - 1].update(parse_keys(text, ids))
         return parse_labels(text, ids, pb)
 
     async def state(k: int, ids: list[str]) -> dict[str, str]:
@@ -774,7 +952,7 @@ async def extract(
                 for p in xres.problems if p not in keep_p]
         xres.problems = keep_p
 
-    fresh = vote(passes, [u for u in units if u not in carried], pb)
+    fresh = vote(passes, [u for u in units if u not in carried], pb, key_passes if cfg.keys else None)
     voted = {u: carried[u] if u in carried else fresh[u] for u in units}
     groups = group(voted, units, pb)
     records = to_records(groups, doc, statements, deal_id, run_id, pb)
@@ -815,6 +993,7 @@ async def extract(
     labels = [
         {"id": u, "page": doc.anchors[u].page_label, "section": doc.anchors[u].section, "text": doc.anchors[u].text,
          "label": voted[u].label, "also": voted[u].also, "flags": voted[u].flags, "votes": voted[u].votes,
+         "key": voted[u].key, "value": voted[u].value, "key_votes": voted[u].key_votes,
          "speaker": doc.anchors[u].speaker, "side": doc.anchors[u].side}
         for u in units
     ]

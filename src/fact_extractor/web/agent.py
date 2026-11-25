@@ -144,6 +144,7 @@ Rules you always follow:
 
 11. A bid holds several documents. Each fact's `source` says which document it is from and, for a call, which side was speaking. Describe a document from its own facts: what someone said on a call or wrote in our notes about a document is their statement, not the document's, so attribute it (for example "on the call the buyer said"). When a fact is one row of a list or table, give every row. When linked facts disagree, or a conflict is open, say what each source says and that it is unresolved; do not pick one side.
 12. When the customer asks what to consider, weigh, watch out for or prepare for a decision (pricing, bid or no-bid, staffing, risk, the schedule), do not search for the words of the question. First name to yourself what drives that decision, then look up each driver, including facts filed under another topic that never use the question's words. For a price the drivers are: volumes (users, employees, sites, transactions), the scope and modules asked for, the contract term and renewals, how long the price must stay valid, payment and invoicing terms, how price is scored in the evaluation, any budget signal, the format the price must be given in, terms that carry cost or risk (insurance, bonds, penalties, liability, service levels), what the buyer said on calls, and what our notes say about competitors. For bid or no-bid they are: the mandatory qualifications and gates, the disqualifiers, the deadlines against our capacity, how the evaluation is weighted against our strengths, the contract risks, and what we know of the buyer's preferences and the competition. Say which drivers the documents are silent on.
+13. Values. A fact that states a value which can be stated elsewhere (a date, an amount, a count, a duration, a rate, a limit) carries a key, and each key has one current value, already settled from every fact that states it (get_values). When the question is what such a value is, read it there and say what the other sources say when its status is auto_resolved or needs_review. When the customer corrects or updates a value that has a key, call set_value once and do not edit the facts that state it: they stay as records, and every reading of them shows the current value. This replaces updating each fact in rule 3 for keyed values. New information that is the value of an existing key is a set_value with kind update and nothing else: do not also add a fact for it. A value the buyer or the team now confirms (it was tentative, or in dispute) is a set_value too, even when the figure stays the same. When the customer asks for the facts or records themselves to be updated, edit those facts as they ask, as well. Before set_value, check with get_values that the customer's words fit one key only; when they fit several (several user counts, several deadlines), change nothing and ask which. Edit a fact itself only for what is not its keyed value: its wording, a condition, a note, or when the customer asks for that record to be changed.
 
 Fact categories: {categories}.
 Fact flags: {flags}.
@@ -238,6 +239,8 @@ def state_message(ws: Workspace) -> str:
     counts = ", ".join(f"{count.get(c, 0)} {name}" for c, name in CATEGORIES.items())
     return (f"Current state: {len(state.visible())} facts ({counts}). "
             f"Open conflicts waiting for the customer: {sum(1 for c in state.conflicts if c['status'] == 'open')}. "
+            + (f"Keyed values: {len(state.values)}, of which {sum(v['status'] == 'needs_review' for v in state.values)} "
+               "need a person. " if state.values else "")
             + ANSWER_FORM)
 
 
@@ -280,6 +283,7 @@ class Ctx:
     proposing: bool = False  # the last round before the plan: only propose_plan works
     proposed: dict | None = None  # the plan propose_plan gave: {"steps": [str], "findings": str}
     plan_ids: set[str] = field(default_factory=set)  # fact IDs the plan the customer saw names; records outside it stay
+    said: str = ""  # the customer's recent messages, this one included: what set_value checks a key against
 
 
 _DASHES = dict.fromkeys(map(ord, "\u2010\u2011\u2012\u2013\u2014\u2015\u2212"), "-")
@@ -374,6 +378,7 @@ def _row(u: dict | None, f: dict | None, documents: dict[int, dict] | None = Non
             row["replaced"] = True
         if f.get("stale"):
             row["stale"] = f["stale"]
+        _add_value(row, f)
     else:
         assert u is not None
         text = u.get("text", "")
@@ -385,6 +390,15 @@ def _row(u: dict | None, f: dict | None, documents: dict[int, dict] | None = Non
     if votes and len(set(votes)) > 1:  # only when the extraction's votes disagreed
         row["votes"] = votes
     return row
+
+
+def _add_value(row: dict, f: dict) -> None:
+    """A fact that states a keyed value says so, and says the current value when it is no longer its own."""
+    if f.get("key"):
+        row["key"] = f["key"]
+        if f.get("value_now"):
+            row["current_value"] = (f"{f['value_now']['value']} (this fact states {f.get('value')}; "
+                                    f"get_values has why the value differs)")
 
 
 def _row_key(h: dict) -> str:
@@ -534,6 +548,7 @@ def _fact_full(f: dict, state=None, documents: dict[int, dict] | None = None) ->
             out["replaced"] = True
         if f.get("stale"):
             out["stale"] = f["stale"]
+        _add_value(out, f)
         out.update(PT.point_parts(PT.point(f, {x["fact_id"]: x for x in state.facts}, state.conflicts, documents),
                                   f["fact_id"]))
     return out
@@ -593,6 +608,128 @@ async def t_edit_fact(ctx: Ctx, a: dict) -> dict:
                            "should change, raise_conflict. Tell the customer which facts you updated.")
         elif check.get("check_skipped"):
             out["check_skipped"] = check["check_skipped"]
+    return out
+
+
+MAX_VALUES = 40
+
+
+def _value_view(v: dict, state, documents: dict[int, dict], full: bool = True) -> dict:
+    """One key's current value. `full` adds where each value comes from."""
+    def sources(ids: list[str]) -> list[str]:
+        out = []
+        for i in ids:
+            f = state.get(i)
+            if f is not None:
+                out.append(" ".join(x for x in (f"[{i}]", PT.source_label(f, documents) or "") if x))
+        return out
+
+    out: dict = {"key": v["key"], "value": v["value"]}
+    if v["status"]:
+        out["status"] = v["status"]
+    if v["reason"]:
+        out["why"] = v["reason"]
+    others = [o for o in v["other"] if o["why"] != "listed"]
+    if others:
+        out["other_values"] = [{"value": o["value"], "why": {"open": "disagrees: a person must choose", "outranked": "weaker source",
+                                                               "placeholder": "replaced by a stated date"}[o["why"]],
+                                **({"sources": sources(o["fact_ids"])} if full else {})} for o in others]
+    listed = [o["value"] for o in v["other"] if o["why"] == "listed"]
+    if listed:
+        out["also_stated"] = listed
+    if v["earlier"]:
+        out["earlier_values"] = [e["value"] for e in v["earlier"]]
+    if full:
+        out["sources"] = sources(v["fact_ids"])
+        if not v["earlier"]:  # the value is short: the sentences it comes from carry its conditions
+            out["stated_as"] = [state.get(i)["text"] for i in v["fact_ids"][:3] if state.get(i) is not None]
+        ids = set(v["fact_ids"]) | {i for o in v["other"] for i in o["fact_ids"]}
+        disputes = [c["title"] for c in state.conflicts if c["status"] == "open" and ids & set(c.get("fact_ids") or [])]
+        if disputes:
+            out["open_conflicts"] = disputes[:4]
+    return out
+
+
+async def t_get_values(ctx: Ctx, a: dict) -> dict:
+    """The current values by key: all of them, those matching a query, or only those a person must settle."""
+    state = ctx.ws.state()
+    documents = _documents(ctx.ws)
+    rows = state.values
+    keys = a.get("keys")
+    if isinstance(keys, list) and keys:
+        want = {str(k).strip().lower() for k in keys}
+        rows = [v for v in rows if v["key"] in want]
+    if a.get("open") is True:
+        rows = [v for v in rows if v["status"] == "needs_review"]
+    query = _tokens(str(a.get("query") or ""))
+    if query:
+        scored = [(_score(query, f"{v['key'].replace('-', ' ').replace('.', ' ')} {v['value']}"), v) for v in rows]
+        rows = [v for s, v in sorted(scored, key=lambda x: -x[0]) if s > 0]
+    out: dict = {"values": [_value_view(v, state, documents, full=len(rows) <= 12) for v in rows[:MAX_VALUES]]}
+    if len(rows) > MAX_VALUES:
+        out["more"] = len(rows) - MAX_VALUES
+    if not rows:
+        out["note"] = "No keyed value matches. A value without a key is in the facts: use search."
+    return out
+
+
+# words that name no particular value: a key or a message sharing only these has named nothing
+_GENERIC = {"module", "system", "function", "process", "count", "total", "number", "the", "and", "for", "from", "per", "our", "with"}
+
+
+def _stems(text: str) -> set[str]:
+    return {(w[:5] if len(w) >= 6 else w.rstrip("s")) for w in re.findall(r"[a-z]+", text.lower())
+            if len(w) > 2 and w not in _GENERIC}
+
+
+def ambiguous_key(values: list[dict], key: str, said: str) -> list[dict]:
+    """The other keys the customer may have meant, or [] when the key is clearly the one: other keys measure
+    the same thing (the same attribute: users, due, limit) and the customer's messages name none of this
+    key's own words. Code decides this, not the model: a wrong guess silently changes the wrong value."""
+    thing, _, attribute = key.rpartition(".")
+    siblings = [v for v in values if v["key"] != key and v["key"].rpartition(".")[2] == attribute]
+    if not siblings or not said:
+        return []
+    if _stems(thing.replace("-", " ")) & _stems(said):
+        return []
+    # The customer may name the value by its figure instead ("the $7,900,000 is out of date"): that points at
+    # this key when no other key of the kind holds a figure they quoted.
+    from ..keyed import figures
+
+    quoted = figures(said)
+    holds = lambda v: bool(figures(v["value"]) & quoted)  # noqa: E731
+    mine = next((v for v in values if v["key"] == key), None)
+    if mine is not None and holds(mine) and not any(holds(v) for v in siblings):
+        return []
+    return [v for v in values if v["key"].rpartition(".")[2] == attribute]
+
+
+async def t_set_value(ctx: Ctx, a: dict) -> dict:
+    state = ctx.ws.state()
+    key = str(a.get("key", ""))
+    before = state.value(key.strip().lower())
+    others = ambiguous_key(state.values, key.strip().lower(), ctx.said)
+    if others:
+        raise WorkspaceError(
+            "Ambiguous: the customer did not name which of these values to change. Change nothing and ask which one: "
+            + "; ".join(f"{v['key']} = {v['value']}" for v in others[:12]))
+    v = ctx.ws.set_value(key, str(a.get("value", "")), str(a.get("kind") or "update"), str(a.get("reason") or ""),
+                         source="chat", new=a.get("new") is True)
+    if v.get("unchanged"):
+        return {"ok": True, "unchanged": True, "note": "The key already holds that value; nothing was written."}
+    state = ctx.ws.state()
+    out: dict = {"ok": True, "key": v["key"], "old": before["value"] if before else None, "new": v["value"]}
+    records = [f for f in state.visible() if f.get("key") == v["key"] and f.get("value_now")]
+    if records:
+        out["facts_left_as_records"] = [f["fact_id"] for f in records]
+        out["note"] = ("These facts keep their wording as records of what each source said; every reading of them now "
+                       "shows the current value. Do not edit them unless the customer asked for the records to change.")
+    open_conflicts = [c["id"] for c in state.conflicts if c["status"] == "open"
+                      and set(c.get("fact_ids") or []) & {i for i in (before or {}).get("fact_ids", [])}]
+    if open_conflicts and str(a.get("kind")) == "decision":
+        out["open_conflicts"] = open_conflicts
+        out["note"] = (out.get("note", "") + " An open conflict covers these facts: resolve it too with resolve_conflict, "
+                       "with the choice the customer stated.").strip()
     return out
 
 
@@ -740,6 +877,13 @@ TOOLS: tuple[Tool, ...] = (
                   "values_removed": {"type": "boolean", "description": "true only when the correction itself removes figures the fact states"},
                   "reason": {"type": "string", "description": "what the customer said"}}, ["fact_id", "reason"]),
          t_edit_fact, _FACTS, "Changed fact {fact_id}"),
+    Tool("get_values", "The current values of the bid, by key (thing.attribute): the dates, amounts, counts, durations, rates and limits the documents state, each settled to ONE current value from every fact that states it. A row gives the value, how it was settled (status: none when the sources agree; auto_resolved when a stronger source or a stated date chose; needs_review when a person must choose; tentative; decided when the bid team set it), what the other sources say (other_values) and the facts behind it (sources). Give query to find the keys about something, keys to read exact ones, or open: true for only the values a person must settle. With no argument it lists every key. Read here first when the question is what a value is; use search for requirements, rules and anything that is not one value.",
+         _schema({"query": _S, "keys": {"type": "array", "items": _S}, "open": {"type": "boolean"}}), t_get_values, (), "Read current values"),
+    Tool("set_value", "Change the current value of a key, once, for every reading. kind: correction (the extraction read the value wrong), update (new information from the buyer or the team replaces it), decision (the customer chose between values the sources disagree on; only when they stated the choice in this conversation). The facts that state the key are not rewritten: they stay as records and show the current value next to their own. Use it instead of editing each fact when the changed thing is a value that has a key. new: true adds a key no fact carries yet (thing.attribute, lowercase words joined by hyphens) for new information that is one value.",
+         _schema({"key": _S, "value": {"type": "string", "description": "the value alone, with its unit; a date as YYYY-MM-DD"},
+                  "kind": {"type": "string", "enum": ["correction", "update", "decision"]},
+                  "reason": {"type": "string", "description": "what the customer said"}, "new": {"type": "boolean"}},
+                 ["key", "value", "kind", "reason"]), t_set_value, _FACTS, lambda a: f"Set {a.get('key', 'a value')}"),
     Tool("delete_fact", "Reject a fact the customer says is wrong or does not belong.",
          _schema({"fact_id": _ID, "reason": _S}, ["fact_id", "reason"]), t_delete_fact, _FACTS, "Deleted fact {fact_id}"),
     Tool("add_fact", "Add a fact the customer states: something the extraction missed, or new information from the buyer (a clarification, an answer, an update) that does not make an existing fact wrong. Give citation_ids: the source unit IDs of the fact it relates to (from get_fact citations or search). The new fact is checked against the related existing facts, and a likely contradiction is raised as a conflict for the customer.",
@@ -1139,7 +1283,8 @@ async def chat(ws: Workspace, summaries: SummaryService, model: ChatModel, user_
     tlog.log("user_message", text=user_text)
     state = state_message(ws)
     extra = {"cache_key": _cache_key(ws)} if "cache_key" in inspect.signature(model.stream).parameters else {}
-    ctx = Ctx(ws, summaries, [], checker=checker, tlog=tlog)
+    ctx = Ctx(ws, summaries, [], checker=checker, tlog=tlog,
+              said=" ".join([m["content"] for m in history if m["role"] == "user"][-4:] + [user_text]))
     text_parts: list[str] = []
     steps: list[dict] = []
     error: str | None = None

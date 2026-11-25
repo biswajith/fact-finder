@@ -409,3 +409,80 @@ def test_a_fact_in_the_source_words_drops_markdown_emphasis():
     assert units._statement(g, doc, {}) == ("2024-05-13, SW. RFP out 5/10 at noon.", "rfp")
     # a statement whose date was written without its year in the source now passes
     assert units._statement(g, doc, {"p9.1": "The RFP was released 2024-05-10."}) == ("The RFP was released 2024-05-10.", "model")
+
+
+def test_a_fact_of_several_units_is_stated_from_all_of_them():
+    from fact_extractor.models import Anchor, TaggedDocument
+    texts = {
+        "p1.1": "Full users require full access to the identified function.",
+        "p1.2": "Whereas limited users will require limited access (reports, queries).",
+    }
+    doc = TaggedDocument("rfp", {i: Anchor("rfp", i, 1, "1", "Users", t, None, "sentence") for i, t in texts.items()}, "", 1)
+    g = units.Group("p1.1", ["p1.1", "p1.2"], None)
+    main = "Full users need full access to their function."
+    # the continuation's statement adds a point the main one lacks: both are kept
+    both = {"p1.1": main, "p1.2": "Limited users get limited access, such as reports and queries."}
+    assert units._statement(g, doc, both) == (main + " " + both["p1.2"], "model")
+    # the continuation states the whole point the two make: it replaces the main one
+    whole = {"p1.1": main, "p1.2": "Full users need full access to their function; limited users get reports and queries only."}
+    assert units._statement(g, doc, whole) == (whole["p1.2"], "model")
+    # the continuation repeats the main one: nothing is added
+    assert units._statement(g, doc, {"p1.1": main, "p1.2": "Full users need full access."}) == (main, "model")
+    # no statement for the main unit: the RFP's own words, never the continuation's point alone
+    assert units._statement(g, doc, {"p1.2": both["p1.2"]})[1] == "rfp"
+
+
+def test_a_section_takes_facts_by_their_second_category_and_the_notes_categories():
+    f = lambda i, cat, also=None: {"fact_id": i, "category": cat, "also": also, "flags": []}
+    records = [f("a", "S", "D"), f("b", "R"), f("c", "BUDGET"), f("d", "DECIDER"), f("e", "QUESTION"), f("g", "ACTION", "D")]
+    ids = lambda key: [r["fact_id"] for r in units.section_facts(units.SECTION[key], records)]
+    assert ids("submission") == ["a", "g"]  # a deadline stated as a submission rule, a next step with a date
+    assert ids("buyer") == ["c"] and ids("scoring") == ["d"] and ids("questions") == ["e"]
+
+
+def test_parse_brief_reads_fact_ranges_and_row_names_with_markup():
+    facts = [{"fact_id": f"f{n}", "text": "Bonds of 5%", "source_text": ""} for n in range(1, 6)]
+    got = units.parse_brief("**1. Insurance and bonds:**|Bonds of 5%|2-4\nEND|1", facts, ("Insurance and bonds",))
+    assert got == [{"row": "Insurance and bonds", "text": "Bonds of 5%", "fact_ids": ["f2", "f3", "f4"], "checked": True}]
+    assert units.fact_numbers("3-5, 8; 10–9, 99", 12) == [3, 4, 5, 8, 10, 9]
+
+
+def test_a_statement_that_drops_a_qualifier_or_list_item_keeps_the_source_words():
+    from fact_extractor.models import Anchor, TaggedDocument
+    src = ("Experience in the state is preferred, it is not mandatory. The proposal must describe: "
+           "A. Project governance structure B. Data migration activities C. Testing approach")
+    doc = TaggedDocument("rfp", {"p1.1": Anchor("rfp", "p1.1", 1, "1", "Approach", src, None, "sentence")}, "", 1)
+    g = units.Group("p1.1", ["p1.1"], None)
+    full = "State experience is preferred but not mandatory; describe project governance, data migration and the testing approach."
+    assert units._statement(g, doc, {"p1.1": full}) == (full, "model")
+    # the preference is gone: the RFP's words
+    assert units._statement(g, doc, {"p1.1": "Describe project governance, data migration and testing approach."})[1] == "rfp"
+    # a list item is gone: the RFP's words
+    assert units._statement(g, doc, {"p1.1": "State experience is preferred; describe governance and testing."})[1] == "rfp"
+    assert units.dropped("Bids are due Friday.", "Bids are due Friday unless the City extends it.") == ["an exception"]
+
+
+def test_list_items_follow_the_markers_in_sequence_only():
+    assert units.list_items("Must include: 1. A cover letter 2. Pricing 3. References") == ["A cover letter", "Pricing", "References"]
+    assert units.list_items("Insured by U.S. Bank and N.C. State agencies.") == []  # markers out of sequence
+    assert units.list_items("(a) Only one item here.") == []
+
+
+def test_label_line_gives_a_key_and_value():
+    ids = ["p1.1", "p1.2", "p1.3", "p1.4"]
+    text = "p1.1|D||Proposal.Due = 2024-06-10 14:00 ET\np1.2|R|mandatory|\np1.3|C||termination notice period=30 days\np1.4|B||buyer.contact=\nEND|4"
+    assert units.parse_keys(text, ids) == {"p1.1": ("proposal.due", "2024-06-10 14:00 ET")}  # no dot, or no value: no key
+    assert units.parse_labels(text, ids)["p1.1"] == (("D",), ())  # the label is read as before
+    assert units.clean_key("Warehouse Module.Full users") == "warehouse-module.full-users"
+
+
+def test_key_is_voted_like_the_label():
+    a, b = ("proposal.due", "2024-06-10"), ("proposal.due", "2024-06-10 14:00 ET")
+    assert units.vote_key([a, b, None]) == ("proposal.due", "2024-06-10 14:00 ET")  # tie on the value: the fuller one
+    assert units.vote_key([a, None, None]) == ("", "")  # one pass of three is not enough
+    assert units.vote_key([("x.users", "40"), ("x-module.users", "40"), ("x.users", "40")]) == ("x.users", "40")
+    passes = [{"p1.1": (("D",), ())}] * 3
+    keys = [{"p1.1": a}, {"p1.1": a}, {}]
+    v = units.vote(passes, ["p1.1"], keys=keys)["p1.1"]
+    assert (v.label, v.key, v.value, v.key_votes) == ("D", "proposal.due", "2024-06-10", ["proposal.due", "proposal.due", ""])
+    assert units.vote(passes, ["p1.1"])["p1.1"].key == ""

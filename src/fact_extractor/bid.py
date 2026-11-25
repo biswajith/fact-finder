@@ -320,6 +320,18 @@ class Bid:
                 out.append(e)
         return out
 
+    def known_keys(self, no: int) -> dict[str, str]:
+        """The keys the bid's other extracted documents gave their facts, each with the first value it
+        was given: a new document is asked to name the same value by the same key (units.key_rules)."""
+        out: dict[str, str] = {}
+        for d in issue_order(self.manifest()):
+            if d["no"] == no or not d.get("run"):
+                continue
+            for f in _read(self.root / d["run"] / "facts.json", []):
+                if f.get("key") and f.get("value"):
+                    out.setdefault(f["key"], f["value"])
+        return out
+
     def needs_relate(self, manifest: dict | None = None) -> list[int]:
         """The numbers of the extracted documents whose stored RELATE answers were made against other
         documents than the earlier buyer documents now in the bid (a document was added that sorts
@@ -734,7 +746,7 @@ async def extract_document(
         else:
             result = await U.extract(
                 tagged, client, deal_id=bid.manifest()["deal_id"], cfg=cfg, run_id=runs.new_run_id(), playbook=pb,
-                hold_section_refs="RELATE" in pb.calls,
+                hold_section_refs="RELATE" in pb.calls, known_keys=bid.known_keys(no),
             )
         for r in result.facts:
             apply_levels(r, pb)

@@ -7,11 +7,14 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "mock": "vite --config mock/vite.config.ts"
   },
   "dependencies": {
     "@adobe/react-spectrum": "^3.47.7",
     "@spectrum-icons/workflow": "^4.3.2",
+    "cytoscape": "^3.35.0",
+    "cytoscape-fcose": "^2.2.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0",

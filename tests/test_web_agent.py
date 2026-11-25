@@ -342,7 +342,7 @@ async def test_add_delete_restore_tools(ws, svc):
 
 def test_every_tool_has_a_schema_and_names_match():
     names = [t["function"]["name"] for t in A.TOOL_SPECS]
-    assert names == ["search", "get_fact", "edit_fact", "delete_fact", "add_fact", "restore_fact",
+    assert names == ["search", "get_fact", "edit_fact", "get_values", "set_value", "delete_fact", "add_fact", "restore_fact",
                      "list_conflicts", "raise_conflict", "resolve_conflict", "get_summary", "facts_not_in_summary",
                      "generate_summary"]
     json.dumps(A.TOOL_SPECS)
@@ -808,3 +808,15 @@ async def test_openai_model_compose_call_sends_no_tools_and_an_effort(monkeypatc
 
 def test_prompt_has_the_drivers_first_rule(ws):
     assert "First name to yourself what drives that decision" in A.system_prompt(ws)
+
+
+def test_set_value_is_refused_when_the_customer_did_not_say_which_value():
+    values = [{"key": "warehouse-module.users", "value": "40"}, {"key": "payroll-module.users", "value": "100"},
+              {"key": "contract.term", "value": "3 years"}]
+    assert [v["key"] for v in A.ambiguous_key(values, "warehouse-module.users", "Update the user count to 75.")] == [
+        "warehouse-module.users", "payroll-module.users"]
+    assert A.ambiguous_key(values, "warehouse-module.users", "We now have 75 warehouse users.") == []  # named
+    assert A.ambiguous_key(values, "warehouse-module.users", "The 40 is out of date, make it 75.") == []  # named by its figure
+    assert A.ambiguous_key(values, "contract.term", "Make it 5 years.") == []  # the only value of its kind
+    many = [{"key": "meter-to-cash-module.users", "value": "40"}, {"key": "hr-core.users", "value": "100"}]
+    assert A.ambiguous_key(many, "meter-to-cash-module.users", "Update the user count to 75.")  # "to" names nothing
