@@ -47,6 +47,7 @@ tr.total td { font-weight: 600; border-top: 2px solid var(--line); }
 .tag.ask { background: var(--warn-soft); color: var(--warn); }
 th.new, td.new { border-left: 2px solid var(--accent); }
 th small { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; }
+td.top { background: var(--ok-soft); color: var(--ok); font-weight: 500; }
 .note { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 16px 0; max-width: 68ch; }
 
 /* the turn, drawn as three boxes */
@@ -126,14 +127,37 @@ th small { display: block; font-weight: 400; text-transform: none; letter-spacin
 <thead><tr><th>Setting</th><th>The agent stops for "yes" when</th><th>What the measurements suggest</th></tr></thead>
 <tbody>
 <tr><td><b>Never</b></td><td>Never. The plan is shown and carried out.</td><td>68 of 75, one message. Weakest on ambiguous messages.</td></tr>
-<tr><td><b>When it matters</b> (proposed default)</td><td>The plan would change a fact from a call or our notes, change more than one fact, or resolve a conflict.</td><td>Not measured yet. Should keep one message for questions, added facts and single corrections.</td></tr>
+<tr><td><b>When it matters</b> (the default)</td><td>The plan would change a fact from a call or our notes, change more than one fact, resolve a conflict, or make a change that rests on something the agent assumed.</td><td>Built and measured: see the result below.</td></tr>
 <tr><td><b>Always</b></td><td>Every plan.</td><td>67 of 75, two messages for everything, including questions.</td></tr>
 </tbody>
 </table>
 </div>
-<p>Which changes count as "it matters" is the debatable part. The three listed are where the runs went wrong; the list is one place in the code and easy to change.</p>
+<p>Which changes count as "it matters" is the debatable part. They are where the runs went wrong; the list is one place in the code and easy to change.</p>
+
+<h2>The result</h2>
+<p>This is now built and is the default (<code>FACT_EXTRACTOR_CHAT_PLANNING=plan</code>). It was measured on a larger set: 34 messages, five runs each.</p>
+<div class="scroll">
+<table>
+<thead><tr><th>Setup</th><th class="num">Passed</th><th class="num">Customer messages per case</th><th class="num">Plans that stopped for a yes</th></tr></thead>
+<tbody>
+<tr><td>Direct: no plan</td><td class="num low">115/170</td><td class="num">1</td><td class="num">0</td></tr>
+<tr><td>Auto: the router picks (the old default)</td><td class="num">126/170</td><td class="num">1</td><td class="num">50</td></tr>
+<tr><td>Heavy: plan, always wait</td><td class="num">150/170</td><td class="num">2</td><td class="num">158</td></tr>
+<tr><td><b>Plan, wait when it matters (the new default)</b></td><td class="num top">150/170</td><td class="num top">1</td><td class="num top">55</td></tr>
+</tbody>
+</table>
+</div>
+<ul>
+  <li><b>As accurate as always asking, with a third of the stops.</b> Questions, added facts and most single corrections take one message.</li>
+  <li><b>The plan says what it assumed.</b> A first version passed 144: it let a guess about a single fact run without asking. Now the plan must state what it took for granted, and a change that rests on a guess waits. Ambiguous messages went from 17 to 22 of 25.</li>
+  <li><b>A note goes where the customer says.</b> "Add a note to this fact" used to become a new fact in 3 of 5 runs. It now passes 5 of 5.</li>
+  <li><b>The conflict bug is fixed.</b> An edit to a fact in an open conflict is sent back once, pointing to resolving the conflict.</li>
+</ul>
+<div class="note">These numbers are from before keyed values (one current value per key, changed with <code>set_value</code>) were merged in. Keyed values fixed much of the same damage for the old default. On the merged code the two are close: the new default passes 146 of 170 with 34 stops, the old default 143 with 46. The new default is ahead on reviews and ambiguous messages and behind on conflicts where the customer has not yet chosen a side.</div>
+<p>Still weak: a corrected value that two RFP facts state is sometimes changed in only one of them (1 of 5), and "resolve all the open conflicts" got a reply that changed nothing but did not ask which side to take in 2 of 5 runs.</p>
 
 <h2>What goes away</h2>
+<p>Not removed yet: the older modes stay selectable so they can still be measured.</p>
 <ul>
   <li>The router and its model call on every message.</li>
   <li>Direct mode and light mode, and their prompts.</li>

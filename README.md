@@ -97,8 +97,8 @@ Without the dev group, ask for what you need: `uv sync --extra evals`,
 | --- | --- |
 | `OPENAI_API_KEY` | Required for `extract`. |
 | `FACT_EXTRACTOR_MODEL` | Model ID for all calls. Default `gpt-6-luna`. `--model` overrides it. |
-| `FACT_EXTRACTOR_CHAT_PLANNING` | Chat workspace: `auto` (default; the Decisions API picks per message), `direct`, `light` or `heavy`. See WEB_UI_SPEC.md 7.1. |
-| `FACT_EXTRACTOR_CHAT_PLAN_APPROVAL` | Chat workspace: which planning modes show their plan and wait for the customer: `on` (light and heavy, default), `heavy`, `off`. |
+| `FACT_EXTRACTOR_CHAT_PLANNING` | Chat workspace: `plan` (default; every message gets a plan that lists its changes), or one of the older modes: `auto` (the Decisions API picks per message), `direct`, `light`, `heavy`. See WEB_UI_SPEC.md 7.1. |
+| `FACT_EXTRACTOR_CHAT_PLAN_APPROVAL` | Chat workspace: when a plan waits for the customer's yes. With `plan`: `risky` (default; when the plan changes a call or notes fact, more than one fact, or resolves a conflict), `always`, `never`. With the older modes: `on` (light and heavy), `heavy`, `off`. |
 | `FACT_EXTRACTOR_DECISIONS_MODEL` | Model for the chat's Decisions API questions. Default `gpt-6-luna`. |
 | `FACT_EXTRACTOR_CHAT_COMPOSE_EFFORT` | Chat workspace: reasoning effort of the call that writes the final reply after tool lookups: `low` (default), `medium`, `high`; `off` (or `none`, or empty) skips that call and keeps the loop's own reply. See WEB_UI_SPEC.md 7. |
 | `OPENAI_BASE_URL` | Optional proxy or compatible endpoint (read by the `openai` SDK). |

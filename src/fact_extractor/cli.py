@@ -104,7 +104,8 @@ def main(argv: list[str] | None = None) -> int:
     ce = sub.add_parser("chat-eval", help="run chat cases against a bid in each planning mode and compare them (spends API tokens unless --list)")
     ce.add_argument("cases", help="the cases file, YAML (evals/chat/durham.yaml)")
     ce.add_argument("--store", default="runs", help="the folder runs and bids are kept in")
-    ce.add_argument("--modes", default="direct,light,heavy,auto", help="planning modes to run, comma separated")
+    ce.add_argument("--modes", default="direct,light,heavy,auto,plan",
+                    help="planning modes to run, comma separated: direct, light, heavy, auto, plan, plan-never, plan-always")
     ce.add_argument("--only", default="", help="only these case IDs or kinds, comma separated")
     ce.add_argument("--approval", default="on", choices=["on", "heavy", "off"], help="which modes wait for the customer's approval of a plan")
     ce.add_argument("--repeat", type=int, default=1, help="run each case this many times per mode")

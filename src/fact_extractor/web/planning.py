@@ -15,9 +15,18 @@ customer's next message is feedback on the plan, and a judge sorts it into appro
 out), revise (write the plan again with the changes and ask again), cancel (do nothing), or
 new_request (forget the plan and handle the message as new). Without a clear yes nothing runs.
 
+Asking by what the plan would change: with `Planning.ask` set to "risky", "always" or "never" (not
+"mode", the default, which is the approval above), a heavy plan also lists its changes: the facts it
+will edit or delete and the conflicts it will resolve. While the plan runs, a change it did not list
+is refused. Whether the agent stops for a yes is then decided from that list, not from the mode:
+"never" shows the plan and carries it out, "always" stops on every plan, and "risky" stops only when
+the plan would change a record of what someone said (a fact from a call or our notes), change more
+than one fact, or resolve a conflict. FACT_EXTRACTOR_CHAT_PLANNING=plan, the default, runs every
+message this way, with FACT_EXTRACTOR_CHAT_PLAN_APPROVAL risky (the default there), always or never.
+
 Which mode a message gets comes from a Router: `DecisionsRouter` asks the OpenAI Decisions API one
 Choice question, `FixedRouter` forces a mode (for baselines and tests). The same Decisions client
-judges feedback. `planning_from_env` reads FACT_EXTRACTOR_CHAT_PLANNING (auto, direct or off, light,
+judges feedback. `planning_from_env` reads FACT_EXTRACTOR_CHAT_PLANNING (plan, auto, direct or off, light,
 heavy) and FACT_EXTRACTOR_CHAT_PLAN_APPROVAL (on, heavy, off).
 
 No FastAPI import here, and the Decisions client is imported only when first used.
@@ -47,6 +56,40 @@ CLEAR_LEAD = 0.25
 MAX_STEPS = 10
 MAX_STEP_IDS = 4  # fact IDs one heavy step may name; the rest belong in the findings
 AWAITING = "awaiting_approval"
+MAX_REPLANS = 2  # times a running plan that lists its changes may be proposed again in one turn
+# What FACT_EXTRACTOR_CHAT_PLANNING means when it is not set. Measured 2026-11-25 on evals/chat/durham.yaml, five
+# runs a case, with keyed values in: plan passed 146 of 170 with 34 plans that waited; auto, the default before,
+# passed 143 with 46. Close: measure again before changing either.
+DEFAULT_PLANNING = "plan"
+ASKS = ("risky", "always", "never")  # when a plan that lists its changes waits for a yes
+CHANGE_OPS = ("edit", "delete", "resolve")  # the changes a plan must list; adding a fact or raising a conflict needs no entry
+
+
+def why_ask(ask: str, changes: list[dict], assumed: str = "") -> str:
+    """Why a plan with these listed changes waits for the customer under `ask`; "" when it does not.
+    "risky" waits for a change to a record of what someone said, for more than one fact changed, for
+    a conflict resolved, and for any change that rests on something the agent assumed: where a wrong
+    guess rewrites something the customer did not mean. A plan that changes nothing never waits."""
+    if ask == "always":
+        return "every plan waits"
+    if ask != "risky":
+        return ""
+    facts = {c["id"] for c in changes if c.get("op") in ("edit", "delete")}
+    reasons = []
+    if any(c.get("record") for c in changes if c.get("op") in ("edit", "delete")):
+        reasons.append("it changes a record of what someone said")
+    if len(facts) > 1:
+        reasons.append(f"it changes {len(facts)} facts")
+    if any(c.get("op") == "resolve" for c in changes):
+        reasons.append("it resolves a conflict")
+    if assumed.strip() and changes:
+        reasons.append("it rests on a guess about what was meant")
+    return "; ".join(reasons)
+
+
+def change_ids(changes: list[dict] | None) -> set[str] | None:
+    """The fact and conflict IDs a plan may change; None for a plan that does not list its changes."""
+    return None if changes is None else {str(c.get("id")) for c in changes}
 
 
 @dataclass
@@ -63,6 +106,9 @@ class Route:
     plan_steps: list[dict] = field(default_factory=list)  # light mode: [{"step": str, "covers": [str]}], when the model gave them
     findings: str = ""  # heavy mode: what the lookups before the plan found, for carrying the plan out
     question: str = ""  # heavy mode: what the lookups showed must be asked instead of planned
+    changes: list[dict] | None = None  # a plan that lists its changes: [{"op", "id", "record"?}]; None when it does not
+    ask_reason: str = ""  # why a plan that lists its changes waits for a yes
+    assumed: str = ""  # what such a plan takes for granted that the customer did not say
     status: str = ""  # "", AWAITING, "approved", "cancelled"
     feedback: dict | None = None  # the judge's verdict on the customer's reply to the plan
     call: dict | None = None  # the Decisions call that chose the mode, for the session log (not stored on messages)
@@ -90,6 +136,12 @@ class Route:
             out["findings"] = self.findings
         if self.question:
             out["question"] = self.question
+        if self.changes is not None:
+            out["changes"] = [dict(c) for c in self.changes]
+        if self.ask_reason:
+            out["ask_reason"] = self.ask_reason
+        if self.assumed:
+            out["assumed"] = self.assumed
         if self.status:
             out["status"] = self.status
         if self.feedback:
@@ -100,7 +152,8 @@ class Route:
     def from_record(cls, r: dict) -> Route:
         return cls(mode=r.get("mode", "direct"), source="plan", steps=[dict(s) for s in r.get("steps") or []],
                    plan_text=r.get("plan_text") or "", plan_steps=[dict(s) for s in r.get("plan_steps") or []],
-                   findings=r.get("findings") or "")
+                   findings=r.get("findings") or "", assumed=r.get("assumed") or "",
+                   changes=[dict(c) for c in r["changes"]] if isinstance(r.get("changes"), list) else None)
 
 
 @dataclass
@@ -164,9 +217,24 @@ class Planning:
     router: Router
     judge: FeedbackJudge | None = None  # needed when any mode needs approval
     approve: tuple[str, ...] = ("light", "heavy")  # modes whose plan is shown to the customer before it runs
+    ask: str = "mode"  # "mode": approval by `approve`; else a heavy plan lists its changes and ASKS decides from them
+
+    def __post_init__(self) -> None:
+        if self.ask not in ("mode", *ASKS):
+            raise ValueError(f"unknown ask setting {self.ask!r}; settings: mode, {', '.join(ASKS)}")
+
+    @property
+    def listed(self) -> bool:
+        """Whether a heavy plan lists its changes and is held to them."""
+        return self.ask != "mode"
 
     def needs_approval(self, mode: str) -> bool:
-        return mode in self.approve and self.judge is not None
+        """Whether the mode alone means the plan waits. A plan that lists its changes is judged once it is written."""
+        return not self.listed and mode in self.approve and self.judge is not None
+
+    def why_ask(self, changes: list[dict], assumed: str = "") -> str:
+        """Why a plan that lists these changes waits for a yes; "" when it is carried out at once."""
+        return why_ask(self.ask, changes, assumed) if self.listed and self.judge is not None else ""
 
 
 # --- the Decisions API -------------------------------------------------------------------------------
@@ -307,10 +375,18 @@ class DecisionsRouter:
 
 
 def planning_from_env() -> Planning:
-    mode = os.environ.get("FACT_EXTRACTOR_CHAT_PLANNING", "auto").strip().lower()
+    mode = os.environ.get("FACT_EXTRACTOR_CHAT_PLANNING", "").strip().lower() or DEFAULT_PLANNING
     decisions = DecisionsRouter()
-    router: Router = decisions if mode in ("", "auto") else FixedRouter("direct" if mode == "off" else mode)
-    approval = os.environ.get("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL", "on").strip().lower()
+    approval = os.environ.get("FACT_EXTRACTOR_CHAT_PLAN_APPROVAL", "").strip().lower()
+    if mode == "plan":  # every message: look, plan with the changes listed, carry out; asking decided from the changes
+        # the values of the older modes still mean what they said: on waits for every plan, off for none
+        ask = {"": "risky", "on": "always", "heavy": "always", "off": "never"}.get(approval, approval)
+        if ask not in ASKS:
+            raise ValueError(f"with FACT_EXTRACTOR_CHAT_PLANNING=plan, FACT_EXTRACTOR_CHAT_PLAN_APPROVAL must be "
+                             f"{', '.join(ASKS)}, not {approval!r}")
+        return Planning(FixedRouter("heavy"), decisions, (), ask)
+    router: Router = decisions if mode == "auto" else FixedRouter("direct" if mode == "off" else mode)
+    approval = approval or "on"
     approve = {"on": ("light", "heavy"), "": ("light", "heavy"), "heavy": ("heavy",), "off": ()}.get(approval)
     if approve is None:
         raise ValueError(f"FACT_EXTRACTOR_CHAT_PLAN_APPROVAL must be on, heavy or off, not {approval!r}")
@@ -375,6 +451,17 @@ _PLAN_RULES = (
     "you found that the steps rely on, with fact IDs, so the steps can be carried out without looking it up again."
 )
 
+CHANGES_RULE = (
+    " In changes, list every fact you will edit, delete or restore (op edit or delete, with its fact ID) and every "
+    "conflict you will resolve (op resolve, with the conflict ID), and nothing you will only read. Only what the list "
+    "names can be changed while the plan runs, so leave nothing out that a step changes, and put nothing in it that "
+    "the customer did not ask to change. Adding a fact, setting a keyed value and raising a conflict need no entry. A plan that changes "
+    "nothing has an empty list. In assumed, say in one sentence what the plan takes for granted that the customer "
+    "did not say and nothing you found settles: which fact, which document or which value they meant, when more "
+    "than one would fit their words. Leave assumed empty when the customer named what to change, or when only one "
+    "fact fits what they said; the customer is shown it and asked before a change that rests on it."
+)
+
 EXPLORE_PROMPT = (
     "Before you change anything, plan the work for the customer's latest message. First look up what the plan "
     "depends on: which facts, sections and conflicts the work touches. In this step only the tools that read work "
@@ -395,6 +482,19 @@ PROPOSE_JSON_PROMPT = (
 
 EXPLORE_REFUSED = ("Nothing can be changed while you plan. Put this change in the plan as a step; it runs once the "
                    "plan is under way.")
+
+NOT_IN_PLAN = (
+    "[{id}] is not in the changes the plan lists, so it was not changed. If the customer asked for this change, call "
+    "propose_plan again with the steps not yet done and every change still to make listed, this one included; the "
+    "customer may be asked first. Otherwise leave it, and say in your answer that you left it unchanged."
+)
+
+IN_CONFLICT = (
+    "[{fact_id}] is part of open conflict {conflict_id} ({title}), which is waiting for the customer to choose. If "
+    "the customer is choosing a side of that conflict, call resolve_conflict with the conflict ID and that option "
+    "instead: it records the choice and makes the option's changes. If the customer is correcting this fact for "
+    "another reason, call edit_fact again and it will run."
+)
 
 RECORD_NOT_IN_PLAN = (
     "[{fact_id}] records what someone said or decided (a call or our notes), and the plan the customer saw does not "
@@ -420,6 +520,13 @@ APPROVED_LIGHT_PROMPT = (
 )
 
 ASK_APPROVAL = "Shall I go ahead? You can also tell me what to change."
+ASSUMING = "I am assuming: {assumed}"
+
+
+def ask_text(route: Route) -> str:
+    """The plan as shown when it waits: its steps, what it assumed (if anything), and the question."""
+    parts = [shown_plan(route), ASSUMING.format(assumed=route.assumed) if route.assumed else "", ASK_APPROVAL]
+    return "\n\n".join(p for p in parts if p)
 CANCELLED = "All right, I will not do that. Nothing was changed."
 NO_PLAN = "I could not write a plan for that. Could you say what you want done another way?"
 
@@ -428,13 +535,30 @@ def plan_prompt(tool_names: list[str]) -> str:
     return PLAN_PROMPT.format(tools=", ".join(tool_names), max_steps=MAX_STEPS)
 
 
-def explore_prompt(read_tools: list[str], rounds: int) -> str:
-    return EXPLORE_PROMPT.format(read_tools=", ".join(read_tools), rounds=rounds, max_steps=MAX_STEPS,
+def explore_prompt(read_tools: list[str], rounds: int, listed: bool = False) -> str:
+    text = EXPLORE_PROMPT.format(read_tools=", ".join(read_tools), rounds=rounds, max_steps=MAX_STEPS,
                                  max_ids=MAX_STEP_IDS)
+    return text + CHANGES_RULE if listed else text
 
 
-def propose_json_prompt() -> str:
-    return PROPOSE_JSON_PROMPT.replace("{max_steps}", str(MAX_STEPS)).replace("{max_ids}", str(MAX_STEP_IDS))
+_JSON_SHAPE = '{"steps": ["..."], "findings": "..."}'
+_JSON_SHAPE_LISTED = '{"steps": ["..."], "findings": "...", "changes": [{"op": "edit", "id": "..."}], "assumed": ""}'
+
+
+def propose_json_prompt(listed: bool = False) -> str:
+    text = PROPOSE_JSON_PROMPT.replace("{max_steps}", str(MAX_STEPS)).replace("{max_ids}", str(MAX_STEP_IDS))
+    return text.replace(_JSON_SHAPE, _JSON_SHAPE_LISTED) + CHANGES_RULE if listed else text
+
+
+def parse_changes(text: str) -> list[dict]:
+    """The `changes` of a plan written as JSON text, as the model gave them (not yet checked); [] when none."""
+    start, end = text.find("{"), text.rfind("}")
+    try:
+        data = json.loads(text[start : end + 1]) if start != -1 and end > start else None
+    except ValueError:
+        return []
+    found = data.get("changes") if isinstance(data, dict) else None
+    return [c for c in found if isinstance(c, dict)] if isinstance(found, list) else []
 
 
 def parse_findings(text: str, key: str = "findings") -> str:
